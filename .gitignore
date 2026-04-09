@@ -1,0 +1,31 @@
+# Dependencies
+/node_modules
+
+# Build outputs
+/build
+/frontend/dist
+
+# IDE
+.zed
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs & Profiling
+*.log
+*.test
+*.prof
+
+# Frontend cache
+.vite/
+*.local
+
+# Vendor (deprecated)
+/frontend/vendor
+
+# Other
+AGENTS.md
+CLAUDE.md

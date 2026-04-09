@@ -1,0 +1,480 @@
+<script setup lang="ts">
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
+
+import { api } from "./api";
+import AppHeader from "./components/AppHeader.vue";
+import ModuleTabs from "./components/ModuleTabs.vue";
+import SummaryStrip from "./components/SummaryStrip.vue";
+import AlertDialog from "./components/dialogs/AlertDialog.vue";
+import ConfirmDialog from "./components/dialogs/ConfirmDialog.vue";
+import ItemDialog from "./components/dialogs/ItemDialog.vue";
+import SettingsDialog from "./components/dialogs/SettingsDialog.vue";
+import AlertsModule from "./components/modules/AlertsModule.vue";
+import HotModule from "./components/modules/HotModule.vue";
+import MarketModule from "./components/modules/MarketModule.vue";
+import WatchlistModule from "./components/modules/WatchlistModule.vue";
+import { appendClientLog, installClientLogCapture } from "./devlog";
+import { useDeveloperLogs } from "./composables/useDeveloperLogs";
+import { useHistorySeries } from "./composables/useHistorySeries";
+import { defaultSettings, emptyAlertForm, emptyItemForm, mapAlertToForm, mapItemToForm, serialiseItemForm } from "./forms";
+import { setFormatterSettings } from "./format";
+import type { AlertFormModel, AlertRule, AppSettings, HotItem, ItemFormModel, ModuleKey, OptionItem, QuoteSourceOption, SettingsTabKey, StateSnapshot, StatusTone, WatchlistItem } from "./types";
+
+const dashboard = ref<StateSnapshot["dashboard"] | null>(null);
+const items = ref<WatchlistItem[]>([]);
+const alerts = ref<AlertRule[]>([]);
+const settings = ref<AppSettings>({ ...defaultSettings });
+const runtime = ref<StateSnapshot["runtime"]>({
+    quoteSource: "",
+    livePriceCount: 0,
+});
+const quoteSources = ref<QuoteSourceOption[]>([]);
+const storagePath = ref("");
+const generatedAt = ref("");
+const statusText = ref("正在加载...");
+const statusTone = ref<StatusTone>("success");
+const search = ref("");
+const selectedItemId = ref("");
+const activeModule = ref<ModuleKey>("market");
+const settingsTab = ref<SettingsTabKey>("general");
+const settingsVisible = ref(false);
+const itemDialogVisible = ref(false);
+const alertDialogVisible = ref(false);
+const confirmDialogVisible = ref(false);
+const savingSettings = ref(false);
+const savingItem = ref(false);
+const savingAlert = ref(false);
+const deleting = ref(false);
+const matchMediaList = window.matchMedia("(prefers-color-scheme: dark)");
+
+const settingsDraft = reactive<AppSettings>({ ...defaultSettings });
+const itemForm = reactive<ItemFormModel>(emptyItemForm());
+const alertForm = reactive<AlertFormModel>(emptyAlertForm());
+const confirmTitle = ref("");
+const confirmMessage = ref("");
+const confirmLabel = ref("确认删除");
+const pendingDelete = reactive<{ kind: "" | "item" | "alert"; id: string }>({
+    kind: "",
+    id: "",
+});
+let refreshTimer = 0;
+let developerLogTimer = 0;
+
+const filteredItems = computed(() => {
+    const keyword = search.value.trim().toLowerCase();
+    if (!keyword) {
+        return items.value;
+    }
+
+    return items.value.filter((item) => [item.symbol, item.name, item.market, item.thesis, ...(item.tags ?? [])].filter(Boolean).join(" ").toLowerCase().includes(keyword));
+});
+
+const selectedItem = computed(() => items.value.find((item) => item.id === selectedItemId.value) ?? null);
+
+const alertItemOptions = computed<OptionItem<string>[]>(() =>
+    items.value.map((item) => ({
+        label: `${item.name || item.symbol} · ${item.symbol}`,
+        value: item.id,
+    })),
+);
+
+const quoteSourceDescription = computed(() => {
+    return quoteSources.value.find((entry) => entry.id === settingsDraft.quoteSource)?.description ?? "选择一个适合你日常观察的数据源策略。";
+});
+
+const trackedHotKeys = computed(() => items.value.map((item) => `${item.market}:${item.symbol}`));
+
+watch(
+    settings,
+    (value) => {
+        setFormatterSettings(value);
+        document.documentElement.dataset.fontPreset = value.fontPreset;
+        document.documentElement.dataset.priceColorScheme = value.priceColorScheme;
+        document.documentElement.lang = value.locale === "system" ? navigator.language || "zh-CN" : value.locale;
+        document.documentElement.classList.toggle("app-dark", matchMediaList.matches);
+    },
+    { deep: true, immediate: true },
+);
+
+watch(settingsVisible, (visible) => {
+    if (visible) {
+        Object.assign(settingsDraft, settings.value);
+    }
+});
+
+const { historyInterval, historySeries, historyLoading, historyError, historyItemOptions, loadHistory, clearHistoryCache, selectHistoryInterval } = useHistorySeries(
+    items,
+    selectedItem,
+    activeModule,
+    setStatus,
+);
+
+const { developerLogs, loadingLogs, logFilePath, loadBackendLogs, clearDeveloperLogs, copyDeveloperLogs } = useDeveloperLogs(setStatus);
+
+watch(
+    () => [settingsVisible.value, settingsTab.value, settingsDraft.developerMode] as const,
+    ([visible, tab, developerMode]) => {
+        window.clearInterval(developerLogTimer);
+        if (!visible || tab !== "developer" || !developerMode) {
+            return;
+        }
+
+        void loadBackendLogs(true);
+        developerLogTimer = window.setInterval(() => {
+            void loadBackendLogs(true);
+        }, 4000);
+    },
+    { immediate: true },
+);
+
+watch(selectedItemId, () => {
+    if (activeModule.value === "market" && selectedItemId.value) {
+        void loadHistory(true);
+    }
+});
+
+onMounted(async () => {
+    installClientLogCapture();
+    matchMediaList.addEventListener("change", syncThemeMode);
+    await loadState();
+});
+
+onBeforeUnmount(() => {
+    window.clearTimeout(refreshTimer);
+    window.clearInterval(developerLogTimer);
+    matchMediaList.removeEventListener("change", syncThemeMode);
+});
+
+function syncThemeMode(): void {
+    document.documentElement.classList.toggle("app-dark", matchMediaList.matches);
+}
+
+async function loadState(silent = false): Promise<void> {
+    if (!silent) {
+        setStatus("正在加载观察台…", "success");
+    }
+
+    try {
+        const snapshot = await api<StateSnapshot>("/api/state");
+        applySnapshot(snapshot);
+        setStatus("观察台已加载。", "success");
+
+        if (settings.value.priceMode === "live") {
+            void refreshQuotes(true);
+        }
+    } catch (error) {
+        setStatus(error instanceof Error ? error.message : "加载失败", "error");
+    }
+}
+
+function applySnapshot(snapshot: StateSnapshot): void {
+    dashboard.value = snapshot.dashboard;
+    items.value = snapshot.items ?? [];
+    alerts.value = snapshot.alerts ?? [];
+    settings.value = snapshot.settings;
+    runtime.value = snapshot.runtime;
+    quoteSources.value = snapshot.quoteSources ?? [];
+    storagePath.value = snapshot.storagePath;
+    generatedAt.value = snapshot.generatedAt;
+
+    if (!items.value.some((item) => item.id === selectedItemId.value)) {
+        selectedItemId.value = items.value[0]?.id ?? "";
+    }
+
+    scheduleAutoRefresh();
+    if (activeModule.value === "market" && selectedItemId.value) {
+        void loadHistory(true);
+    }
+}
+
+async function refreshQuotes(silent = false): Promise<void> {
+    try {
+        if (!silent) {
+            setStatus("正在同步实时行情…", "success");
+        }
+        const snapshot = await api<StateSnapshot>("/api/refresh", { method: "POST" });
+        applySnapshot(snapshot);
+        if (snapshot.runtime.lastQuoteError) {
+            setStatus(snapshot.runtime.lastQuoteError, "error");
+        } else if (!silent) {
+            setStatus("实时行情已同步。", "success");
+        }
+    } catch (error) {
+        setStatus(error instanceof Error ? error.message : "刷新失败", "error");
+    }
+}
+
+function scheduleAutoRefresh(): void {
+    window.clearTimeout(refreshTimer);
+    if (settings.value.priceMode !== "live") {
+        return;
+    }
+
+    refreshTimer = window.setTimeout(
+        () => {
+            void refreshQuotes(true);
+        },
+        Math.min(Math.max(settings.value.refreshIntervalSeconds || 20, 10), 300) * 1000,
+    );
+}
+
+function setStatus(message: string, tone: StatusTone): void {
+    statusText.value = message;
+    statusTone.value = tone;
+}
+
+function openSettings(): void {
+    Object.assign(settingsDraft, settings.value);
+    settingsVisible.value = true;
+}
+
+async function saveSettings(): Promise<void> {
+    savingSettings.value = true;
+    try {
+        const snapshot = await api<StateSnapshot>("/api/settings", {
+            method: "PUT",
+            body: JSON.stringify(settingsDraft),
+        });
+        applySnapshot(snapshot);
+        settingsVisible.value = false;
+        setStatus("设置已保存。", "success");
+    } catch (error) {
+        setStatus(error instanceof Error ? error.message : "设置保存失败", "error");
+    } finally {
+        savingSettings.value = false;
+    }
+}
+
+function openItemDialog(item?: WatchlistItem): void {
+    Object.assign(itemForm, item ? mapItemToForm(item) : emptyItemForm());
+    itemDialogVisible.value = true;
+}
+
+async function saveItem(): Promise<void> {
+    savingItem.value = true;
+    try {
+        const payload = serialiseItemForm(itemForm);
+        const path = itemForm.id ? `/api/items/${itemForm.id}` : "/api/items";
+        const method = itemForm.id ? "PUT" : "POST";
+        const snapshot = await api<StateSnapshot>(path, { method, body: JSON.stringify(payload) });
+        clearHistoryCache();
+        applySnapshot(snapshot);
+        itemDialogVisible.value = false;
+        setStatus(itemForm.id ? "标的已更新。" : "标的已新增。", "success");
+        activeModule.value = "watchlist";
+    } catch (error) {
+        setStatus(error instanceof Error ? error.message : "标的保存失败", "error");
+    } finally {
+        savingItem.value = false;
+    }
+}
+
+async function quickAddHotItem(item: HotItem): Promise<void> {
+    const key = `${item.market}:${item.symbol}`;
+    if (trackedHotKeys.value.includes(key)) {
+        setStatus("该标的已经在观察列表中。", "warn");
+        return;
+    }
+
+    try {
+        const snapshot = await api<StateSnapshot>("/api/items", {
+            method: "POST",
+            body: JSON.stringify({
+                symbol: item.symbol,
+                name: item.name,
+                market: item.market,
+                currency: item.currency,
+                quantity: 0,
+                costPrice: item.currentPrice || 0,
+                currentPrice: item.currentPrice || 0,
+                tags: ["热门"],
+                thesis: "来自热门榜单",
+            }),
+        });
+        applySnapshot(snapshot);
+        setStatus(`已将 ${item.symbol} 加入观察列表。`, "success");
+    } catch (error) {
+        setStatus(error instanceof Error ? error.message : "新增标的失败", "error");
+    }
+}
+
+async function performDeleteItem(id: string): Promise<void> {
+    try {
+        const snapshot = await api<StateSnapshot>(`/api/items/${id}`, { method: "DELETE" });
+        clearHistoryCache();
+        applySnapshot(snapshot);
+        setStatus("标的已删除。", "success");
+    } catch (error) {
+        setStatus(error instanceof Error ? error.message : "删除失败", "error");
+    }
+}
+
+function openAlertDialog(alert?: AlertRule): void {
+    Object.assign(alertForm, alert ? mapAlertToForm(alert) : emptyAlertForm(items.value[0]?.id));
+    alertDialogVisible.value = true;
+}
+
+async function saveAlert(): Promise<void> {
+    savingAlert.value = true;
+    try {
+        const path = alertForm.id ? `/api/alerts/${alertForm.id}` : "/api/alerts";
+        const method = alertForm.id ? "PUT" : "POST";
+        const snapshot = await api<StateSnapshot>(path, {
+            method,
+            body: JSON.stringify(alertForm),
+        });
+        applySnapshot(snapshot);
+        alertDialogVisible.value = false;
+        setStatus(alertForm.id ? "提醒已更新。" : "提醒已新增。", "success");
+        activeModule.value = "alerts";
+    } catch (error) {
+        setStatus(error instanceof Error ? error.message : "提醒保存失败", "error");
+    } finally {
+        savingAlert.value = false;
+    }
+}
+
+async function performDeleteAlert(id: string): Promise<void> {
+    try {
+        const snapshot = await api<StateSnapshot>(`/api/alerts/${id}`, { method: "DELETE" });
+        applySnapshot(snapshot);
+        setStatus("提醒已删除。", "success");
+    } catch (error) {
+        setStatus(error instanceof Error ? error.message : "删除失败", "error");
+    }
+}
+
+function requestDeleteItem(id: string): void {
+    pendingDelete.kind = "item";
+    pendingDelete.id = id;
+    confirmTitle.value = "删除标的";
+    confirmMessage.value = "删除该标的会一并删除相关提醒，是否继续？";
+    confirmLabel.value = "删除标的";
+    confirmDialogVisible.value = true;
+}
+
+function requestDeleteAlert(id: string): void {
+    pendingDelete.kind = "alert";
+    pendingDelete.id = id;
+    confirmTitle.value = "删除提醒规则";
+    confirmMessage.value = "这条提醒规则删除后将无法恢复，是否继续？";
+    confirmLabel.value = "删除提醒";
+    confirmDialogVisible.value = true;
+}
+
+async function confirmDelete(): Promise<void> {
+    if (!pendingDelete.kind || !pendingDelete.id) {
+        confirmDialogVisible.value = false;
+        return;
+    }
+
+    deleting.value = true;
+    try {
+        if (pendingDelete.kind === "item") {
+            await performDeleteItem(pendingDelete.id);
+        } else {
+            await performDeleteAlert(pendingDelete.id);
+        }
+        confirmDialogVisible.value = false;
+    } finally {
+        deleting.value = false;
+        pendingDelete.kind = "";
+        pendingDelete.id = "";
+    }
+}
+
+function switchModule(next: ModuleKey): void {
+    appendClientLog("info", "tabs", `switch module ${activeModule.value} -> ${next}`);
+    activeModule.value = next;
+    if (next === "market") {
+        void loadHistory(true);
+    }
+}
+</script>
+
+<template>
+    <div class="app-shell">
+        <AppHeader :status-text="statusText" :status-tone="statusTone" :generated-at="generatedAt" @open-settings="openSettings" />
+
+        <SummaryStrip :dashboard="dashboard" :item-count="items.length" :live-price-count="runtime.livePriceCount" />
+
+        <section class="workspace-panel">
+            <ModuleTabs :active-module="activeModule" @switch="switchModule" />
+
+            <MarketModule
+                v-if="activeModule === 'market'"
+                :selected-item="selectedItem"
+                :selected-item-id="selectedItemId"
+                :history-interval="historyInterval"
+                :history-item-options="historyItemOptions"
+                :history-series="historySeries"
+                :history-loading="historyLoading"
+                :history-error="historyError"
+                @refresh="refreshQuotes()"
+                @update:selected-item-id="selectedItemId = $event"
+                @select-interval="selectHistoryInterval"
+            />
+
+            <HotModule v-else-if="activeModule === 'hot'" :tracked-keys="trackedHotKeys" @add-item="quickAddHotItem" />
+
+            <WatchlistModule
+                v-else-if="activeModule === 'watchlist'"
+                :search="search"
+                :filtered-items="filteredItems"
+                :selected-item-id="selectedItemId"
+                @update:search="search = $event"
+                @add-item="openItemDialog()"
+                @edit-item="openItemDialog"
+                @delete-item="requestDeleteItem"
+                @select-item="selectedItemId = $event"
+            />
+
+            <AlertsModule v-else :alerts="alerts" :items="items" @add-alert="openAlertDialog()" @edit-alert="openAlertDialog" @delete-alert="requestDeleteAlert" />
+        </section>
+
+        <SettingsDialog
+            v-if="settingsVisible"
+            :visible="settingsVisible"
+            :settings-tab="settingsTab"
+            :settings-draft="settingsDraft"
+            :quote-sources="quoteSources"
+            :quote-source-description="quoteSourceDescription"
+            :runtime="runtime"
+            :item-count="items.length"
+            :storage-path="storagePath"
+            :log-file-path="logFilePath"
+            :developer-logs="developerLogs"
+            :saving="savingSettings"
+            :loading-logs="loadingLogs"
+            @update:visible="settingsVisible = $event"
+            @update:settings-tab="settingsTab = $event"
+            @save="saveSettings"
+            @refresh-logs="loadBackendLogs()"
+            @copy-logs="copyDeveloperLogs"
+            @clear-logs="clearDeveloperLogs"
+        />
+
+        <ItemDialog v-if="itemDialogVisible" :visible="itemDialogVisible" :form="itemForm" :saving="savingItem" @update:visible="itemDialogVisible = $event" @save="saveItem" />
+
+        <AlertDialog
+            v-if="alertDialogVisible"
+            :visible="alertDialogVisible"
+            :form="alertForm"
+            :item-options="alertItemOptions"
+            :saving="savingAlert"
+            @update:visible="alertDialogVisible = $event"
+            @save="saveAlert"
+        />
+
+        <ConfirmDialog
+            v-if="confirmDialogVisible"
+            :visible="confirmDialogVisible"
+            :title="confirmTitle"
+            :message="confirmMessage"
+            :confirm-label="confirmLabel"
+            :loading="deleting"
+            @update:visible="confirmDialogVisible = $event"
+            @confirm="confirmDelete"
+        />
+    </div>
+</template>
