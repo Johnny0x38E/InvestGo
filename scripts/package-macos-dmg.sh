@@ -2,10 +2,10 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-APP_NAME="${APP_NAME:-Invest Monitor}"
-BINARY_NAME="${BINARY_NAME:-invest-monitor}"
+APP_NAME="${APP_NAME:-InvestGo}"
+BINARY_NAME="${BINARY_NAME:-investgo}"
 VERSION="${VERSION:-0.1.0}"
-APP_ID="${APP_ID:-com.example.invest-monitor}"
+APP_ID="${APP_ID:-com.example.investgo}"
 MACOS_MIN_VERSION="${MACOS_MIN_VERSION:-13.0}"
 VOLUME_NAME="${VOLUME_NAME:-$APP_NAME}"
 SKIP_APP_BUILD="${SKIP_APP_BUILD:-0}"
@@ -22,7 +22,7 @@ ICON_TIFF="$BUILD_DIR/InvestMonitor.tiff"
 ICNS_FILE="$BUILD_DIR/InvestMonitor.icns"
 PLIST_TEMPLATE="$BUILD_DIR/Info.plist.template"
 STAGING_DIR="$BUILD_DIR/dmg-staging"
-DMG_PATH="$BUILD_DIR/bin/invest-monitor-$VERSION-macos-arm64.dmg"
+DMG_PATH="$BUILD_DIR/bin/investgo-$VERSION-macos-arm64.dmg"
 
 require_command() {
   if ! command -v "$1" >/dev/null 2>&1; then

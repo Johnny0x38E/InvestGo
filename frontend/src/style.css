@@ -56,6 +56,65 @@
     }
 }
 
+/* 显式外观模式：始终暗色（优先级高于 media query） */
+html[data-theme="dark"] {
+    color-scheme: dark;
+    --app-bg: #131922;
+    --app-bg-bottom: #0f141c;
+    --chrome-bg: rgba(25, 31, 42, 0.92);
+    --panel-bg: rgba(21, 28, 38, 0.96);
+    --panel-strong: rgba(25, 31, 42, 0.98);
+    --panel-soft: rgba(29, 37, 49, 0.98);
+    --control-bg: rgba(28, 35, 47, 0.98);
+    --control-bg-hover: rgba(33, 42, 56, 0.98);
+    --control-overlay: rgba(20, 27, 37, 0.99);
+    --border: rgba(148, 163, 184, 0.16);
+    --border-strong: rgba(148, 163, 184, 0.24);
+    --shadow: 0 14px 36px rgba(2, 6, 23, 0.26);
+    --shadow-soft: 0 1px 0 rgba(255, 255, 255, 0.03) inset;
+    --selection-bg: rgba(111, 152, 211, 0.14);
+    --ink: #e7edf6;
+    --muted: #96a3b5;
+    --accent: #6f98d3;
+    --accent-strong: #8ab0e6;
+    --accent-soft: rgba(111, 152, 211, 0.18);
+    --rise: #fb7185;
+    --fall: #34d399;
+}
+
+/* 显式外观模式：始终亮色（覆盖 OS 暗色偏好） */
+html[data-theme="light"] {
+    color-scheme: light;
+    --app-bg: #e6eaf0;
+    --app-bg-bottom: #dde2e8;
+    --chrome-bg: rgba(247, 248, 250, 0.9);
+    --panel-bg: rgba(245, 247, 249, 0.96);
+    --panel-strong: rgba(252, 252, 253, 0.98);
+    --panel-soft: rgba(239, 242, 246, 0.96);
+    --control-bg: rgba(251, 252, 253, 0.98);
+    --control-bg-hover: rgba(255, 255, 255, 1);
+    --control-overlay: rgba(252, 252, 253, 0.99);
+    --border: rgba(15, 23, 42, 0.1);
+    --border-strong: rgba(15, 23, 42, 0.15);
+    --shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+    --shadow-soft: 0 1px 0 rgba(255, 255, 255, 0.8) inset;
+    --selection-bg: rgba(47, 91, 147, 0.12);
+    --ink: #1d2735;
+    --muted: #5f6b7b;
+    --accent: #2f5b93;
+    --accent-strong: #244972;
+    --accent-soft: rgba(47, 91, 147, 0.14);
+    --rise: #d14343;
+    --fall: #198754;
+    --warn: #d97706;
+}
+
+/* intl 价格色在显式暗色下的覆盖 */
+html[data-theme="dark"][data-price-color-scheme="intl"] {
+    --rise: #34d399;
+    --fall: #fb7185;
+}
+
 html[data-font-preset="system"] {
     --font-ui: "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
     --font-display: "Avenir Next", "PingFang SC", "Helvetica Neue", sans-serif;
@@ -77,7 +136,7 @@ html[data-price-color-scheme="intl"] {
 }
 
 @media (prefers-color-scheme: dark) {
-    html[data-price-color-scheme="intl"] {
+    html:not([data-theme="light"])[data-price-color-scheme="intl"] {
         --rise: #34d399;
         --fall: #fb7185;
     }
@@ -124,11 +183,12 @@ body {
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    -webkit-app-region: drag;
+    cursor: default;
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 .window-bar .p-button {
-    -webkit-app-region: no-drag;
     min-width: 78px;
     background: var(--control-bg);
     border-color: var(--border-strong);
@@ -185,7 +245,6 @@ body {
     align-items: center;
     gap: 10px;
     min-width: 0;
-    -webkit-app-region: no-drag;
 }
 
 .window-status {
@@ -194,9 +253,8 @@ body {
     justify-items: end;
     gap: 1px;
     padding: 4px 8px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-panel);
-    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    background: none;
 }
 
 .window-status-text,
@@ -234,6 +292,7 @@ body {
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 8px;
     padding: 0;
+    margin-bottom: 6px;
 }
 
 .summary-card {
@@ -279,6 +338,13 @@ body {
     gap: 0;
 }
 
+.workspace-stage {
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
 .module-nav {
     display: flex;
     align-items: center;
@@ -309,6 +375,7 @@ body {
 
 .module-pill:hover {
     background: var(--panel-soft);
+    border-color: transparent;
     color: var(--ink);
 }
 
@@ -320,6 +387,7 @@ body {
 }
 
 .module-content {
+    flex: 1;
     min-height: 0;
     display: flex;
     flex-direction: column;
@@ -335,16 +403,8 @@ body {
     gap: 12px;
 }
 
-.market-header {
-    align-items: start;
-}
-
-.market-heading {
-    display: grid;
-    gap: 8px;
-}
-
-.panel-header h2 {
+.panel-header h2,
+.panel-header h3 {
     margin: 0;
     font: 650 15px/1.15 var(--font-display);
 }
@@ -392,23 +452,26 @@ body {
     flex: none;
 }
 
-.interval-row {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    flex-wrap: wrap;
-    padding: 4px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-panel);
-    background: var(--panel-soft);
-}
-
 .market-board {
     min-height: 0;
     flex: 1 1 auto;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 272px;
+    grid-template-columns: minmax(0, 1fr) clamp(360px, 30%, 520px);
     gap: 10px;
+}
+
+/* Panel header uses the same column tracks as market-board so the
+   symbol dropdown is always exactly as wide as the inspector card. */
+.market-module .panel-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) clamp(360px, 30%, 520px);
+    align-items: center;
+    gap: 10px;
+}
+
+/* Symbol select fills its grid cell so it matches the card width below. */
+.market-module .panel-header .market-symbol-select {
+    width: 100%;
 }
 
 .market-main,
@@ -418,6 +481,148 @@ body {
 
 .market-main {
     display: flex;
+}
+
+.market-inspector {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-panel);
+    background-color: var(--panel-strong);
+    background-image: linear-gradient(150deg, color-mix(in srgb, var(--panel-strong) 90%, var(--accent)) 0%, var(--panel-strong) 40%);
+}
+
+.market-inspector-empty {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 120px;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.market-hero {
+    padding: 18px 18px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+}
+
+.market-hero h4 {
+    font: 600 15px/1.2 var(--font-display);
+    color: var(--ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-bottom: 3px;
+}
+
+.market-hero-subline {
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 20px;
+}
+
+.market-hero-main {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 10px;
+}
+
+.market-hero-price {
+    font: 700 clamp(20px, 1.5vw, 28px)/1 var(--font-display);
+    color: var(--ink);
+    letter-spacing: -0.02em;
+    flex: none;
+}
+
+.tone-rise .market-hero-price {
+    color: var(--rise);
+}
+.tone-fall .market-hero-price {
+    color: var(--fall);
+}
+
+.market-hero-delta {
+    display: flex;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 6px;
+}
+
+.market-hero-delta-label {
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.2;
+}
+
+.market-hero-delta-val {
+    font: 600 clamp(12px, 0.9vw, 16px)/1.2 var(--font-display);
+    color: var(--ink);
+    letter-spacing: -0.01em;
+}
+
+.tone-rise .market-hero-delta-val {
+    color: var(--rise);
+}
+.tone-fall .market-hero-delta-val {
+    color: var(--fall);
+}
+
+.market-hero-delta-pct {
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.tone-rise .market-hero-delta-pct {
+    color: color-mix(in srgb, var(--rise) 70%, var(--muted));
+}
+.tone-fall .market-hero-delta-pct {
+    color: color-mix(in srgb, var(--fall) 70%, var(--muted));
+}
+
+.market-hero-intervals {
+    display: flex;
+    justify-content: space-between;
+    gap: 4px;
+    margin-bottom: 20px;
+}
+
+.market-hero-intervals .interval-pill {
+    min-height: 32px;
+    padding: 4px 10px;
+    font-size: 12.5px;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.market-hero-foot {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex-wrap: wrap;
+}
+
+.market-hero-badge {
+    font-size: 11px;
+    color: var(--muted);
+    background: var(--panel-soft);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 6px;
+    white-space: nowrap;
+    line-height: 1.6;
+}
+
+.market-hero-sync {
+    font-size: 11px;
+    color: var(--muted);
+    margin-left: auto;
+    opacity: 0.8;
 }
 
 .interval-pill {
@@ -439,15 +644,147 @@ body {
 }
 
 .market-metrics {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
     align-content: start;
 }
 
-.market-aside .metric-card {
-    min-height: 92px;
-    background: var(--panel-strong);
+.metric-strip {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+    column-gap: 8px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+}
+
+.metric-strip:last-child {
+    border-bottom: none;
+}
+
+.metric-strip-label {
+    grid-column: 1;
+    grid-row: 1 / 3;
+    align-self: center;
+    font-size: 12px;
+    color: var(--muted);
+    white-space: nowrap;
+    letter-spacing: 0.01em;
+}
+
+.metric-strip-value {
+    grid-column: 2;
+    grid-row: 1;
+    font: 600 clamp(12px, 0.85vw, 15px)/1.3 var(--font-display);
+    text-align: right;
+    color: var(--ink);
+}
+
+.metric-strip-sub {
+    grid-column: 2;
+    grid-row: 2;
+    font-size: 11px;
+    color: var(--muted);
+    text-align: right;
+    line-height: 1.3;
+}
+
+.tone-rise .metric-strip-value {
+    color: var(--rise);
+}
+.tone-fall .metric-strip-value {
+    color: var(--fall);
+}
+
+.market-position-card {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.market-pos-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+}
+
+.market-pos-main,
+.market-pos-detail {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.market-pos-detail {
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+}
+
+.market-pos-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+
+.market-pos-stat--right {
+    align-items: flex-end;
+    flex: none;
+}
+
+.market-pos-stat-label {
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.2;
+}
+
+.market-pos-value {
+    font: 600 16px/1.2 var(--font-display);
+    color: var(--ink);
+    letter-spacing: -0.01em;
+}
+
+.market-pos-pnl {
+    font: 600 16px/1.2 var(--font-display);
+    color: var(--ink);
+    letter-spacing: -0.01em;
+}
+
+.tone-rise .market-pos-pnl {
+    color: var(--rise);
+}
+.tone-fall .market-pos-pnl {
+    color: var(--fall);
+}
+
+.market-pos-pnl-pct {
+    font-size: 12px;
+    color: var(--muted);
+    text-align: right;
+}
+
+.tone-rise .market-pos-pnl-pct {
+    color: color-mix(in srgb, var(--rise) 65%, var(--muted));
+}
+.tone-fall .market-pos-pnl-pct {
+    color: color-mix(in srgb, var(--fall) 65%, var(--muted));
+}
+
+.market-pos-detail-val {
+    font: 500 13px/1.3 var(--font-display);
+    color: var(--ink);
+}
+
+.market-pos-empty {
+    font-size: 12px;
+    color: var(--muted);
+    padding: 4px 0;
 }
 
 .metric-card {
@@ -474,7 +811,84 @@ body {
     display: flex;
     align-items: center;
     gap: 10px;
-    flex-wrap: wrap;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+    min-width: 0;
+}
+
+.hot-toolbar .compact-select,
+.hot-toolbar .compact-select .p-select-label,
+.hot-toolbar .compact-select .p-select-dropdown,
+.hot-toolbar .search-input {
+    height: 40px;
+}
+
+.hot-toolbar .compact-select {
+    display: flex;
+    align-items: stretch;
+    flex: 0 0 132px;
+    min-width: 132px;
+}
+
+.hot-toolbar .compact-select .p-select-label {
+    display: flex;
+    align-items: center;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
+.hot-toolbar .compact-select .p-select-dropdown {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+}
+
+.hot-category-tabs {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex: 1 1 auto;
+    min-width: 0;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 4px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-panel);
+    background: var(--panel-soft);
+}
+
+.hot-category-tab {
+    min-height: 30px;
+    padding: 0 12px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-micro);
+    background: transparent;
+    color: var(--muted);
+    font: 600 12px/1 var(--font-ui);
+    cursor: pointer;
+    transition:
+        background 140ms ease,
+        border-color 140ms ease,
+        color 140ms ease,
+        box-shadow 140ms ease;
+}
+
+.hot-category-tab:hover {
+    color: var(--ink);
+}
+
+.hot-category-tab.active {
+    border-color: var(--border);
+    background: var(--panel-strong);
+    color: var(--ink);
+    box-shadow: var(--shadow-soft);
+}
+
+.hot-toolbar .search-input {
+    flex: 0 0 220px;
+    min-width: 220px;
 }
 
 .hot-summary {
@@ -520,11 +934,15 @@ body {
 .hot-table td {
     padding: 10px 12px;
     border-top: 1px solid var(--border);
-    vertical-align: top;
+    vertical-align: middle;
+}
+
+.hot-table tbody tr {
+    transition: background 160ms ease;
 }
 
 .hot-table tbody tr:hover {
-    background: rgba(148, 163, 184, 0.04);
+    background: rgba(148, 163, 184, 0.09);
 }
 
 .hot-feedback,
@@ -576,16 +994,18 @@ body {
     vertical-align: top;
 }
 
+.watch-table td.watch-table-cell-dca,
+.watch-table td.table-action-cell,
+.hot-table td.table-action-cell {
+    vertical-align: middle;
+}
+
 .watch-table tbody tr {
     transition: background 160ms ease;
 }
 
 .watch-table tbody tr:hover {
-    background: rgba(148, 163, 184, 0.04);
-}
-
-.watch-table tbody tr.selected {
-    background: var(--selection-bg);
+    background: rgba(148, 163, 184, 0.09);
 }
 
 .item-block,
@@ -619,6 +1039,58 @@ body {
     gap: 2px;
 }
 
+.table-action-stack {
+    gap: 6px;
+}
+
+.table-action-stack-centered {
+    display: inline-flex;
+    min-height: 100%;
+}
+
+.table-action-button.p-button {
+    min-height: 32px;
+    padding: 0 10px;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--muted);
+    transition:
+        background 140ms ease,
+        border-color 140ms ease,
+        color 140ms ease,
+        box-shadow 140ms ease;
+}
+
+.table-action-button.p-button.p-button-text {
+    color: var(--muted);
+}
+
+.table-action-button-danger.p-button.p-button-text {
+    color: var(--p-button-text-danger-color);
+}
+
+.table-action-button.p-button:hover,
+.table-action-button.p-button.p-button-text:hover {
+    background: var(--panel-soft);
+    border-color: var(--border);
+    color: var(--ink);
+}
+
+.table-action-button-primary.p-button:hover,
+.table-action-button-primary.p-button.p-button-text:hover {
+    background: color-mix(in srgb, var(--accent-soft) 82%, var(--panel-soft));
+    border-color: color-mix(in srgb, var(--accent) 22%, var(--border));
+    color: var(--accent-strong);
+}
+
+.table-action-button-danger.p-button:not(:disabled):hover,
+.table-action-button-danger.p-button.p-button-text:not(:disabled):hover {
+    background: var(--p-button-text-danger-hover-background);
+    border-color: transparent;
+    color: var(--p-button-text-danger-color);
+}
+
 .empty-row,
 .empty-card {
     padding: 18px;
@@ -643,12 +1115,33 @@ body {
     display: grid;
     gap: 8px;
     box-shadow: var(--shadow-soft);
+    transition:
+        background 160ms ease,
+        border-color 160ms ease;
 }
 
-.alert-head,
-.alert-actions {
+.alert-card:hover {
+    background: color-mix(in srgb, var(--panel-soft) 88%, rgba(148, 163, 184, 0.36));
+    border-color: var(--border-strong);
+}
+
+.alert-card .table-action-button-danger.p-button:not(:disabled):hover,
+.alert-card .table-action-button-danger.p-button.p-button-text:not(:disabled):hover {
+    background: color-mix(in srgb, var(--p-button-text-danger-color) 4%, var(--panel-strong));
+    border-color: transparent;
+    color: var(--p-button-text-danger-color);
+}
+
+.alert-head {
     display: flex;
     align-items: start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.alert-actions {
+    display: flex;
+    align-items: center;
     justify-content: space-between;
     gap: 12px;
 }
@@ -658,8 +1151,8 @@ body {
     font-size: 13px;
 }
 
-.alert-head span,
-.alert-actions span {
+.alert-head > div > span,
+.alert-actions > span {
     font-size: 11px;
     color: var(--muted);
 }
@@ -1138,23 +1631,53 @@ body {
     min-height: 0;
     height: 100%;
     flex: 1 1 auto;
-    border-radius: var(--radius-panel);
-    border: 1px solid var(--border);
-    background: var(--panel-strong);
     overflow: hidden;
-    box-shadow: var(--shadow-soft);
 }
 
 .chart-frame {
     height: 100%;
     min-height: 420px;
     position: relative;
-    padding: 10px 12px 10px;
+    padding: 10px 12px 32px;
     color: var(--accent);
 }
 
 .chart-frame.is-rise {
     color: var(--rise);
+}
+
+.chart-tooltip {
+    position: absolute;
+    z-index: 10;
+    pointer-events: none;
+    background: var(--control-overlay);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-panel);
+    padding: 8px 12px;
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(12px);
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 160px;
+}
+
+.chart-tooltip strong {
+    font: 700 15px/1.2 var(--font-display);
+    color: currentColor;
+    letter-spacing: -0.02em;
+}
+
+.chart-tooltip span {
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.4;
+}
+
+.chart-tooltip span:first-of-type {
+    font-size: 12px;
+    color: var(--ink);
+    margin-bottom: 1px;
 }
 
 .chart-frame.is-fall {
@@ -1240,30 +1763,6 @@ body {
     fill: transparent;
 }
 
-.chart-tooltip {
-    position: absolute;
-    top: 12px;
-    left: 12px;
-    min-width: 194px;
-    padding: 10px 12px;
-    border-radius: var(--radius-panel);
-    border: 1px solid var(--border);
-    background: var(--panel-strong);
-    box-shadow: var(--shadow);
-    display: grid;
-    gap: 4px;
-}
-
-.chart-tooltip strong {
-    font-size: 16px;
-    line-height: 1.1;
-}
-
-.chart-tooltip span {
-    font-size: 12px;
-    color: var(--muted);
-}
-
 .chart-marker {
     stroke: var(--border-strong);
     stroke-dasharray: 4 5;
@@ -1283,26 +1782,15 @@ body {
     fill: currentColor;
 }
 
-.chart-summary {
+.chart-source-tag {
     position: absolute;
     right: 12px;
     bottom: 10px;
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    padding: 5px 9px;
-    border-radius: var(--radius-control);
-    background: var(--panel-strong);
-    border: 1px solid var(--border);
-    box-shadow: var(--shadow-soft);
-}
-
-.chart-summary.is-rise {
-    color: var(--rise);
-}
-
-.chart-summary.is-fall {
-    color: var(--fall);
+    padding: 3px 8px;
+    border-radius: var(--radius-micro);
+    background: color-mix(in srgb, var(--panel-strong) 85%, transparent);
+    font-size: 10px;
+    color: var(--muted);
 }
 
 @media (max-width: 1180px) {
@@ -1318,7 +1806,12 @@ body {
     }
 
     .market-metrics {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+
+    .metric-strip {
+        flex: 1 1 calc(50% - 1px);
     }
 
     .settings-layout {
@@ -1342,12 +1835,17 @@ body {
 
     .panel-header,
     .toolbar-row,
-    .hot-toolbar,
     .hot-summary,
     .alert-head,
     .alert-actions {
         align-items: stretch;
         flex-direction: column;
+    }
+
+    .hot-module .panel-header,
+    .hot-module .hot-toolbar {
+        align-items: center;
+        flex-direction: row;
     }
 
     .window-tools {
@@ -1361,6 +1859,332 @@ body {
     }
 
     .market-metrics {
-        grid-template-columns: 1fr;
+        flex-direction: column;
+        flex-wrap: nowrap;
     }
+
+    .metric-strip {
+        flex: none;
+    }
+}
+
+/* ── DCA 定投模块样式 ───────────────────────────────────────── */
+
+.dca-item-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 10px;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 4px;
+    padding: 1px 5px;
+    margin-top: 3px;
+    line-height: 1.6;
+    font-weight: 500;
+}
+
+/* 定投弹窗内的 tab 切换栏 */
+.item-dialog-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0;
+}
+
+.item-dialog-tab {
+    padding: 6px 14px 8px;
+    font: 600 12px/1 var(--font-ui);
+    color: var(--muted);
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    margin-bottom: -1px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: color 0.12s;
+}
+
+.item-dialog-tab:hover {
+    color: var(--ink);
+}
+
+.item-dialog-tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+
+.dca-count-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 8px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font: 600 10px/1 var(--font-ui);
+}
+
+/* 定投记录面板容器 */
+.dca-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    min-height: 200px;
+}
+
+/* 定投条目表格 */
+.dca-table {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.dca-table-head,
+.dca-entry-row {
+    display: grid;
+    grid-template-columns: 120px 1fr 1fr 1fr 90px 1.2fr 32px;
+    gap: 6px;
+    align-items: center;
+}
+
+.dca-table-head {
+    padding: 0 4px 6px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 2px;
+}
+
+.dca-col-label {
+    font: 600 11px/1 var(--font-ui);
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+.dca-entry-row {
+    padding: 2px 0;
+}
+
+.dca-entry-row input[type="date"],
+.dca-entry-row .p-inputnumber,
+.dca-entry-row .p-inputtext {
+    height: 32px;
+    font-size: 12px;
+}
+
+.dca-price-cell {
+    font: 500 12px/1.2 var(--font-display);
+    color: var(--muted);
+    padding: 0 4px;
+    white-space: nowrap;
+}
+
+/* 原生 date input 继承项目样式 */
+input[type="date"].dca-date-input {
+    width: 100%;
+    height: 32px;
+    padding: 0 8px;
+    font: 13px var(--font-ui);
+    color: var(--ink);
+    background: var(--control-bg);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-control);
+    outline: none;
+    box-sizing: border-box;
+    color-scheme: light dark;
+}
+
+input[type="date"].dca-date-input:focus {
+    border-color: var(--accent);
+}
+
+/* 添加记录按钮行 */
+.dca-add-row {
+    padding: 8px 0 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.dca-empty-hint {
+    padding: 24px 0 8px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.7;
+}
+
+/* 定投汇总栏 */
+.dca-summary-bar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-control);
+    overflow: hidden;
+    margin-top: 16px;
+}
+
+.dca-summary-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 10px 14px;
+    background: var(--panel-strong);
+}
+
+.dca-summary-label {
+    font: 500 10px/1 var(--font-ui);
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.dca-summary-value {
+    font: 600 13px/1.2 var(--font-display);
+    color: var(--ink);
+    white-space: nowrap;
+}
+
+.dca-summary-value.tone-rise {
+    color: var(--rise);
+}
+
+.dca-summary-value.tone-fall {
+    color: var(--fall);
+}
+
+/* 基础信息面板中的定投锁定提示 */
+.dca-derived-hint {
+    font-size: 11px;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 4px;
+    padding: 6px 10px;
+    margin-top: -4px;
+    grid-column: span 2;
+    line-height: 1.5;
+}
+
+.dca-derived-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.dca-derived-value {
+    height: 36px;
+    padding: 0 12px;
+    background: var(--panel-soft);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-control);
+    font: 600 13px/36px var(--font-display);
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+}
+
+/* ── DCA 定投明细弹窗 ─────────────────────────────────────────── */
+
+.dca-detail-table {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-control);
+    overflow: hidden;
+}
+
+.dca-detail-head,
+.dca-detail-row {
+    display: grid;
+    grid-template-columns: 44px 148px minmax(126px, 1.05fr) minmax(118px, 0.95fr) minmax(118px, 0.95fr) minmax(118px, 0.9fr) minmax(144px, 1.2fr);
+    gap: 0;
+    padding: 0 4px;
+}
+
+.dca-detail-head {
+    padding: 7px 4px;
+    background: var(--panel-soft);
+    border-bottom: 1px solid var(--border);
+}
+
+.dca-detail-head .dca-col-label {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 0 8px;
+    text-align: left;
+}
+
+.dca-detail-row {
+    border-bottom: 1px solid var(--border);
+}
+
+.dca-detail-row:last-child {
+    border-bottom: none;
+}
+
+.dca-detail-row:hover {
+    background: var(--selection-bg);
+}
+
+.dca-detail-cell {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 9px 8px;
+    font: 500 13px/1.2 var(--font-display);
+    color: var(--ink);
+    text-align: left;
+}
+
+.dca-seq-col {
+    justify-content: flex-start;
+}
+
+.dca-num-col {
+    justify-content: flex-start;
+    text-align: left;
+}
+
+.dca-seq {
+    font: 500 11px/1 var(--font-ui);
+    color: var(--muted);
+}
+
+.dca-note-col {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 400;
+    overflow-wrap: anywhere;
+}
+
+/* 自选列表中的定投列徽标 */
+.dca-list-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    font: 600 11px/1 var(--font-ui);
+    color: var(--accent);
+    background: var(--accent-soft);
+    border: 1px solid transparent;
+    border-radius: var(--radius-micro);
+    padding: 3px 8px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition:
+        background 0.1s,
+        border-color 0.1s;
+    user-select: none;
+}
+
+.dca-list-badge:hover {
+    background: color-mix(in srgb, var(--accent-soft) 140%, transparent);
+    border-color: var(--accent);
 }

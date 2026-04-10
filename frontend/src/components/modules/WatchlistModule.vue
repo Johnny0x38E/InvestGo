@@ -19,6 +19,7 @@ const emit = defineEmits<{
     (event: "edit-item", value: WatchlistItem): void;
     (event: "delete-item", value: string): void;
     (event: "select-item", value: string): void;
+    (event: "show-dca", value: WatchlistItem): void;
 }>();
 
 const searchProxy = computed({
@@ -34,7 +35,7 @@ const searchProxy = computed({
                 <h3 class="title">自选</h3>
             </div>
             <div class="toolbar-row">
-                <InputText v-model="searchProxy" class="search-input" placeholder="代码 / 名称 / 标签 / 备注" />
+                <InputText v-model="searchProxy" class="search-input" placeholder="代码 / 名称 / 标签" />
                 <Button size="small" icon="pi pi-plus" label="添加" @click="$emit('add-item')" />
             </div>
         </div>
@@ -49,6 +50,7 @@ const searchProxy = computed({
                         <th>浮盈亏</th>
                         <th>日内区间</th>
                         <th>最近同步</th>
+                        <th>定投</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -97,17 +99,34 @@ const searchProxy = computed({
                                 <span>{{ formatDateTime(item.quoteUpdatedAt) }}</span>
                             </div>
                         </td>
-                        <td>
-                            <div class="action-stack" @click.stop>
-                                <Button size="small" text icon="pi pi-pencil" aria-label="编辑" @click="$emit('edit-item', item)" />
-                                <Button size="small" text severity="danger" icon="pi pi-trash" aria-label="删除" @click="$emit('delete-item', item.id)" />
+                        <td class="watch-table-cell-dca">
+                            <div class="action-stack table-action-stack table-action-stack-centered">
+                                <button v-if="item.dcaEntries?.length" class="dca-list-badge" type="button" @click.stop="$emit('show-dca', item)">
+                                    <i class="pi pi-chart-line" style="font-size: 9px" />
+                                    {{ item.dcaEntries.length }} 笔
+                                </button>
+                                <span v-else style="color: var(--muted); font-size: 12px">—</span>
+                            </div>
+                        </td>
+                        <td class="table-action-cell">
+                            <div class="action-stack table-action-stack" @click.stop>
+                                <Button size="small" text icon="pi pi-pencil" aria-label="编辑" class="table-action-button" @click="$emit('edit-item', item)" />
+                                <Button
+                                    size="small"
+                                    text
+                                    severity="danger"
+                                    icon="pi pi-trash"
+                                    aria-label="删除"
+                                    class="table-action-button table-action-button-danger"
+                                    @click="$emit('delete-item', item.id)"
+                                />
                             </div>
                         </td>
                     </tr>
                 </tbody>
                 <tbody v-else>
                     <tr>
-                        <td colspan="7" class="empty-row">还没有匹配到标的。</td>
+                        <td colspan="8" class="empty-row">还没有匹配到标的。</td>
                     </tr>
                 </tbody>
             </table>

@@ -1,26 +1,23 @@
 package monitor
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
-	"net/url"
-	"strconv"
 	"strings"
 	"time"
-
-	"golang.org/x/text/encoding/simplifiedchinese"
-	"golang.org/x/text/transform"
 )
+
+// DefaultQuoteSourceID 是默认启用的行情源标识。
+const DefaultQuoteSourceID = "eastmoney"
 
 const (
-	sinaQuoteURL = "http://hq.sinajs.cn/list=%s"
-	txQuoteURL   = "http://qt.gtimg.cn/?q=%s"
+	DefaultCNQuoteSourceID = "eastmoney"
+	DefaultHKQuoteSourceID = "eastmoney"
+	DefaultUSQuoteSourceID = "eastmoney"
 )
 
+// Quote 表示前端仪表盘消费的统一行情结构。
 type Quote struct {
 	Symbol        string
 	Name          string
@@ -37,265 +34,66 @@ type Quote struct {
 	UpdatedAt     time.Time
 }
 
+// QuoteProvider 定义了实时行情 provider 的统一契约。
 type QuoteProvider interface {
 	Fetch(ctx context.Context, items []WatchlistItem) (map[string]Quote, error)
 	Name() string
 }
 
-type PublicQuoteProvider struct {
-	client *http.Client
+// QuoteSourceOption 描述一个可供用户选择的行情源。
+type QuoteSourceOption struct {
+	ID               string   `json:"id"`
+	Name             string   `json:"name"`
+	Description      string   `json:"description"`
+	SupportedMarkets []string `json:"supportedMarkets"`
 }
 
-type quoteTarget struct {
+// QuoteTarget 表示标的代码标准化后的通用结果。
+type QuoteTarget struct {
 	Key           string
 	DisplaySymbol string
 	Market        string
 	Currency      string
-	TXCode        string
-	SinaCode      string
 }
 
-func NewPublicQuoteProvider(client *http.Client) *PublicQuoteProvider {
-	if client == nil {
-		client = &http.Client{Timeout: 8 * time.Second}
-	}
-
-	return &PublicQuoteProvider{client: client}
-}
-
-func (p *PublicQuoteProvider) Name() string {
-	return "Tencent + Sina"
-}
-
-func ResolveQuoteTarget(item WatchlistItem) (quoteTarget, error) {
+// ResolveQuoteTarget 把标的标准化为系统内部统一使用的目标结构。
+func ResolveQuoteTarget(item WatchlistItem) (QuoteTarget, error) {
 	return resolveQuoteTarget(item.Symbol, item.Market, item.Currency)
 }
 
-func (p *PublicQuoteProvider) Fetch(ctx context.Context, items []WatchlistItem) (map[string]Quote, error) {
-	targets, problems := collectQuoteTargets(items)
-
-	quotes := make(map[string]Quote, len(targets))
-	if len(targets) == 0 {
-		return quotes, collapseProblems(problems)
-	}
-
-	txTargets := make([]quoteTarget, 0, len(targets))
-	for _, target := range targets {
-		if target.TXCode != "" {
-			txTargets = append(txTargets, target)
-		}
-	}
-
-	txQuotes, txProblems := p.fetchTencent(ctx, txTargets)
-	for key, quote := range txQuotes {
-		quotes[key] = quote
-	}
-	problems = append(problems, txProblems...)
-
-	sinaTargets := make([]quoteTarget, 0, len(targets))
-	for key, target := range targets {
-		if _, ok := quotes[key]; ok {
-			continue
-		}
-		if target.SinaCode != "" {
-			sinaTargets = append(sinaTargets, target)
-			continue
-		}
-		problems = append(problems, fmt.Sprintf("没有可用行情代码: %s", target.DisplaySymbol))
-	}
-
-	sinaQuotes, sinaProblems := p.fetchSina(ctx, sinaTargets)
-	for key, quote := range sinaQuotes {
-		quotes[key] = quote
-	}
-	problems = append(problems, sinaProblems...)
-
-	for key, target := range targets {
-		if _, ok := quotes[key]; ok {
-			continue
-		}
-		problems = append(problems, fmt.Sprintf("未收到 %s 的实时行情", target.DisplaySymbol))
-	}
-
-	return quotes, collapseProblems(problems)
-}
-
-func collectQuoteTargets(items []WatchlistItem) (map[string]quoteTarget, []string) {
-	targets := make(map[string]quoteTarget, len(items))
-	var problems []string
-
-	for _, item := range items {
-		target, err := ResolveQuoteTarget(item)
-		if err != nil {
-			problems = append(problems, err.Error())
-			continue
-		}
-		targets[target.Key] = target
-	}
-
-	return targets, problems
-}
-
-func (p *PublicQuoteProvider) fetchTencent(ctx context.Context, targets []quoteTarget) (map[string]Quote, []string) {
-	quotes := make(map[string]Quote, len(targets))
-	if len(targets) == 0 {
-		return quotes, nil
-	}
-
-	requestCodes := make([]string, 0, len(targets))
-	indexByCode := make(map[string]quoteTarget, len(targets))
-	for _, target := range targets {
-		requestCode := target.TXCode
-		if strings.HasPrefix(target.TXCode, "hk") {
-			requestCode = "r_" + requestCode
-		}
-		requestCodes = append(requestCodes, requestCode)
-		indexByCode[target.TXCode] = target
-	}
-
-	body, err := p.doRequest(ctx, fmt.Sprintf(txQuoteURL, url.QueryEscape(strings.Join(requestCodes, ","))), map[string]string{
-		"Host":       "qt.gtimg.cn",
-		"Referer":    "https://gu.qq.com/",
-		"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
-	})
-	if err != nil {
-		return quotes, []string{fmt.Sprintf("腾讯行情请求失败: %v", err)}
-	}
-
-	lines := strings.Split(strings.TrimSpace(body), ";")
-	var problems []string
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-
-		rawCode, quote, err := parseTencentLine(line)
-		if err != nil {
-			problems = append(problems, fmt.Sprintf("腾讯行情解析失败: %v", err))
-			continue
-		}
-
-		target, ok := indexByCode[rawCode]
-		if !ok {
-			continue
-		}
-
-		quote.Symbol = target.DisplaySymbol
-		quote.Market = target.Market
-		quote.Currency = target.Currency
-		quotes[target.Key] = quote
-	}
-
-	return quotes, problems
-}
-
-func (p *PublicQuoteProvider) fetchSina(ctx context.Context, targets []quoteTarget) (map[string]Quote, []string) {
-	quotes := make(map[string]Quote, len(targets))
-	if len(targets) == 0 {
-		return quotes, nil
-	}
-
-	requestCodes := make([]string, 0, len(targets))
-	indexByCode := make(map[string]quoteTarget, len(targets))
-	for _, target := range targets {
-		requestCodes = append(requestCodes, target.SinaCode)
-		indexByCode[target.SinaCode] = target
-	}
-
-	body, err := p.doRequest(ctx, fmt.Sprintf(sinaQuoteURL, url.QueryEscape(strings.Join(requestCodes, ","))), map[string]string{
-		"Host":       "hq.sinajs.cn",
-		"Referer":    "https://finance.sina.com.cn/",
-		"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
-	})
-	if err != nil {
-		return quotes, []string{fmt.Sprintf("新浪行情请求失败: %v", err)}
-	}
-
-	lines := strings.Split(strings.TrimSpace(body), "\n")
-	var problems []string
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-
-		rawCode, quote, err := parseSinaLine(line)
-		if err != nil {
-			problems = append(problems, fmt.Sprintf("新浪行情解析失败: %v", err))
-			continue
-		}
-
-		target, ok := indexByCode[rawCode]
-		if !ok {
-			continue
-		}
-
-		quote.Symbol = target.DisplaySymbol
-		quote.Market = target.Market
-		quote.Currency = target.Currency
-		quotes[target.Key] = quote
-	}
-
-	return quotes, problems
-}
-
-func (p *PublicQuoteProvider) doRequest(ctx context.Context, requestURL string, headers map[string]string) (string, error) {
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
-	if err != nil {
-		return "", err
-	}
-
-	for key, value := range headers {
-		request.Header.Set(key, value)
-	}
-
-	response, err := p.client.Do(request)
-	if err != nil {
-		return "", err
-	}
-	defer response.Body.Close()
-
-	if response.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("unexpected status %d", response.StatusCode)
-	}
-
-	reader := transform.NewReader(response.Body, simplifiedchinese.GB18030.NewDecoder())
-	payload, err := io.ReadAll(reader)
-	if err != nil {
-		return "", err
-	}
-
-	return strings.TrimSpace(string(bytes.TrimPrefix(payload, []byte{0xef, 0xbb, 0xbf}))), nil
-}
-
-func resolveQuoteTarget(symbol, market, currency string) (quoteTarget, error) {
+// resolveQuoteTarget 根据代码、市场和币种推导统一的目标标识。
+func resolveQuoteTarget(symbol, market, currency string) (QuoteTarget, error) {
 	rawSymbol := strings.ToUpper(strings.TrimSpace(symbol))
 	if rawSymbol == "" {
-		return quoteTarget{}, errors.New("股票代码不能为空")
+		return QuoteTarget{}, errors.New("股票代码不能为空")
 	}
 
 	market = normaliseMarketLabel(market)
 	rawSymbol = strings.ReplaceAll(rawSymbol, " ", "")
 
+	// 兼容不同输入风格，把用户输入收敛到少量标准形式后再分派。
 	switch {
 	case strings.HasPrefix(rawSymbol, "GB_"):
 		ticker := strings.TrimPrefix(rawSymbol, "GB_")
 		return buildUSTarget(ticker, market, currency)
 	case strings.HasPrefix(rawSymbol, "HK") && isDigits(rawSymbol[2:]):
-		return buildHKTarget(rawSymbol[2:], currency)
+		return buildHKTarget(rawSymbol[2:], resolveHKMarket(market), currency)
 	case strings.HasPrefix(rawSymbol, "SH") && isDigits(rawSymbol[2:]):
-		return buildCNTarget(rawSymbol[2:], "SH", currency)
+		num := rawSymbol[2:]
+		return buildCNTarget(num, "SH", resolveCNMarket(num, market), currency)
 	case strings.HasPrefix(rawSymbol, "SZ") && isDigits(rawSymbol[2:]):
-		return buildCNTarget(rawSymbol[2:], "SZ", currency)
+		num := rawSymbol[2:]
+		return buildCNTarget(num, "SZ", resolveCNMarket(num, market), currency)
 	case strings.HasPrefix(rawSymbol, "BJ") && isDigits(rawSymbol[2:]):
 		return buildBJTarget(rawSymbol[2:], currency)
 	case strings.HasSuffix(rawSymbol, ".HK") && isDigits(strings.TrimSuffix(rawSymbol, ".HK")):
-		return buildHKTarget(strings.TrimSuffix(rawSymbol, ".HK"), currency)
+		return buildHKTarget(strings.TrimSuffix(rawSymbol, ".HK"), resolveHKMarket(market), currency)
 	case strings.HasSuffix(rawSymbol, ".SH") && isDigits(strings.TrimSuffix(rawSymbol, ".SH")):
-		return buildCNTarget(strings.TrimSuffix(rawSymbol, ".SH"), "SH", currency)
+		num := strings.TrimSuffix(rawSymbol, ".SH")
+		return buildCNTarget(num, "SH", resolveCNMarket(num, market), currency)
 	case strings.HasSuffix(rawSymbol, ".SZ") && isDigits(strings.TrimSuffix(rawSymbol, ".SZ")):
-		return buildCNTarget(strings.TrimSuffix(rawSymbol, ".SZ"), "SZ", currency)
+		num := strings.TrimSuffix(rawSymbol, ".SZ")
+		return buildCNTarget(num, "SZ", resolveCNMarket(num, market), currency)
 	case strings.HasSuffix(rawSymbol, ".BJ") && isDigits(strings.TrimSuffix(rawSymbol, ".BJ")):
 		return buildBJTarget(strings.TrimSuffix(rawSymbol, ".BJ"), currency)
 	case isDigits(rawSymbol):
@@ -305,334 +103,202 @@ func resolveQuoteTarget(symbol, market, currency string) (quoteTarget, error) {
 	case strings.HasPrefix(rawSymbol, "US") && isUSSymbol(rawSymbol[2:]):
 		return buildUSTarget(rawSymbol[2:], market, currency)
 	default:
-		return quoteTarget{}, fmt.Errorf("无法识别股票代码: %s", rawSymbol)
+		return QuoteTarget{}, fmt.Errorf("无法识别股票代码: %s", rawSymbol)
 	}
 }
 
-func buildNumericTarget(rawSymbol, market, currency string) (quoteTarget, error) {
+// buildNumericTarget 处理纯数字代码，并按市场语义推导最终目标。
+func buildNumericTarget(rawSymbol, market, currency string) (QuoteTarget, error) {
 	switch market {
+	case "HK-MAIN", "HK-GEM", "HK-ETF":
+		return buildHKTarget(rawSymbol, market, currency)
 	case "HK":
-		return buildHKTarget(rawSymbol, currency)
-	case "BJ":
+		return buildHKTarget(rawSymbol, "HK-MAIN", currency)
+	case "CN-BJ", "BJ":
 		return buildBJTarget(rawSymbol, currency)
 	}
 
 	if len(rawSymbol) == 5 && market == "" {
-		return buildHKTarget(rawSymbol, currency)
+		return buildHKTarget(rawSymbol, "HK-MAIN", currency)
 	}
 
-	switch rawSymbol[0] {
-	case '6', '9':
-		return buildCNTarget(rawSymbol, "SH", currency)
-	case '0', '2', '3':
-		return buildCNTarget(rawSymbol, "SZ", currency)
-	case '4', '8':
-		return buildBJTarget(rawSymbol, currency)
-	default:
-		return quoteTarget{}, fmt.Errorf("无法识别数字代码归属市场: %s", rawSymbol)
+	if len(rawSymbol) != 6 {
+		return QuoteTarget{}, fmt.Errorf("无法识别数字代码归属市场: %s", rawSymbol)
 	}
+
+	// 6 位数字代码可能是 A 股、ETF 或北交所，需要结合前缀规则推断。
+	if market == "CN-GEM" || market == "CN-STAR" || market == "CN-ETF" {
+		_, exchange, err := inferCNMarketAndExchange(rawSymbol)
+		if err != nil {
+			return QuoteTarget{}, err
+		}
+		return buildCNTarget(rawSymbol, exchange, market, currency)
+	}
+
+	detectedMarket, exchange, err := inferCNMarketAndExchange(rawSymbol)
+	if err != nil {
+		return QuoteTarget{}, err
+	}
+	return buildCNTarget(rawSymbol, exchange, detectedMarket, currency)
 }
 
-func buildCNTarget(rawSymbol, exchange, currency string) (quoteTarget, error) {
+// buildCNTarget 构造沪深市场标的的标准目标。
+func buildCNTarget(rawSymbol, exchange, market, currency string) (QuoteTarget, error) {
 	if len(rawSymbol) != 6 {
-		return quoteTarget{}, fmt.Errorf("A 股代码应为 6 位: %s", rawSymbol)
+		return QuoteTarget{}, fmt.Errorf("A 股代码应为 6 位: %s", rawSymbol)
 	}
 
 	exchange = strings.ToUpper(exchange)
-	code := strings.ToLower(exchange) + rawSymbol
-	return quoteTarget{
-		Key:           strings.ToUpper(rawSymbol + "." + exchange),
-		DisplaySymbol: strings.ToUpper(rawSymbol + "." + exchange),
-		Market:        "A-Share",
+	if market == "" {
+		market = "CN-A"
+	}
+	return QuoteTarget{
+		Key:           rawSymbol + "." + exchange,
+		DisplaySymbol: rawSymbol + "." + exchange,
+		Market:        market,
 		Currency:      defaultCurrency(currency, "CNY"),
-		TXCode:        code,
-		SinaCode:      code,
 	}, nil
 }
 
-func buildBJTarget(rawSymbol, currency string) (quoteTarget, error) {
+// buildBJTarget 构造北交所标的的标准目标。
+func buildBJTarget(rawSymbol, currency string) (QuoteTarget, error) {
 	if len(rawSymbol) != 6 {
-		return quoteTarget{}, fmt.Errorf("北交所代码应为 6 位: %s", rawSymbol)
+		return QuoteTarget{}, fmt.Errorf("北交所代码应为 6 位: %s", rawSymbol)
 	}
 
-	code := "bj" + rawSymbol
-	return quoteTarget{
-		Key:           strings.ToUpper(rawSymbol + ".BJ"),
-		DisplaySymbol: strings.ToUpper(rawSymbol + ".BJ"),
-		Market:        "BJ",
+	return QuoteTarget{
+		Key:           rawSymbol + ".BJ",
+		DisplaySymbol: rawSymbol + ".BJ",
+		Market:        "CN-BJ",
 		Currency:      defaultCurrency(currency, "CNY"),
-		SinaCode:      code,
 	}, nil
 }
 
-func buildHKTarget(rawSymbol, currency string) (quoteTarget, error) {
+// buildHKTarget 构造港股标的的标准目标。
+func buildHKTarget(rawSymbol, market, currency string) (QuoteTarget, error) {
 	if !isDigits(rawSymbol) {
-		return quoteTarget{}, fmt.Errorf("港股代码必须为数字: %s", rawSymbol)
+		return QuoteTarget{}, fmt.Errorf("港股代码必须为数字: %s", rawSymbol)
 	}
 	if len(rawSymbol) > 5 {
-		return quoteTarget{}, fmt.Errorf("港股代码长度异常: %s", rawSymbol)
+		return QuoteTarget{}, fmt.Errorf("港股代码长度异常: %s", rawSymbol)
 	}
 
+	// 港股接口要求 5 位代码，不足时统一左侧补零。
 	padded := rawSymbol
 	if len(padded) < 5 {
 		padded = strings.Repeat("0", 5-len(padded)) + padded
 	}
-	code := "hk" + padded
-	return quoteTarget{
-		Key:           strings.ToUpper(padded + ".HK"),
-		DisplaySymbol: strings.ToUpper(padded + ".HK"),
-		Market:        "HK",
+	if market == "" {
+		market = "HK-MAIN"
+	}
+	return QuoteTarget{
+		Key:           padded + ".HK",
+		DisplaySymbol: padded + ".HK",
+		Market:        market,
 		Currency:      defaultCurrency(currency, "HKD"),
-		TXCode:        code,
-		SinaCode:      code,
 	}, nil
 }
 
-func buildUSTarget(rawSymbol, market, currency string) (quoteTarget, error) {
+// buildUSTarget 构造美股或美股 ETF 的标准目标。
+func buildUSTarget(rawSymbol, market, currency string) (QuoteTarget, error) {
 	if !isUSSymbol(rawSymbol) {
-		return quoteTarget{}, fmt.Errorf("美股代码格式无效: %s", rawSymbol)
+		return QuoteTarget{}, fmt.Errorf("美股代码格式无效: %s", rawSymbol)
 	}
 
-	label := "US"
-	if market == "US ETF" {
-		label = "US ETF"
+	label := "US-STOCK"
+	if market == "US-ETF" || market == "US ETF" {
+		label = "US-ETF"
 	}
 
 	ticker := normaliseUSSymbol(rawSymbol)
-	return quoteTarget{
+	return QuoteTarget{
 		Key:           ticker,
 		DisplaySymbol: ticker,
 		Market:        label,
 		Currency:      defaultCurrency(currency, "USD"),
-		SinaCode:      "gb_" + strings.ToLower(ticker),
 	}, nil
 }
 
-func parseTencentLine(line string) (string, Quote, error) {
-	left, right, found := strings.Cut(line, "=")
-	if !found {
-		return "", Quote{}, fmt.Errorf("unexpected payload: %s", line)
-	}
-
-	code := strings.TrimPrefix(strings.TrimPrefix(strings.TrimSpace(left), "v_"), "r_")
-	parts := splitClean(strings.Trim(right, "\";"), "~")
-	if len(parts) < 6 {
-		return "", Quote{}, fmt.Errorf("字段不足: %s", code)
-	}
-
-	current := parseFloat(parts[3])
-	previous := parseFloat(parts[4])
-	open := parseFloat(parts[5])
-
-	high := 0.0
-	low := 0.0
-	if len(parts) > 34 {
-		high = parseFloat(parts[33])
-		low = parseFloat(parts[34])
-	} else if len(parts) > 33 {
-		high = parseFloat(parts[32])
-		low = parseFloat(parts[33])
-	}
-
-	return code, buildQuote(
-		parts[1],
-		current,
-		previous,
-		open,
-		high,
-		low,
-		parseTencentTime(parts),
-		"Tencent",
-	), nil
-}
-
-func parseSinaLine(line string) (string, Quote, error) {
-	left, right, found := strings.Cut(line, "=")
-	if !found {
-		return "", Quote{}, fmt.Errorf("unexpected payload: %s", line)
-	}
-
-	code := strings.TrimPrefix(strings.TrimSpace(left), "var hq_str_")
-	payload := strings.Trim(right, "\";")
-	if payload == "" {
-		return "", Quote{}, fmt.Errorf("空行情: %s", code)
-	}
-
-	parts := splitClean(payload, ",")
-	switch {
-	case strings.HasPrefix(code, "gb_"):
-		quote, err := parseSinaUSQuote(parts)
-		return code, quote, err
-	case strings.HasPrefix(code, "hk"):
-		quote, err := parseSinaHKQuote(parts)
-		return code, quote, err
-	case strings.HasPrefix(code, "sh"), strings.HasPrefix(code, "sz"), strings.HasPrefix(code, "bj"):
-		quote, err := parseSinaCNQuote(parts)
-		return code, quote, err
-	default:
-		return "", Quote{}, fmt.Errorf("不支持的新浪代码: %s", code)
-	}
-}
-
-func parseSinaUSQuote(parts []string) (Quote, error) {
-	if len(parts) < 8 {
-		return Quote{}, errors.New("美股字段不足")
-	}
-
-	previous := 0.0
-	switch {
-	case len(parts) > 35:
-		previous = parseFloat(parts[35])
-	case len(parts) > 26:
-		previous = parseFloat(parts[26])
-	default:
-		previous = parseFloat(parts[len(parts)-1])
-	}
-
-	updatedAt := parseTimestamp(firstNonEmpty(partsAt(parts, 3), partsAt(parts, 24)))
-	return buildQuote(
-		partsAt(parts, 0),
-		parseFloat(partsAt(parts, 1)),
-		previous,
-		parseFloat(partsAt(parts, 5)),
-		parseFloat(partsAt(parts, 6)),
-		parseFloat(partsAt(parts, 7)),
-		updatedAt,
-		"Sina",
-	), nil
-}
-
-func parseSinaHKQuote(parts []string) (Quote, error) {
-	if len(parts) < 19 {
-		return Quote{}, errors.New("港股字段不足")
-	}
-
-	updatedAt := parseTimestamp(strings.TrimSpace(parts[17]) + " " + strings.TrimSpace(parts[18]))
-	return buildQuote(
-		parts[1],
-		parseFloat(parts[6]),
-		parseFloat(parts[3]),
-		parseFloat(parts[2]),
-		parseFloat(parts[4]),
-		parseFloat(parts[5]),
-		updatedAt,
-		"Sina",
-	), nil
-}
-
-func parseSinaCNQuote(parts []string) (Quote, error) {
-	if len(parts) < 32 {
-		return Quote{}, errors.New("A 股字段不足")
-	}
-
-	updatedAt := parseTimestamp(strings.TrimSpace(parts[30]) + " " + strings.TrimSpace(parts[31]))
-	return buildQuote(
-		parts[0],
-		parseFloat(parts[3]),
-		parseFloat(parts[2]),
-		parseFloat(parts[1]),
-		parseFloat(parts[4]),
-		parseFloat(parts[5]),
-		updatedAt,
-		"Sina",
-	), nil
-}
-
-func buildQuote(name string, current, previous, open, high, low float64, updatedAt time.Time, source string) Quote {
-	change := 0.0
-	changePercent := 0.0
-	if previous > 0 {
-		change = current - previous
-		changePercent = change / previous * 100
-	}
-
-	return Quote{
-		Name:          strings.TrimSpace(name),
-		CurrentPrice:  current,
-		PreviousClose: previous,
-		OpenPrice:     open,
-		DayHigh:       high,
-		DayLow:        low,
-		Change:        change,
-		ChangePercent: changePercent,
-		Source:        source,
-		UpdatedAt:     updatedAt,
-	}
-}
-
-func parseTencentTime(parts []string) time.Time {
-	candidates := []string{
-		partsAt(parts, 30),
-		partsAt(parts, 29),
-	}
-	for _, candidate := range candidates {
-		if ts := parseTimestamp(candidate); !ts.IsZero() {
-			return ts
-		}
-	}
-	return time.Now()
-}
-
-func parseTimestamp(raw string) time.Time {
-	candidate := strings.TrimSpace(strings.NewReplacer("/", "-", "\"", "", ";", "").Replace(raw))
-	if candidate == "" {
-		return time.Time{}
-	}
-
-	layouts := []string{
-		"2006-01-02 15:04:05",
-		"2006-01-02 15:04",
-		"20060102150405",
-	}
-
-	for _, layout := range layouts {
-		if parsed, err := time.ParseInLocation(layout, candidate, time.Local); err == nil {
-			return parsed
-		}
-	}
-
-	return time.Time{}
-}
-
-func parseFloat(raw string) float64 {
-	clean := strings.TrimSpace(strings.NewReplacer("\"", "", ";", "", ",", "").Replace(raw))
-	if clean == "" || clean == "-" {
-		return 0
-	}
-
-	value, err := strconv.ParseFloat(clean, 64)
-	if err != nil {
-		return 0
-	}
-	return value
-}
-
+// normaliseMarketLabel 把市场标签兼容值收敛为系统内部的标准枚举。
 func normaliseMarketLabel(market string) string {
 	switch strings.ToUpper(strings.TrimSpace(market)) {
-	case "A-SHARE", "ASHARE", "CN", "A":
-		return "A-Share"
+	case "A-SHARE", "ASHARE", "CN", "A", "CN-A":
+		return "CN-A"
+	case "CN-GEM", "GEM":
+		return "CN-GEM"
+	case "CN-STAR", "STAR":
+		return "CN-STAR"
+	case "CN-ETF", "CNETF":
+		return "CN-ETF"
+	case "CN-BJ", "BJ":
+		return "CN-BJ"
 	case "HK", "H-SHARE":
-		return "HK"
-	case "US", "NASDAQ", "NYSE":
-		return "US"
-	case "US ETF", "ETF":
-		return "US ETF"
-	case "BJ":
-		return "BJ"
+		return "HK-MAIN"
+	case "HK-MAIN", "HK-GEM", "HK-ETF":
+		return strings.TrimSpace(market)
+	case "US", "NASDAQ", "NYSE", "US-NYQ":
+		return "US-STOCK"
+	case "US ETF", "ETF", "US-ETF":
+		return "US-ETF"
+	case "US-STOCK":
+		return "US-STOCK"
 	default:
 		return strings.TrimSpace(market)
 	}
 }
 
-func splitClean(raw, sep string) []string {
-	parts := strings.Split(raw, sep)
-	result := make([]string, 0, len(parts))
-	for _, part := range parts {
-		result = append(result, strings.TrimSpace(part))
+// inferCNMarketAndExchange 根据 6 位数字代码推断 A 股市场和交易所。
+func inferCNMarketAndExchange(rawSymbol string) (market, exchange string, err error) {
+	if len(rawSymbol) != 6 {
+		return "", "", fmt.Errorf("A股/基金代码应为 6 位: %s", rawSymbol)
 	}
-	return result
+	if strings.HasPrefix(rawSymbol, "688") || strings.HasPrefix(rawSymbol, "689") {
+		return "CN-STAR", "SH", nil
+	}
+	if rawSymbol[0] == '6' || rawSymbol[0] == '9' {
+		return "CN-A", "SH", nil
+	}
+	if rawSymbol[0] == '5' {
+		return "CN-ETF", "SH", nil
+	}
+	if rawSymbol[0] == '3' {
+		return "CN-GEM", "SZ", nil
+	}
+	if strings.HasPrefix(rawSymbol, "15") || strings.HasPrefix(rawSymbol, "16") {
+		return "CN-ETF", "SZ", nil
+	}
+	if rawSymbol[0] == '0' || rawSymbol[0] == '1' || rawSymbol[0] == '2' {
+		return "CN-A", "SZ", nil
+	}
+	if rawSymbol[0] == '4' || rawSymbol[0] == '8' {
+		return "CN-BJ", "BJ", nil
+	}
+	return "", "", fmt.Errorf("无法识别A股/ETF代码: %s", rawSymbol)
 }
 
+// resolveCNMarket 在已有存储值和代码推断结果之间确定最终的 A 股市场类型。
+func resolveCNMarket(code, storedMarket string) string {
+	switch storedMarket {
+	case "CN-GEM", "CN-STAR", "CN-ETF":
+		return storedMarket
+	}
+	market, _, err := inferCNMarketAndExchange(code)
+	if err != nil {
+		return "CN-A"
+	}
+	return market
+}
+
+// resolveHKMarket 返回规范化后的港股市场类型。
+func resolveHKMarket(storedMarket string) string {
+	switch storedMarket {
+	case "HK-GEM", "HK-ETF":
+		return storedMarket
+	}
+	return "HK-MAIN"
+}
+
+// defaultCurrency 返回标准化后的币种；若为空则使用回退值。
 func defaultCurrency(currency, fallback string) string {
 	currency = strings.ToUpper(strings.TrimSpace(currency))
 	if currency == "" {
@@ -641,6 +307,7 @@ func defaultCurrency(currency, fallback string) string {
 	return currency
 }
 
+// isDigits 判断字符串是否全部由数字组成。
 func isDigits(value string) bool {
 	if value == "" {
 		return false
@@ -653,18 +320,7 @@ func isDigits(value string) bool {
 	return true
 }
 
-func isLetters(value string) bool {
-	if value == "" {
-		return false
-	}
-	for _, r := range value {
-		if (r < 'A' || r > 'Z') && (r < 'a' || r > 'z') {
-			return false
-		}
-	}
-	return true
-}
-
+// isUSSymbol 判断字符串是否符合美股代码字符集。
 func isUSSymbol(value string) bool {
 	if value == "" {
 		return false
@@ -682,50 +338,9 @@ func isUSSymbol(value string) bool {
 	return true
 }
 
+// normaliseUSSymbol 把美股代码收敛到系统内部使用的标准格式。
 func normaliseUSSymbol(value string) string {
 	value = strings.ToUpper(strings.TrimSpace(value))
 	value = strings.ReplaceAll(value, ".", "-")
 	return value
-}
-
-func collapseProblems(problems []string) error {
-	if len(problems) == 0 {
-		return nil
-	}
-
-	seen := make(map[string]struct{}, len(problems))
-	uniq := make([]string, 0, len(problems))
-	for _, problem := range problems {
-		problem = strings.TrimSpace(problem)
-		if problem == "" {
-			continue
-		}
-		if _, exists := seen[problem]; exists {
-			continue
-		}
-		seen[problem] = struct{}{}
-		uniq = append(uniq, problem)
-	}
-
-	if len(uniq) == 0 {
-		return nil
-	}
-
-	return errors.New(strings.Join(uniq, "；"))
-}
-
-func partsAt(parts []string, index int) string {
-	if index < 0 || index >= len(parts) {
-		return ""
-	}
-	return parts[index]
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return value
-		}
-	}
-	return ""
 }

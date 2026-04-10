@@ -8,11 +8,16 @@ import (
 	"time"
 )
 
-// UpsertItem 负责标的增改，并在 live 模式下尽量补齐一跳最新行情。
+// UpsertItem 新增或更新自选标的，并在实时模式下尽量补齐最新行情。
 func (s *Store) UpsertItem(input WatchlistItem) (StateSnapshot, error) {
+	item, err := sanitiseItem(input)
+	if err != nil {
+		return StateSnapshot{}, err
+	}
+
+	// 先在读锁内取出运行时依赖和旧值，避免后续网络请求占用写锁。
 	s.mu.RLock()
-	priceMode := s.state.Settings.PriceMode
-	provider := s.activeQuoteProviderLocked()
+	provider := s.activeQuoteProviderLocked(item.Market)
 	var existing *WatchlistItem
 	if input.ID != "" {
 		if index := s.findItemIndexLocked(input.ID); index >= 0 {
@@ -22,16 +27,12 @@ func (s *Store) UpsertItem(input WatchlistItem) (StateSnapshot, error) {
 	}
 	s.mu.RUnlock()
 
-	item, err := sanitiseItem(input)
-	if err != nil {
-		return StateSnapshot{}, err
-	}
-
 	if existing != nil {
 		item = inheritLiveFields(item, *existing)
 	}
 
-	if strings.EqualFold(priceMode, "live") && provider != nil {
+	if provider != nil {
+		// 标的保存后立即补一跳行情，确保当前价始终来自统一行情源。
 		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 		quotes, quoteErr := provider.Fetch(ctx, []WatchlistItem{item})
 		cancel()
@@ -71,7 +72,7 @@ func (s *Store) UpsertItem(input WatchlistItem) (StateSnapshot, error) {
 		s.logInfo("watchlist", fmt.Sprintf("updated item %s", item.Symbol))
 	}
 
-	s.runtime.QuoteSource = s.quoteProviderNameLocked()
+	s.runtime.QuoteSource = s.quoteProviderSummaryLocked()
 	s.state.UpdatedAt = time.Now()
 	s.evaluateAlertsLocked()
 	if err := s.saveLocked(); err != nil {
@@ -82,6 +83,7 @@ func (s *Store) UpsertItem(input WatchlistItem) (StateSnapshot, error) {
 	return s.snapshotLocked(), nil
 }
 
+// DeleteItem 删除指定标的，并同步删除其关联的提醒规则。
 func (s *Store) DeleteItem(id string) (StateSnapshot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -93,6 +95,7 @@ func (s *Store) DeleteItem(id string) (StateSnapshot, error) {
 
 	itemSymbol := s.state.Items[index].Symbol
 	s.state.Items = append(s.state.Items[:index], s.state.Items[index+1:]...)
+	// 删除标的后，挂在该标的上的提醒也必须一起清掉，避免留下悬空引用。
 	filteredAlerts := s.state.Alerts[:0]
 	for _, alert := range s.state.Alerts {
 		if alert.ItemID != id {
@@ -112,6 +115,7 @@ func (s *Store) DeleteItem(id string) (StateSnapshot, error) {
 	return s.snapshotLocked(), nil
 }
 
+// UpsertAlert 新增或更新价格提醒规则。
 func (s *Store) UpsertAlert(input AlertRule) (StateSnapshot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -149,6 +153,7 @@ func (s *Store) UpsertAlert(input AlertRule) (StateSnapshot, error) {
 	return s.snapshotLocked(), nil
 }
 
+// DeleteAlert 删除指定提醒规则。
 func (s *Store) DeleteAlert(id string) (StateSnapshot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -172,6 +177,7 @@ func (s *Store) DeleteAlert(id string) (StateSnapshot, error) {
 	return s.snapshotLocked(), nil
 }
 
+// UpdateSettings 更新应用设置并立即持久化。
 func (s *Store) UpdateSettings(input AppSettings) (StateSnapshot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -191,9 +197,14 @@ func (s *Store) UpdateSettings(input AppSettings) (StateSnapshot, error) {
 	s.logInfo(
 		"settings",
 		fmt.Sprintf(
-			"updated settings: quoteSource=%s refresh=%ds developerMode=%t",
-			settings.QuoteSource,
+			"updated settings: cn=%s hk=%s us=%s hotUS=%s refresh=%ds theme=%s color=%s developerMode=%t",
+			settings.CNQuoteSource,
+			settings.HKQuoteSource,
+			settings.USQuoteSource,
+			settings.HotUSSource,
 			settings.RefreshIntervalSeconds,
+			settings.ThemeMode,
+			settings.ColorTheme,
 			settings.DeveloperMode,
 		),
 	)
@@ -201,6 +212,7 @@ func (s *Store) UpdateSettings(input AppSettings) (StateSnapshot, error) {
 	return s.snapshotLocked(), nil
 }
 
+// sanitiseItem 规范化标的信息并执行基础合法性校验。
 func sanitiseItem(input WatchlistItem) (WatchlistItem, error) {
 	item := input
 	item.Name = strings.TrimSpace(item.Name)
@@ -217,6 +229,48 @@ func sanitiseItem(input WatchlistItem) (WatchlistItem, error) {
 	item.Currency = target.Currency
 	item.QuoteSource = strings.TrimSpace(item.QuoteSource)
 
+	// 若有定投记录，先过滤并规范化条目，再自动推算累计份额和加权均价。
+	// 推算规则：
+	//   1. 优先使用手动录入的买入价（Price > 0）：effectiveCost = Price × Shares
+	//   2. 无买入价时，从总投入中扣除手续费：effectiveCost = max(Amount - Fee, 0)
+	// 加权均价 = Σ effectiveCost_i / Σ Shares_i
+	if len(item.DCAEntries) > 0 {
+		valid := make([]DCAEntry, 0, len(item.DCAEntries))
+		for _, e := range item.DCAEntries {
+			if e.Shares <= 0 || e.Amount <= 0 {
+				continue
+			}
+			if e.ID == "" {
+				e.ID = newID("dca")
+			}
+			valid = append(valid, e)
+		}
+		item.DCAEntries = valid
+
+		if len(item.DCAEntries) > 0 {
+			totalShares := 0.0
+			totalEffectiveCost := 0.0
+			for _, e := range item.DCAEntries {
+				totalShares += e.Shares
+				var effectiveCost float64
+				if e.Price > 0 {
+					effectiveCost = e.Price * e.Shares
+				} else {
+					net := e.Amount - e.Fee
+					if net < 0 {
+						net = 0
+					}
+					effectiveCost = net
+				}
+				totalEffectiveCost += effectiveCost
+			}
+			item.Quantity = totalShares
+			if totalShares > 0 {
+				item.CostPrice = totalEffectiveCost / totalShares
+			}
+		}
+	}
+
 	if item.Quantity < 0 {
 		return WatchlistItem{}, errors.New("持仓数量不能小于 0")
 	}
@@ -227,6 +281,7 @@ func sanitiseItem(input WatchlistItem) (WatchlistItem, error) {
 	return item, nil
 }
 
+// sanitiseAlert 规范化提醒规则并执行基础合法性校验。
 func sanitiseAlert(input AlertRule) (AlertRule, error) {
 	alert := input
 	alert.Name = strings.TrimSpace(alert.Name)
@@ -248,17 +303,32 @@ func sanitiseAlert(input AlertRule) (AlertRule, error) {
 	return alert, nil
 }
 
-// sanitiseSettings 会把用户输入与当前配置合并，并做统一的合法性校验。
+// sanitiseSettings 把用户输入与当前配置合并，并执行统一的合法性校验。
 func sanitiseSettings(input AppSettings, current AppSettings, quoteProviders map[string]QuoteProvider) (AppSettings, error) {
 	settings := current
-	if strings.TrimSpace(input.PriceMode) != "" {
-		settings.PriceMode = strings.ToLower(strings.TrimSpace(input.PriceMode))
-	}
 	if input.RefreshIntervalSeconds > 0 {
 		settings.RefreshIntervalSeconds = input.RefreshIntervalSeconds
 	}
 	if strings.TrimSpace(input.QuoteSource) != "" {
 		settings.QuoteSource = strings.ToLower(strings.TrimSpace(input.QuoteSource))
+	}
+	if strings.TrimSpace(input.CNQuoteSource) != "" {
+		settings.CNQuoteSource = strings.ToLower(strings.TrimSpace(input.CNQuoteSource))
+	}
+	if strings.TrimSpace(input.HKQuoteSource) != "" {
+		settings.HKQuoteSource = strings.ToLower(strings.TrimSpace(input.HKQuoteSource))
+	}
+	if strings.TrimSpace(input.USQuoteSource) != "" {
+		settings.USQuoteSource = strings.ToLower(strings.TrimSpace(input.USQuoteSource))
+	}
+	if strings.TrimSpace(input.HotUSSource) != "" {
+		settings.HotUSSource = strings.ToLower(strings.TrimSpace(input.HotUSSource))
+	}
+	if strings.TrimSpace(input.ThemeMode) != "" {
+		settings.ThemeMode = strings.ToLower(strings.TrimSpace(input.ThemeMode))
+	}
+	if strings.TrimSpace(input.ColorTheme) != "" {
+		settings.ColorTheme = strings.ToLower(strings.TrimSpace(input.ColorTheme))
 	}
 	if strings.TrimSpace(input.FontPreset) != "" {
 		settings.FontPreset = strings.ToLower(strings.TrimSpace(input.FontPreset))
@@ -275,25 +345,29 @@ func sanitiseSettings(input AppSettings, current AppSettings, quoteProviders map
 	if strings.TrimSpace(input.Locale) != "" {
 		settings.Locale = strings.TrimSpace(input.Locale)
 	}
+	if strings.TrimSpace(input.DashboardCurrency) != "" {
+		settings.DashboardCurrency = strings.ToUpper(strings.TrimSpace(input.DashboardCurrency))
+	}
+	// 布尔值无法通过"空字符串"区分是否传入，这里显式采用输入值覆盖。
 	settings.DeveloperMode = input.DeveloperMode
+	settings.UseNativeTitleBar = input.UseNativeTitleBar
 
-	switch settings.PriceMode {
-	case "", "live":
-		settings.PriceMode = "live"
-	case "manual":
-	default:
-		return AppSettings{}, errors.New("价格模式仅支持 live 或 manual")
+	if settings.RefreshIntervalSeconds < 10 {
+		return AppSettings{}, errors.New("刷新间隔不能低于 10 秒")
 	}
-
-	if settings.RefreshIntervalSeconds < 10 || settings.RefreshIntervalSeconds > 300 {
-		return AppSettings{}, errors.New("刷新间隔需要在 10 到 300 秒之间")
-	}
-	if settings.QuoteSource == "" {
-		settings.QuoteSource = defaultQuoteSourceID
-	}
+	settings.CNQuoteSource = normaliseQuoteSourceIDForSettings(settings.CNQuoteSource, settings.QuoteSource, "CN-A", quoteProviders)
+	settings.HKQuoteSource = normaliseQuoteSourceIDForSettings(settings.HKQuoteSource, settings.QuoteSource, "HK-MAIN", quoteProviders)
+	settings.USQuoteSource = normaliseQuoteSourceIDForSettings(settings.USQuoteSource, settings.QuoteSource, "US-STOCK", quoteProviders)
+	settings.QuoteSource = DefaultQuoteSourceID
 	if len(quoteProviders) > 0 {
-		if _, ok := quoteProviders[settings.QuoteSource]; !ok {
-			return AppSettings{}, errors.New("行情来源无效")
+		if _, ok := quoteProviders[settings.CNQuoteSource]; !ok {
+			return AppSettings{}, errors.New("A股行情来源无效")
+		}
+		if _, ok := quoteProviders[settings.HKQuoteSource]; !ok {
+			return AppSettings{}, errors.New("港股行情来源无效")
+		}
+		if _, ok := quoteProviders[settings.USQuoteSource]; !ok {
+			return AppSettings{}, errors.New("美股行情来源无效")
 		}
 	}
 	switch settings.FontPreset {
@@ -302,6 +376,20 @@ func sanitiseSettings(input AppSettings, current AppSettings, quoteProviders map
 	case "reading", "compact":
 	default:
 		return AppSettings{}, errors.New("字体预设仅支持 system / reading / compact")
+	}
+	switch settings.ThemeMode {
+	case "", "system":
+		settings.ThemeMode = "system"
+	case "light", "dark":
+	default:
+		return AppSettings{}, errors.New("外观模式仅支持 system / light / dark")
+	}
+	switch settings.ColorTheme {
+	case "", "blue":
+		settings.ColorTheme = "blue"
+	case "graphite", "forest", "sunset":
+	default:
+		return AppSettings{}, errors.New("界面配色仅支持 blue / graphite / forest / sunset")
 	}
 	switch settings.AmountDisplay {
 	case "", "full":
@@ -331,10 +419,69 @@ func sanitiseSettings(input AppSettings, current AppSettings, quoteProviders map
 	default:
 		return AppSettings{}, errors.New("语言区域仅支持 system / zh-CN / en-US")
 	}
+	switch settings.DashboardCurrency {
+	case "", "CNY":
+		settings.DashboardCurrency = "CNY"
+	case "HKD", "USD":
+	default:
+		return AppSettings{}, errors.New("展示货币仅支持 CNY / HKD / USD")
+	}
+	switch settings.HotUSSource {
+	case "", "eastmoney":
+		settings.HotUSSource = "eastmoney"
+	case "yahoo":
+		// valid
+	default:
+		return AppSettings{}, errors.New("热门美股来源仅支持 eastmoney / yahoo")
+	}
 
 	return settings, nil
 }
 
+// normaliseQuoteSourceIDForSettings 根据用户输入、市场类型和可用行情源列表，确定最终使用的行情源 ID。
+func normaliseQuoteSourceIDForSettings(sourceID, legacySource, market string, providers map[string]QuoteProvider) string {
+	sourceID = strings.ToLower(strings.TrimSpace(sourceID))
+	if sourceID == "" {
+		sourceID = strings.ToLower(strings.TrimSpace(legacySource))
+	}
+	if sourceID != "" {
+		if _, ok := providers[sourceID]; ok && quoteSourceSupportsMarketForSettings(sourceID, market) {
+			return sourceID
+		}
+	}
+	switch marketGroupForMarket(market) {
+	case "hk":
+		if _, ok := providers[DefaultHKQuoteSourceID]; ok {
+			return DefaultHKQuoteSourceID
+		}
+	case "us":
+		if _, ok := providers[DefaultUSQuoteSourceID]; ok {
+			return DefaultUSQuoteSourceID
+		}
+	default:
+		if _, ok := providers[DefaultCNQuoteSourceID]; ok {
+			return DefaultCNQuoteSourceID
+		}
+	}
+	if _, ok := providers[DefaultQuoteSourceID]; ok {
+		return DefaultQuoteSourceID
+	}
+	for id := range providers {
+		return id
+	}
+	return DefaultQuoteSourceID
+}
+
+func quoteSourceSupportsMarketForSettings(sourceID, market string) bool {
+	switch sourceID {
+	case "eastmoney", "yahoo":
+		return market != "CN-BJ"
+	default:
+		return false
+	}
+}
+
+// normaliseTags 去除空标签并保持标签集合唯一。
 func normaliseTags(tags []string) []string {
 	seen := make(map[string]struct{}, len(tags))
 	result := make([]string, 0, len(tags))
@@ -352,18 +499,21 @@ func normaliseTags(tags []string) []string {
 	return result
 }
 
+// logInfo 在日志簿可用时写入 info 级别日志。
 func (s *Store) logInfo(scope, message string) {
 	if s.logs != nil {
 		s.logs.Info("backend", scope, message)
 	}
 }
 
+// logWarn 在日志簿可用时写入 warn 级别日志。
 func (s *Store) logWarn(scope, message string) {
 	if s.logs != nil {
 		s.logs.Warn("backend", scope, message)
 	}
 }
 
+// logError 在日志簿可用时写入 error 级别日志。
 func (s *Store) logError(scope, message string) {
 	if s.logs != nil {
 		s.logs.Error("backend", scope, message)

@@ -12,10 +12,12 @@ export function useDeveloperLogs(setStatus: StatusReporter) {
     const logFilePath = ref("");
     const loadingLogs = ref(false);
 
+    // 前后端日志共用一个时间倒序列表，方便在设置页里统一查看。
     const developerLogs = computed<DeveloperLogEntry[]>(() =>
         [...backendLogs.value, ...clientLogs.value].sort((left, right) => new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime()).slice(0, 250),
     );
 
+    // 静默模式主要用于轮询刷新，失败时不打断当前页面状态。
     async function loadBackendLogs(silent = false): Promise<void> {
         if (loadingLogs.value) {
             return;
@@ -52,6 +54,7 @@ export function useDeveloperLogs(setStatus: StatusReporter) {
             return;
         }
 
+        // 复制时使用纯文本格式，便于直接贴到 issue、IM 或终端里。
         const payload = developerLogs.value.map((entry) => `[${entry.timestamp}] ${entry.level.toUpperCase()} ${entry.source}/${entry.scope} ${entry.message}`).join("\n\n");
 
         try {

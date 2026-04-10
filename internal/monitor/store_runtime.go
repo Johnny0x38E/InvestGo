@@ -8,21 +8,41 @@ import (
 	"time"
 )
 
-// Refresh 只刷新实时行情和提醒状态，不触碰历史走势缓存。
+// Refresh 刷新实时行情与提醒状态，但不触碰历史走势缓存。
 // 这样前端可以按需拉取走势图，而不是每次刷新都把历史数据重新打包进基线快照。
 func (s *Store) Refresh(ctx context.Context) (StateSnapshot, error) {
+	// 先复制当前标的切片，避免网络请求阶段长期持有读锁。
 	s.mu.RLock()
-	priceMode := s.state.Settings.PriceMode
 	items := append([]WatchlistItem(nil), s.state.Items...)
-	provider := s.activeQuoteProviderLocked()
 	s.mu.RUnlock()
 
 	attemptedAt := time.Now()
 	quotes := map[string]Quote{}
-	fetchErr := error(nil)
+	var problems []string
 
-	if strings.EqualFold(priceMode, "live") && provider != nil && len(items) > 0 {
-		quotes, fetchErr = provider.Fetch(ctx, items)
+	if len(items) > 0 {
+		grouped := make(map[string][]WatchlistItem)
+		for _, item := range items {
+			s.mu.RLock()
+			sourceID := s.activeQuoteSourceIDLocked(item.Market)
+			provider := s.activeQuoteProviderLocked(item.Market)
+			s.mu.RUnlock()
+			if provider == nil || sourceID == "" {
+				continue
+			}
+			grouped[sourceID] = append(grouped[sourceID], item)
+		}
+
+		for sourceID, batch := range grouped {
+			provider := s.quoteProviders[sourceID]
+			batchQuotes, err := provider.Fetch(ctx, batch)
+			if err != nil {
+				problems = append(problems, fmt.Sprintf("%s: %v", provider.Name(), err))
+			}
+			for key, quote := range batchQuotes {
+				quotes[key] = quote
+			}
+		}
 	}
 
 	s.mu.Lock()
@@ -30,9 +50,10 @@ func (s *Store) Refresh(ctx context.Context) (StateSnapshot, error) {
 
 	s.runtime.LastQuoteAttemptAt = ptrTime(attemptedAt)
 	s.runtime.LastQuoteError = ""
-	s.runtime.QuoteSource = s.quoteProviderNameLocked()
+	s.runtime.QuoteSource = s.quoteProviderSummaryLocked()
 
 	if len(quotes) > 0 {
+		// 以规范化后的目标键匹配返回结果，避免用户输入格式差异影响回填。
 		for idx := range s.state.Items {
 			target, err := ResolveQuoteTarget(s.state.Items[idx])
 			if err != nil {
@@ -47,7 +68,7 @@ func (s *Store) Refresh(ctx context.Context) (StateSnapshot, error) {
 		s.runtime.LastQuoteRefreshAt = ptrTime(time.Now())
 	}
 
-	if fetchErr != nil {
+	if fetchErr := joinProblems(problems); fetchErr != nil {
 		s.runtime.LastQuoteError = fetchErr.Error()
 		s.logWarn("quotes", fmt.Sprintf("quote refresh failed: %v", fetchErr))
 	}
@@ -62,12 +83,8 @@ func (s *Store) Refresh(ctx context.Context) (StateSnapshot, error) {
 	return s.snapshotLocked(), nil
 }
 
-// ItemHistory 把历史走势查询委托给独立 provider，避免 Store 直接耦合外部数据源细节。
+// ItemHistory 查询指定标的的历史走势，并委托给历史 provider 实现。
 func (s *Store) ItemHistory(ctx context.Context, itemID string, interval HistoryInterval) (HistorySeries, error) {
-	if s.historyProvider == nil {
-		return HistorySeries{}, errors.New("历史行情 provider 未配置")
-	}
-
 	s.mu.RLock()
 	index := s.findItemIndexLocked(itemID)
 	if index == -1 {
@@ -75,11 +92,48 @@ func (s *Store) ItemHistory(ctx context.Context, itemID string, interval History
 		return HistorySeries{}, fmt.Errorf("标的不存在: %s", itemID)
 	}
 	item := s.state.Items[index]
+	providers := s.historyProviderCandidatesLocked(item.Market)
 	s.mu.RUnlock()
 
-	return s.historyProvider.Fetch(ctx, item, interval)
+	if len(providers) == 0 {
+		return HistorySeries{}, errors.New("历史行情 provider 未配置")
+	}
+
+	var problems []string
+	for _, provider := range providers {
+		series, err := provider.Fetch(ctx, item, interval)
+		if err == nil {
+			return series, nil
+		}
+		problems = append(problems, fmt.Sprintf("%s: %v", provider.Name(), err))
+	}
+	return HistorySeries{}, joinProblems(problems)
 }
 
+func joinProblems(problems []string) error {
+	if len(problems) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(problems))
+	unique := make([]string, 0, len(problems))
+	for _, problem := range problems {
+		problem = strings.TrimSpace(problem)
+		if problem == "" {
+			continue
+		}
+		if _, ok := seen[problem]; ok {
+			continue
+		}
+		seen[problem] = struct{}{}
+		unique = append(unique, problem)
+	}
+	if len(unique) == 0 {
+		return nil
+	}
+	return errors.New(strings.Join(unique, "；"))
+}
+
+// applyQuoteToItem 把最新行情字段回填到标的对象上。
 func applyQuoteToItem(item *WatchlistItem, quote Quote) {
 	if strings.TrimSpace(quote.Name) != "" {
 		item.Name = quote.Name
@@ -95,7 +149,7 @@ func applyQuoteToItem(item *WatchlistItem, quote Quote) {
 	item.QuoteUpdatedAt = ptrTime(nonZeroTime(quote.UpdatedAt))
 }
 
-// inheritLiveFields 用于保留编辑表单里看不见的实时字段，避免用户改备注时把盘口信息抹掉。
+// inheritLiveFields 继承旧条目里的实时字段，避免表单更新时覆盖掉盘口信息。
 func inheritLiveFields(item WatchlistItem, existing WatchlistItem) WatchlistItem {
 	item.PreviousClose = existing.PreviousClose
 	item.OpenPrice = existing.OpenPrice
@@ -113,6 +167,7 @@ func inheritLiveFields(item WatchlistItem, existing WatchlistItem) WatchlistItem
 	return item
 }
 
+// countLiveQuotes 统计当前有有效实时更新时间的标的数量。
 func countLiveQuotes(items []WatchlistItem) int {
 	total := 0
 	for _, item := range items {

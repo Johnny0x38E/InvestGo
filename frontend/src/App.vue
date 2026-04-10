@@ -7,6 +7,7 @@ import ModuleTabs from "./components/ModuleTabs.vue";
 import SummaryStrip from "./components/SummaryStrip.vue";
 import AlertDialog from "./components/dialogs/AlertDialog.vue";
 import ConfirmDialog from "./components/dialogs/ConfirmDialog.vue";
+import DCADetailDialog from "./components/dialogs/DCADetailDialog.vue";
 import ItemDialog from "./components/dialogs/ItemDialog.vue";
 import SettingsDialog from "./components/dialogs/SettingsDialog.vue";
 import AlertsModule from "./components/modules/AlertsModule.vue";
@@ -43,6 +44,9 @@ const alertDialogVisible = ref(false);
 const confirmDialogVisible = ref(false);
 const savingSettings = ref(false);
 const savingItem = ref(false);
+const dcaDetailVisible = ref(false);
+const dcaDetailItem = ref<WatchlistItem | null>(null);
+const itemDialogInitialTab = ref<"basic" | "dca">("basic");
 const savingAlert = ref(false);
 const deleting = ref(false);
 const matchMediaList = window.matchMedia("(prefers-color-scheme: dark)");
@@ -78,20 +82,19 @@ const alertItemOptions = computed<OptionItem<string>[]>(() =>
     })),
 );
 
-const quoteSourceDescription = computed(() => {
-    return quoteSources.value.find((entry) => entry.id === settingsDraft.quoteSource)?.description ?? "选择一个适合你日常观察的数据源策略。";
-});
-
 const trackedHotKeys = computed(() => items.value.map((item) => `${item.market}:${item.symbol}`));
 
 watch(
     settings,
     (value) => {
+        // 格式化设置和根节点 data 属性统一从这里同步，避免散落在多个组件里。
         setFormatterSettings(value);
         document.documentElement.dataset.fontPreset = value.fontPreset;
+        document.documentElement.dataset.colorTheme = value.colorTheme;
         document.documentElement.dataset.priceColorScheme = value.priceColorScheme;
+        document.documentElement.dataset.themeMode = value.themeMode;
         document.documentElement.lang = value.locale === "system" ? navigator.language || "zh-CN" : value.locale;
-        document.documentElement.classList.toggle("app-dark", matchMediaList.matches);
+        applyResolvedTheme(value.themeMode);
     },
     { deep: true, immediate: true },
 );
@@ -119,6 +122,7 @@ watch(
             return;
         }
 
+        // 只在开发者页签可见时轮询日志，避免无意义的后台请求。
         void loadBackendLogs(true);
         developerLogTimer = window.setInterval(() => {
             void loadBackendLogs(true);
@@ -126,12 +130,6 @@ watch(
     },
     { immediate: true },
 );
-
-watch(selectedItemId, () => {
-    if (activeModule.value === "market" && selectedItemId.value) {
-        void loadHistory(true);
-    }
-});
 
 onMounted(async () => {
     installClientLogCapture();
@@ -145,10 +143,25 @@ onBeforeUnmount(() => {
     matchMediaList.removeEventListener("change", syncThemeMode);
 });
 
+// 同步系统主题到页面根节点，保持桌面应用的明暗跟随。
 function syncThemeMode(): void {
-    document.documentElement.classList.toggle("app-dark", matchMediaList.matches);
+    applyResolvedTheme(settings.value.themeMode);
 }
 
+function resolvedTheme(themeMode: AppSettings["themeMode"]): "light" | "dark" {
+    if (themeMode === "light" || themeMode === "dark") {
+        return themeMode;
+    }
+    return matchMediaList.matches ? "dark" : "light";
+}
+
+function applyResolvedTheme(themeMode: AppSettings["themeMode"]): void {
+    const nextTheme = resolvedTheme(themeMode);
+    document.documentElement.dataset.theme = nextTheme;
+    document.documentElement.classList.toggle("app-dark", nextTheme === "dark");
+}
+
+// 从后端拉取完整快照，供首次加载和手动刷新使用。
 async function loadState(silent = false): Promise<void> {
     if (!silent) {
         setStatus("正在加载观察台…", "success");
@@ -159,14 +172,13 @@ async function loadState(silent = false): Promise<void> {
         applySnapshot(snapshot);
         setStatus("观察台已加载。", "success");
 
-        if (settings.value.priceMode === "live") {
-            void refreshQuotes(true);
-        }
+        void refreshQuotes(true, false);
     } catch (error) {
         setStatus(error instanceof Error ? error.message : "加载失败", "error");
     }
 }
 
+// 把后端快照灌回前端状态，并重置当前选中标的。
 function applySnapshot(snapshot: StateSnapshot): void {
     dashboard.value = snapshot.dashboard;
     items.value = snapshot.items ?? [];
@@ -182,18 +194,19 @@ function applySnapshot(snapshot: StateSnapshot): void {
     }
 
     scheduleAutoRefresh();
-    if (activeModule.value === "market" && selectedItemId.value) {
-        void loadHistory(true);
-    }
 }
 
-async function refreshQuotes(silent = false): Promise<void> {
+// 刷新实时行情，并按需要同步刷新当前图表范围。
+async function refreshQuotes(silent = false, refreshHistory = true): Promise<void> {
     try {
         if (!silent) {
             setStatus("正在同步实时行情…", "success");
         }
         const snapshot = await api<StateSnapshot>("/api/refresh", { method: "POST" });
         applySnapshot(snapshot);
+        if (refreshHistory && activeModule.value === "market" && selectedItem.value) {
+            await loadHistory(true, true);
+        }
         if (snapshot.runtime.lastQuoteError) {
             setStatus(snapshot.runtime.lastQuoteError, "error");
         } else if (!silent) {
@@ -201,33 +214,34 @@ async function refreshQuotes(silent = false): Promise<void> {
         }
     } catch (error) {
         setStatus(error instanceof Error ? error.message : "刷新失败", "error");
+    } finally {
+        scheduleAutoRefresh();
     }
 }
 
+// 自动刷新按配置间隔继续下一次同步，用于所有区间图表的实时更新。
 function scheduleAutoRefresh(): void {
     window.clearTimeout(refreshTimer);
-    if (settings.value.priceMode !== "live") {
-        return;
-    }
+    const intervalMs = Math.max(settings.value.refreshIntervalSeconds || 60, 10) * 1000;
 
-    refreshTimer = window.setTimeout(
-        () => {
-            void refreshQuotes(true);
-        },
-        Math.min(Math.max(settings.value.refreshIntervalSeconds || 20, 10), 300) * 1000,
-    );
+    refreshTimer = window.setTimeout(() => {
+        void refreshQuotes(true);
+    }, intervalMs);
 }
 
+// 更新顶部状态栏文案和色调。
 function setStatus(message: string, tone: StatusTone): void {
     statusText.value = message;
     statusTone.value = tone;
 }
 
+// 打开设置弹窗，并把当前设置复制到草稿对象。
 function openSettings(): void {
     Object.assign(settingsDraft, settings.value);
     settingsVisible.value = true;
 }
 
+// 保存用户设置，并让后端返回新的完整快照。
 async function saveSettings(): Promise<void> {
     savingSettings.value = true;
     try {
@@ -238,6 +252,10 @@ async function saveSettings(): Promise<void> {
         applySnapshot(snapshot);
         settingsVisible.value = false;
         setStatus("设置已保存。", "success");
+        // 设置保存后，如果当前在市场模块，刷新图表以确保使用新设置
+        if (activeModule.value === "market" && selectedItem.value) {
+            void loadHistory(true, true);
+        }
     } catch (error) {
         setStatus(error instanceof Error ? error.message : "设置保存失败", "error");
     } finally {
@@ -245,11 +263,27 @@ async function saveSettings(): Promise<void> {
     }
 }
 
-function openItemDialog(item?: WatchlistItem): void {
+// 打开标的编辑弹窗。
+function openItemDialog(item?: WatchlistItem, initialTab: "basic" | "dca" = "basic"): void {
     Object.assign(itemForm, item ? mapItemToForm(item) : emptyItemForm());
+    itemDialogInitialTab.value = initialTab;
     itemDialogVisible.value = true;
 }
 
+// 打开定投明细弹窗。
+function showDCADetail(item: WatchlistItem): void {
+    dcaDetailItem.value = item;
+    dcaDetailVisible.value = true;
+}
+
+// 从定投明细弹窗切换到编辑弹窗的定投标签页。
+function editFromDCADetail(): void {
+    if (!dcaDetailItem.value) return;
+    dcaDetailVisible.value = false;
+    openItemDialog(dcaDetailItem.value, "dca");
+}
+
+// 保存标的并刷新缓存，确保当前图表继续对齐最新数据。
 async function saveItem(): Promise<void> {
     savingItem.value = true;
     try {
@@ -269,6 +303,7 @@ async function saveItem(): Promise<void> {
     }
 }
 
+// 将热门榜单中的标的快速加入观察列表。
 async function quickAddHotItem(item: HotItem): Promise<void> {
     const key = `${item.market}:${item.symbol}`;
     if (trackedHotKeys.value.includes(key)) {
@@ -277,6 +312,7 @@ async function quickAddHotItem(item: HotItem): Promise<void> {
     }
 
     try {
+        // 快速加入只写入持仓基础信息，当前价仍由统一行情源回填。
         const snapshot = await api<StateSnapshot>("/api/items", {
             method: "POST",
             body: JSON.stringify({
@@ -286,7 +322,6 @@ async function quickAddHotItem(item: HotItem): Promise<void> {
                 currency: item.currency,
                 quantity: 0,
                 costPrice: item.currentPrice || 0,
-                currentPrice: item.currentPrice || 0,
                 tags: ["热门"],
                 thesis: "来自热门榜单",
             }),
@@ -298,6 +333,7 @@ async function quickAddHotItem(item: HotItem): Promise<void> {
     }
 }
 
+// 删除标的时同步清空相关历史缓存。
 async function performDeleteItem(id: string): Promise<void> {
     try {
         const snapshot = await api<StateSnapshot>(`/api/items/${id}`, { method: "DELETE" });
@@ -309,11 +345,13 @@ async function performDeleteItem(id: string): Promise<void> {
     }
 }
 
+// 打开提醒编辑弹窗。
 function openAlertDialog(alert?: AlertRule): void {
     Object.assign(alertForm, alert ? mapAlertToForm(alert) : emptyAlertForm(items.value[0]?.id));
     alertDialogVisible.value = true;
 }
 
+// 保存提醒规则，并把列表切换到提醒模块。
 async function saveAlert(): Promise<void> {
     savingAlert.value = true;
     try {
@@ -334,6 +372,7 @@ async function saveAlert(): Promise<void> {
     }
 }
 
+// 删除提醒规则。
 async function performDeleteAlert(id: string): Promise<void> {
     try {
         const snapshot = await api<StateSnapshot>(`/api/alerts/${id}`, { method: "DELETE" });
@@ -344,6 +383,7 @@ async function performDeleteAlert(id: string): Promise<void> {
     }
 }
 
+// 记录待删除对象，并弹出二次确认。
 function requestDeleteItem(id: string): void {
     pendingDelete.kind = "item";
     pendingDelete.id = id;
@@ -362,6 +402,7 @@ function requestDeleteAlert(id: string): void {
     confirmDialogVisible.value = true;
 }
 
+// 执行确认删除。
 async function confirmDelete(): Promise<void> {
     if (!pendingDelete.kind || !pendingDelete.id) {
         confirmDialogVisible.value = false;
@@ -370,6 +411,7 @@ async function confirmDelete(): Promise<void> {
 
     deleting.value = true;
     try {
+        // 删除类型在确认前已经固化到 pendingDelete，这里只负责执行对应动作。
         if (pendingDelete.kind === "item") {
             await performDeleteItem(pendingDelete.id);
         } else {
@@ -383,6 +425,7 @@ async function confirmDelete(): Promise<void> {
     }
 }
 
+// 切换主模块，进入市场模块时补拉当前图表。
 function switchModule(next: ModuleKey): void {
     appendClientLog("info", "tabs", `switch module ${activeModule.value} -> ${next}`);
     activeModule.value = next;
@@ -401,35 +444,38 @@ function switchModule(next: ModuleKey): void {
         <section class="workspace-panel">
             <ModuleTabs :active-module="activeModule" @switch="switchModule" />
 
-            <MarketModule
-                v-if="activeModule === 'market'"
-                :selected-item="selectedItem"
-                :selected-item-id="selectedItemId"
-                :history-interval="historyInterval"
-                :history-item-options="historyItemOptions"
-                :history-series="historySeries"
-                :history-loading="historyLoading"
-                :history-error="historyError"
-                @refresh="refreshQuotes()"
-                @update:selected-item-id="selectedItemId = $event"
-                @select-interval="selectHistoryInterval"
-            />
+            <div class="workspace-stage">
+                <MarketModule
+                    v-if="activeModule === 'market'"
+                    :selected-item="selectedItem"
+                    :selected-item-id="selectedItemId"
+                    :history-interval="historyInterval"
+                    :history-item-options="historyItemOptions"
+                    :history-series="historySeries"
+                    :history-loading="historyLoading"
+                    :history-error="historyError"
+                    @refresh="refreshQuotes()"
+                    @update:selected-item-id="selectedItemId = $event"
+                    @select-interval="selectHistoryInterval"
+                />
 
-            <HotModule v-else-if="activeModule === 'hot'" :tracked-keys="trackedHotKeys" @add-item="quickAddHotItem" />
+                <HotModule v-else-if="activeModule === 'hot'" :tracked-keys="trackedHotKeys" @add-item="quickAddHotItem" />
 
-            <WatchlistModule
-                v-else-if="activeModule === 'watchlist'"
-                :search="search"
-                :filtered-items="filteredItems"
-                :selected-item-id="selectedItemId"
-                @update:search="search = $event"
-                @add-item="openItemDialog()"
-                @edit-item="openItemDialog"
-                @delete-item="requestDeleteItem"
-                @select-item="selectedItemId = $event"
-            />
+                <WatchlistModule
+                    v-else-if="activeModule === 'watchlist'"
+                    :search="search"
+                    :filtered-items="filteredItems"
+                    :selected-item-id="selectedItemId"
+                    @update:search="search = $event"
+                    @add-item="openItemDialog()"
+                    @edit-item="openItemDialog"
+                    @delete-item="requestDeleteItem"
+                    @select-item="selectedItemId = $event"
+                    @show-dca="showDCADetail"
+                />
 
-            <AlertsModule v-else :alerts="alerts" :items="items" @add-alert="openAlertDialog()" @edit-alert="openAlertDialog" @delete-alert="requestDeleteAlert" />
+                <AlertsModule v-else :alerts="alerts" :items="items" @add-alert="openAlertDialog()" @edit-alert="openAlertDialog" @delete-alert="requestDeleteAlert" />
+            </div>
         </section>
 
         <SettingsDialog
@@ -438,7 +484,6 @@ function switchModule(next: ModuleKey): void {
             :settings-tab="settingsTab"
             :settings-draft="settingsDraft"
             :quote-sources="quoteSources"
-            :quote-source-description="quoteSourceDescription"
             :runtime="runtime"
             :item-count="items.length"
             :storage-path="storagePath"
@@ -454,7 +499,17 @@ function switchModule(next: ModuleKey): void {
             @clear-logs="clearDeveloperLogs"
         />
 
-        <ItemDialog v-if="itemDialogVisible" :visible="itemDialogVisible" :form="itemForm" :saving="savingItem" @update:visible="itemDialogVisible = $event" @save="saveItem" />
+        <ItemDialog
+            v-if="itemDialogVisible"
+            :visible="itemDialogVisible"
+            :form="itemForm"
+            :saving="savingItem"
+            :initial-tab="itemDialogInitialTab"
+            @update:visible="itemDialogVisible = $event"
+            @save="saveItem"
+        />
+
+        <DCADetailDialog v-if="dcaDetailVisible" :visible="dcaDetailVisible" :item="dcaDetailItem" @update:visible="dcaDetailVisible = $event" @edit="editFromDCADetail" />
 
         <AlertDialog
             v-if="alertDialogVisible"

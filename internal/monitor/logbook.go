@@ -37,6 +37,7 @@ type DeveloperLogSnapshot struct {
 	GeneratedAt time.Time           `json:"generatedAt"`
 }
 
+// LogBook 负责聚合内存日志、文件日志和终端日志输出。
 type LogBook struct {
 	mu         sync.RWMutex
 	entries    []DeveloperLogEntry
@@ -47,6 +48,7 @@ type LogBook struct {
 	console    io.Writer
 }
 
+// NewLogBook 创建一个带固定容量的日志簿。
 func NewLogBook(maxEntries int) *LogBook {
 	if maxEntries <= 0 {
 		maxEntries = 200
@@ -58,6 +60,7 @@ func NewLogBook(maxEntries int) *LogBook {
 	}
 }
 
+// ConfigureFile 配置日志文件输出目标。
 func (b *LogBook) ConfigureFile(path string) error {
 	if strings.TrimSpace(path) == "" {
 		return nil
@@ -83,6 +86,7 @@ func (b *LogBook) ConfigureFile(path string) error {
 	return nil
 }
 
+// Close 关闭当前日志文件句柄。
 func (b *LogBook) Close() error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -96,6 +100,7 @@ func (b *LogBook) Close() error {
 	return err
 }
 
+// Snapshot 返回带文件路径信息的日志快照。
 func (b *LogBook) Snapshot(limit int) DeveloperLogSnapshot {
 	return DeveloperLogSnapshot{
 		Entries:     b.Entries(limit),
@@ -104,6 +109,7 @@ func (b *LogBook) Snapshot(limit int) DeveloperLogSnapshot {
 	}
 }
 
+// Entries 返回最新的若干条日志记录，按时间倒序排列。
 func (b *LogBook) Entries(limit int) []DeveloperLogEntry {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
@@ -124,12 +130,14 @@ func (b *LogBook) Entries(limit int) []DeveloperLogEntry {
 	return result
 }
 
+// FilePath 返回当前日志文件路径。
 func (b *LogBook) FilePath() string {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 	return b.filePath
 }
 
+// Clear 清空内存日志，并在文件输出启用时清空日志文件内容。
 func (b *LogBook) Clear() error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -146,6 +154,7 @@ func (b *LogBook) Clear() error {
 	return err
 }
 
+// EnableConsole 启用终端日志输出。
 func (b *LogBook) EnableConsole(writer io.Writer) {
 	if b == nil {
 		return
@@ -156,6 +165,7 @@ func (b *LogBook) EnableConsole(writer io.Writer) {
 	b.console = writer
 }
 
+// Log 写入一条开发日志，并同步到内存、文件和终端输出。
 func (b *LogBook) Log(source, scope string, level DeveloperLogLevel, message string) {
 	if b == nil {
 		return
@@ -178,6 +188,7 @@ func (b *LogBook) Log(source, scope string, level DeveloperLogLevel, message str
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
+	// 内存日志采用固定长度环形覆盖策略，避免无限增长。
 	if len(b.entries) == b.maxEntries {
 		copy(b.entries, b.entries[1:])
 		b.entries[len(b.entries)-1] = entry
@@ -210,22 +221,27 @@ func (b *LogBook) Log(source, scope string, level DeveloperLogLevel, message str
 	}
 }
 
+// Debug 写入一条 debug 级别日志。
 func (b *LogBook) Debug(source, scope, message string) {
 	b.Log(source, scope, DeveloperLogDebug, message)
 }
 
+// Info 写入一条 info 级别日志。
 func (b *LogBook) Info(source, scope, message string) {
 	b.Log(source, scope, DeveloperLogInfo, message)
 }
 
+// Warn 写入一条 warn 级别日志。
 func (b *LogBook) Warn(source, scope, message string) {
 	b.Log(source, scope, DeveloperLogWarn, message)
 }
 
+// Error 写入一条 error 级别日志。
 func (b *LogBook) Error(source, scope, message string) {
 	b.Log(source, scope, DeveloperLogError, message)
 }
 
+// Writer 返回一个可桥接标准 io.Writer 的日志写入器。
 func (b *LogBook) Writer(source, scope string, level DeveloperLogLevel) io.Writer {
 	return &logBookWriter{
 		book:   b,
@@ -235,6 +251,7 @@ func (b *LogBook) Writer(source, scope string, level DeveloperLogLevel) io.Write
 	}
 }
 
+// NewSlogLogger 返回一个把 slog 记录转发到日志簿的 logger。
 func (b *LogBook) NewSlogLogger(source string, level slog.Level) *slog.Logger {
 	levelVar := new(slog.LevelVar)
 	levelVar.Set(level)
@@ -252,6 +269,7 @@ type logBookWriter struct {
 	level  DeveloperLogLevel
 }
 
+// Write 实现 io.Writer 接口，并把每一行转成日志记录。
 func (w *logBookWriter) Write(payload []byte) (int, error) {
 	message := strings.TrimSpace(string(payload))
 	if message == "" {
@@ -277,10 +295,12 @@ type logBookHandler struct {
 	groups []string
 }
 
+// Enabled 返回指定 slog 级别是否应被记录。
 func (h *logBookHandler) Enabled(_ context.Context, level slog.Level) bool {
 	return level >= h.level.Level()
 }
 
+// Handle 把一条 slog 记录转换为开发日志格式后写入日志簿。
 func (h *logBookHandler) Handle(_ context.Context, record slog.Record) error {
 	parts := make([]string, 0, 8)
 	for _, attr := range h.attrs {
@@ -300,24 +320,28 @@ func (h *logBookHandler) Handle(_ context.Context, record slog.Record) error {
 	return nil
 }
 
+// WithAttrs 返回一个附加静态属性的新 handler。
 func (h *logBookHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	next := *h
 	next.attrs = append(append([]slog.Attr(nil), h.attrs...), attrs...)
 	return &next
 }
 
+// WithGroup 返回一个附加属性分组的新 handler。
 func (h *logBookHandler) WithGroup(name string) slog.Handler {
 	next := *h
 	next.groups = append(append([]string(nil), h.groups...), name)
 	return &next
 }
 
+// appendLogAttr 把 slog 属性展开为适合写入日志文本的键值片段。
 func appendLogAttr(parts *[]string, groups []string, attr slog.Attr) {
 	attr.Value = attr.Value.Resolve()
 	if attr.Key == "" && attr.Value.Kind() == slog.KindAny && attr.Value.Any() == nil {
 		return
 	}
 
+	// slog 的 group 需要拍平成扁平键路径，避免嵌套结构在日志里丢失语义。
 	if attr.Value.Kind() == slog.KindGroup {
 		nextGroups := groups
 		if attr.Key != "" {
@@ -341,6 +365,7 @@ func appendLogAttr(parts *[]string, groups []string, attr slog.Attr) {
 	*parts = append(*parts, fmt.Sprintf("%s=%s", key, slogValueString(attr.Value)))
 }
 
+// slogValueString 把 slog.Value 转成可读字符串表示。
 func slogValueString(value slog.Value) string {
 	switch value.Kind() {
 	case slog.KindString:
@@ -365,6 +390,7 @@ func slogValueString(value slog.Value) string {
 	}
 }
 
+// slogLevelToDeveloperLevel 把 slog 级别映射为应用内部日志级别。
 func slogLevelToDeveloperLevel(level slog.Level) DeveloperLogLevel {
 	switch {
 	case level < slog.LevelInfo:
@@ -378,6 +404,7 @@ func slogLevelToDeveloperLevel(level slog.Level) DeveloperLogLevel {
 	}
 }
 
+// defaultString 在值为空时返回给定的回退值。
 func defaultString(value, fallback string) string {
 	if value == "" {
 		return fallback

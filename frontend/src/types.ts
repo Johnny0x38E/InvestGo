@@ -1,4 +1,5 @@
-export type HistoryInterval = "live" | "1h" | "6h" | "day" | "week" | "month";
+// 图表范围采用时间窗口语义，不再包含单独的实时标签。
+export type HistoryInterval = "1h" | "1d" | "1w" | "1mo" | "1y" | "3y" | "all";
 export type AlertCondition = "above" | "below";
 export type ModuleKey = "market" | "hot" | "watchlist" | "alerts";
 export type SettingsTabKey = "general" | "display" | "region" | "developer";
@@ -6,9 +7,47 @@ export type StatusTone = "success" | "warn" | "error";
 export type CardTone = "neutral" | "rise" | "fall" | "warn";
 export type DeveloperLogLevel = "debug" | "info" | "warn" | "error";
 export type DeveloperLogSource = "backend" | "frontend" | "system";
-export type HotMarketGroup = "us" | "etf" | "hk";
-export type HotCategory = "us-sp500" | "us-nasdaq100" | "us-dow30" | "etf-broad" | "etf-sector" | "etf-income" | "hk-main";
+export type ThemeMode = "system" | "light" | "dark";
+export type ColorTheme = "blue" | "graphite" | "forest" | "sunset";
+
+// 统一的市场类型，符合交易所规范
+export type MarketType =
+    | "CN-A" // 沪深A股（主板）
+    | "CN-GEM" // 深交所创业板
+    | "CN-STAR" // 上交所科创板
+    | "CN-ETF" // 境内ETF/LOF
+    | "CN-BJ" // 北交所
+    | "HK-MAIN" // 港股主板
+    | "HK-GEM" // 港股创业板
+    | "HK-ETF" // 港股ETF
+    | "US-STOCK" // 美股（NYSE+NASDAQ）
+    | "US-ETF"; // 美股ETF
+
+// 热门榜单市场分组
+export type HotMarketGroup = "cn" | "hk" | "us";
+
+// 热门榜单详细分类
+export type HotCategory =
+    | "cn-a" // 沪深A股（主板+创业板+科创板）
+    | "cn-etf" // 沪深ETF
+    | "hk" // 港股
+    | "hk-etf" // 港股ETF
+    | "us-sp500" // 标普500
+    | "us-nasdaq" // 纳斯达克100
+    | "us-dow" // 道琼斯30
+    | "us-etf"; // 美股ETF
+
 export type HotSort = "volume" | "gainers" | "losers" | "market-cap" | "price";
+
+export interface DCAEntry {
+    id: string;
+    date: string; // ISO 8601，如 "2024-01-15T00:00:00Z"
+    amount: number; // 本次投入金额
+    shares: number; // 本次买入份额
+    price?: number; // 手动录入的买入价，0 或缺省表示未填写
+    fee?: number; // 手续费/佣金
+    note?: string;
+}
 
 export interface WatchlistItem {
     id: string;
@@ -29,6 +68,7 @@ export interface WatchlistItem {
     quoteUpdatedAt?: string;
     thesis: string;
     tags: string[];
+    dcaEntries?: DCAEntry[];
     updatedAt: string;
 }
 
@@ -45,21 +85,28 @@ export interface AlertRule {
 }
 
 export interface AppSettings {
-    priceMode: "live" | "manual";
     refreshIntervalSeconds: number;
-    quoteSource: string;
+    cnQuoteSource: string;
+    hkQuoteSource: string;
+    usQuoteSource: string;
+    hotUSSource: string;
+    themeMode: ThemeMode;
+    colorTheme: ColorTheme;
     fontPreset: "system" | "compact" | "reading";
     amountDisplay: "full" | "compact";
     currencyDisplay: "symbol" | "code";
     priceColorScheme: "cn" | "intl";
     locale: "system" | "zh-CN" | "en-US";
     developerMode: boolean;
+    dashboardCurrency: string;
+    useNativeTitleBar: boolean;
 }
 
 export interface QuoteSourceOption {
     id: string;
     name: string;
     description: string;
+    supportedMarkets: MarketType[];
 }
 
 export interface RuntimeStatus {
@@ -79,6 +126,7 @@ export interface DashboardSummary {
     triggeredAlerts: number;
     winCount: number;
     lossCount: number;
+    displayCurrency: string;
 }
 
 export interface HistoryPoint {
@@ -154,6 +202,7 @@ export interface SummaryCard {
     value: string;
     sub: string;
     tone: CardTone;
+    currency?: string;
 }
 
 export interface MarketMetricCard {
@@ -161,6 +210,16 @@ export interface MarketMetricCard {
     value: string;
     sub: string;
     tone: Exclude<CardTone, "warn">;
+}
+
+export interface DCAEntryRow {
+    id: string; // 前端临时 ID（"tmp-xxx"）或后端持久 ID
+    date: string; // YYYY-MM-DD 格式
+    amount: number | null;
+    shares: number | null;
+    price: number | null;
+    fee: number | null;
+    note: string;
 }
 
 export interface ItemFormModel {
@@ -171,9 +230,10 @@ export interface ItemFormModel {
     currency: string;
     quantity: number;
     costPrice: number;
-    currentPrice: number;
     tagsText: string;
     thesis: string;
+    currentPrice: number; // 仅用于定投汇总展示，不序列化提交
+    dcaEntries: DCAEntryRow[];
 }
 
 export interface AlertFormModel {

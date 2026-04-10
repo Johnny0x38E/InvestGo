@@ -65,9 +65,17 @@ onBeforeUnmount(() => {
                 </div>
                 <div class="alert-actions">
                     <span>更新时间 {{ formatDateTime(alert.updatedAt) }}</span>
-                    <div class="action-stack" @click.stop>
-                        <Button size="small" text icon="pi pi-pencil" @click="$emit('edit-alert', alert)" />
-                        <Button size="small" text severity="danger" icon="pi pi-trash" @click="$emit('delete-alert', alert.id)" />
+                    <div class="action-stack table-action-stack" @click.stop>
+                        <Button size="small" text icon="pi pi-pencil" aria-label="编辑" class="table-action-button" @click="$emit('edit-alert', alert)" />
+                        <Button
+                            size="small"
+                            text
+                            severity="danger"
+                            icon="pi pi-trash"
+                            aria-label="删除"
+                            class="table-action-button table-action-button-danger"
+                            @click="$emit('delete-alert', alert.id)"
+                        />
                     </div>
                 </div>
             </article>

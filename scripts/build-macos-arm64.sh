@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-OUTPUT_FILE="${OUTPUT_FILE:-$ROOT_DIR/build/bin/invest-monitor-macos-arm64}"
+OUTPUT_FILE="${OUTPUT_FILE:-$ROOT_DIR/build/bin/investgo-macos-arm64}"
 MACOS_MIN_VERSION="${MACOS_MIN_VERSION:-13.0}"
 DEV_BUILD=0
 

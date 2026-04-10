@@ -1,15 +1,21 @@
 import type { AppSettings, HistoryInterval } from "./types";
 
 let settings: AppSettings = {
-    priceMode: "live",
-    refreshIntervalSeconds: 20,
-    quoteSource: "tx-sina",
+    refreshIntervalSeconds: 60,
+    cnQuoteSource: "tencent",
+    hkQuoteSource: "eastmoney",
+    usQuoteSource: "yahoo",
+    hotUSSource: "eastmoney",
+    themeMode: "system",
+    colorTheme: "blue",
     fontPreset: "system",
     amountDisplay: "full",
     currencyDisplay: "symbol",
     priceColorScheme: "cn",
     locale: "system",
     developerMode: false,
+    dashboardCurrency: "CNY",
+    useNativeTitleBar: false,
 };
 
 const currencySymbolMap: Record<string, string> = {
@@ -18,6 +24,7 @@ const currencySymbolMap: Record<string, string> = {
     USD: "$",
 };
 
+// 更新格式化函数读取的全局设置快照。
 export function setFormatterSettings(next: AppSettings): void {
     settings = next;
 }
@@ -96,14 +103,20 @@ export function formatShortTime(value?: string): string {
     }).format(new Date(value));
 }
 
+// 判断某个图表范围是否应该显示为日内时间刻度。
+function isIntradayHistoryRange(interval: HistoryInterval): boolean {
+    return interval === "1h" || interval === "1d";
+}
+
+// 将图表点位格式化为适合当前范围的时间轴文本。
 export function formatHistoryTick(value: string, interval: HistoryInterval): string {
     let options: Intl.DateTimeFormatOptions;
-    if (interval === "live" || interval === "1h" || interval === "6h") {
+    if (isIntradayHistoryRange(interval)) {
         options = { hour12: false, hour: "2-digit", minute: "2-digit" };
-    } else if (interval === "month") {
-        options = { year: "numeric", month: "short" };
-    } else if (interval === "week") {
-        options = { year: "2-digit", month: "2-digit", day: "2-digit" };
+    } else if (interval === "1w" || interval === "1mo") {
+        options = { month: "2-digit", day: "2-digit" };
+    } else if (interval === "1y" || interval === "3y" || interval === "all") {
+        options = { year: "2-digit", month: "2-digit" };
     } else {
         options = { month: "2-digit", day: "2-digit" };
     }
@@ -115,21 +128,24 @@ export function resolvedLocale(): string {
     return settings.locale === "system" ? navigator.language || "zh-CN" : settings.locale;
 }
 
-export function intervalWindowLabel(interval: HistoryInterval): string {
+// 返回图表范围在摘要区使用的简短中文标签。
+export function historyRangeLabel(interval: HistoryInterval): string {
     switch (interval) {
-        case "live":
-            return "实时窗口";
         case "1h":
-            return "1 小时窗口";
-        case "6h":
-            return "6 小时窗口";
-        case "day":
-            return "日线窗口";
-        case "week":
-            return "周线窗口";
-        case "month":
-            return "月线窗口";
+            return "1小时";
+        case "1d":
+            return "1天";
+        case "1w":
+            return "1周";
+        case "1mo":
+            return "1月";
+        case "1y":
+            return "1年";
+        case "3y":
+            return "3年";
+        case "all":
+            return "全部";
         default:
-            return "价格窗口";
+            return "区间";
     }
 }

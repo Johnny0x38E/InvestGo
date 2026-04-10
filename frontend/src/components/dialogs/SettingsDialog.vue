@@ -6,7 +6,7 @@ import InputNumber from "primevue/inputnumber";
 import Select from "primevue/select";
 import ToggleSwitch from "primevue/toggleswitch";
 
-import { amountDisplayOptions, currencyDisplayOptions, fontPresetOptions, localeOptions, priceColorOptions, priceModeOptions, settingsTabs } from "../../constants";
+import { amountDisplayOptions, colorThemeOptions, currencyDisplayOptions, dashboardCurrencyOptions, fontPresetOptions, localeOptions, priceColorOptions, settingsTabs, themeModeOptions } from "../../constants";
 import { formatDateTime } from "../../format";
 import type { AppSettings, DeveloperLogEntry, QuoteSourceOption, RuntimeStatus, SettingsTabKey } from "../../types";
 
@@ -15,7 +15,6 @@ const props = defineProps<{
     settingsTab: SettingsTabKey;
     settingsDraft: AppSettings;
     quoteSources: QuoteSourceOption[];
-    quoteSourceDescription: string;
     runtime: RuntimeStatus;
     itemCount: number;
     storagePath: string;
@@ -69,19 +68,24 @@ const developerLogCount = computed(() => props.developerLogs.length);
                         <h4>运行</h4>
                         <div class="settings-grid">
                             <label>
-                                <span>行情来源</span>
-                                <Select v-model="settingsDraft.quoteSource" :options="quoteSources" option-label="name" option-value="id" class="w-full" />
+                                <span>A股 / 境内ETF 行情源</span>
+                                <Select v-model="settingsDraft.cnQuoteSource" :options="quoteSources" option-label="name" option-value="id" class="w-full" />
                             </label>
                             <label>
-                                <span>价格模式</span>
-                                <Select v-model="settingsDraft.priceMode" :options="priceModeOptions" option-label="label" option-value="value" class="w-full" />
+                                <span>港股 / 港股ETF 行情源</span>
+                                <Select v-model="settingsDraft.hkQuoteSource" :options="quoteSources" option-label="name" option-value="id" class="w-full" />
                             </label>
+                            <label>
+                                <span>美股 / 美股ETF 行情源</span>
+                                <Select v-model="settingsDraft.usQuoteSource" :options="quoteSources" option-label="name" option-value="id" class="w-full" />
+                            </label>
+
                             <label>
                                 <span>自动刷新间隔</span>
-                                <InputNumber v-model="settingsDraft.refreshIntervalSeconds" :min="10" :max="300" :step="5" fluid />
+                                <InputNumber v-model="settingsDraft.refreshIntervalSeconds" :min="10" :step="10" fluid />
                             </label>
                         </div>
-                        <p class="settings-note">{{ quoteSourceDescription }}</p>
+                        <p class="settings-note">自选列表的实时行情按境内（A股+境内ETF）/ 港股（含港股ETF）/ 美股（含美股ETF）分三组走对应数据源，图表在所选源不支持时自动回退。</p>
                     </div>
 
                     <div class="settings-section">
@@ -114,6 +118,14 @@ const developerLogCount = computed(() => props.developerLogs.length);
                         <h4>外观与金额展示</h4>
                         <div class="settings-grid">
                             <label>
+                                <span>外观模式</span>
+                                <Select v-model="settingsDraft.themeMode" :options="themeModeOptions" option-label="label" option-value="value" class="w-full" />
+                            </label>
+                            <label>
+                                <span>界面配色</span>
+                                <Select v-model="settingsDraft.colorTheme" :options="colorThemeOptions" option-label="label" option-value="value" class="w-full" />
+                            </label>
+                            <label>
                                 <span>全局字体</span>
                                 <Select v-model="settingsDraft.fontPreset" :options="fontPresetOptions" option-label="label" option-value="value" class="w-full" />
                             </label>
@@ -129,7 +141,23 @@ const developerLogCount = computed(() => props.developerLogs.length);
                                 <span>涨跌配色</span>
                                 <Select v-model="settingsDraft.priceColorScheme" :options="priceColorOptions" option-label="label" option-value="value" class="w-full" />
                             </label>
+                            <label>
+                                <span>组合展示货币</span>
+                                <Select v-model="settingsDraft.dashboardCurrency" :options="dashboardCurrencyOptions" option-label="label" option-value="value" class="w-full" />
+                            </label>
                         </div>
+                        <p class="settings-note">外观模式控制亮色、暗色或跟随系统。界面配色影响强调色、选中态与按钮层次；涨跌配色仍由下方的“涨跌配色”单独控制。多币种持仓会按当前汇率折算后统一展示。</p>
+                    </div>
+
+                    <div class="settings-section">
+                        <h4>窗口</h4>
+                        <label class="developer-toggle">
+                            <div>
+                                <span>使用原生标题栏</span>
+                                <small>启用后可使用 macOS 原生双击标题栏缩放功能，但会失去自定义标题栏样式。修改后需重启应用生效。</small>
+                            </div>
+                            <ToggleSwitch v-model="settingsDraft.useNativeTitleBar" />
+                        </label>
                     </div>
                 </div>
 

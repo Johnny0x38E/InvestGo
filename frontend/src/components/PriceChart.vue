@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref } from "vue";
 
-import { formatHistoryTick, formatNumber, formatPercent } from "../format";
+import { formatHistoryTick, formatNumber } from "../format";
 import type { HistorySeries } from "../types";
 
 const props = defineProps<{
@@ -11,6 +11,8 @@ const props = defineProps<{
 }>();
 
 const hoverIndex = ref<number | null>(null);
+const tooltipPosition = ref<{ left: number; top: number } | null>(null);
+const frameRef = ref<HTMLDivElement | null>(null);
 const plotRef = ref<HTMLDivElement | null>(null);
 const width = ref(1000);
 const height = ref(420);
@@ -92,12 +94,33 @@ const currentPoint = computed(() => {
     return list[index] ?? list[list.length - 1];
 });
 
+const hoverPoint = computed(() => {
+    const list = enrichedPoints.value;
+    if (!list.length || hoverIndex.value == null) {
+        return null;
+    }
+
+    return list[hoverIndex.value] ?? null;
+});
+
+const tooltipStyle = computed(() => {
+    if (!tooltipPosition.value) {
+        return {};
+    }
+
+    return {
+        left: `${tooltipPosition.value.left}px`,
+        top: `${tooltipPosition.value.top}px`,
+    };
+});
+
 function buildAreaPath(list: Array<{ x: number; y: number }>): { line: string; area: string } {
     if (!list.length) {
         return { line: "", area: "" };
     }
 
     const line = buildSmoothPath(list);
+    // 面积图直接复用折线路径，并把末尾闭合到底部基线。
     const baseline = (height.value - padding.bottom).toFixed(2);
     const area = `${line} L ${list[list.length - 1].x.toFixed(2)} ${baseline} L ${list[0].x.toFixed(2)} ${baseline} Z`;
     return { line, area };
@@ -129,6 +152,8 @@ function pointAtClientX(event: MouseEvent): void {
     }
 
     const bounds = target.getBoundingClientRect();
+    updateTooltipPosition(event);
+    // hover 命中按当前鼠标 X 坐标寻找最近点，而不是依赖固定索引步长。
     const ratio = (event.clientX - bounds.left) / Math.max(bounds.width, 1);
     const nextX = padding.left + ratio * (width.value - padding.left - padding.right);
     let winner = 0;
@@ -147,6 +172,29 @@ function pointAtClientX(event: MouseEvent): void {
 
 function clearHover(): void {
     hoverIndex.value = null;
+    tooltipPosition.value = null;
+}
+
+function updateTooltipPosition(event: MouseEvent): void {
+    const frameBounds = frameRef.value?.getBoundingClientRect();
+    if (!frameBounds) {
+        return;
+    }
+
+    const tooltipWidth = 220;
+    const tooltipHeight = 94;
+    const margin = 12;
+    const rawLeft = event.clientX - frameBounds.left + 18;
+    const rawTopAbove = event.clientY - frameBounds.top - tooltipHeight - 10;
+    const rawTopBelow = event.clientY - frameBounds.top + 16;
+    const maxLeft = Math.max(frameBounds.width - tooltipWidth - margin, margin);
+    const maxTop = Math.max(frameBounds.height - tooltipHeight - 34, margin);
+    const top = rawTopAbove >= margin ? rawTopAbove : rawTopBelow;
+
+    tooltipPosition.value = {
+        left: Math.min(Math.max(rawLeft, margin), maxLeft),
+        top: Math.min(Math.max(top, margin), maxTop),
+    };
 }
 
 function yAt(value: number): number {
@@ -173,9 +221,18 @@ function bindResizeObserver(): void {
         return;
     }
 
+    // 图表容器在标签切换和窗口尺寸变化后都需要重新计算 SVG 尺寸。
+    // 直接从 contentRect 读尺寸避免触发额外 layout，再用 rAF 推迟响应式写入，
+    // 防止在同一帧内产生新的 ResizeObserver 通知形成死循环。
     resizeObserver?.disconnect();
-    resizeObserver = new ResizeObserver(() => {
-        syncPlotSize();
+    resizeObserver = new ResizeObserver((entries) => {
+        const entry = entries[0];
+        if (!entry) return;
+        const { width: w, height: h } = entry.contentRect;
+        requestAnimationFrame(() => {
+            width.value = Math.max(Math.round(w), 420);
+            height.value = Math.max(Math.round(h), 320);
+        });
     });
     resizeObserver.observe(plotRef.value);
 }
@@ -207,12 +264,12 @@ onBeforeUnmount(() => {
         <div v-if="loading" class="chart-empty">正在加载走势…</div>
         <div v-else-if="error" class="chart-empty chart-error">{{ error }}</div>
         <div v-else-if="!series || !enrichedPoints.length" class="chart-empty">暂无走势数据</div>
-        <div v-else class="chart-frame" :class="series.change >= 0 ? 'is-rise' : 'is-fall'">
-            <div v-if="currentPoint" class="chart-tooltip">
-                <strong>{{ formatNumber(currentPoint.close, 2) }}</strong>
-                <span>{{ formatHistoryTick(currentPoint.timestamp, series.interval) }}</span>
-                <span>开 {{ formatNumber(currentPoint.open, 2) }} · 收 {{ formatNumber(currentPoint.close, 2) }}</span>
-                <span>高 {{ formatNumber(currentPoint.high, 2) }} · 低 {{ formatNumber(currentPoint.low, 2) }}</span>
+        <div v-else ref="frameRef" class="chart-frame" :class="series.change >= 0 ? 'is-rise' : 'is-fall'">
+            <div v-if="hoverPoint" class="chart-tooltip" :style="tooltipStyle">
+                <strong>{{ formatNumber(hoverPoint.close, 2) }}</strong>
+                <span>{{ formatHistoryTick(hoverPoint.timestamp, series.interval) }}</span>
+                <span>开 {{ formatNumber(hoverPoint.open, 2) }} · 收 {{ formatNumber(hoverPoint.close, 2) }}</span>
+                <span>高 {{ formatNumber(hoverPoint.high, 2) }} · 低 {{ formatNumber(hoverPoint.low, 2) }}</span>
             </div>
 
             <div ref="plotRef" class="chart-plot">
@@ -263,9 +320,9 @@ onBeforeUnmount(() => {
                 </svg>
             </div>
 
-            <div class="chart-summary" :class="series.change >= 0 ? 'is-rise' : 'is-fall'">
-                <span>{{ series.source }}</span>
-                <strong>{{ formatPercent(series.changePercent) }}</strong>
+            <div class="chart-source-tag">
+                <span>来源 @</span>
+                <strong>{{ series.source }}</strong>
             </div>
         </div>
     </div>

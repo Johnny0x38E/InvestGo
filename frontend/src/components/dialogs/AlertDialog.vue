@@ -45,7 +45,7 @@ const visibleProxy = computed({
             </label>
             <label>
                 <span>阈值</span>
-                <InputNumber v-model="form.threshold" :min="0.01" :step="0.01" fluid />
+                <InputNumber v-model="form.threshold" :min="0.01" :step="0.01" :min-fraction-digits="2" :max-fraction-digits="2" fluid />
             </label>
             <label class="checkbox-field">
                 <span>启用</span>

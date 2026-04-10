@@ -2,19 +2,24 @@ package monitor
 
 import "testing"
 
+// TestSnapshotLockedReturnsNonNilCollections 验证快照里的集合字段始终为非 nil 切片。
 func TestSnapshotLockedReturnsNonNilCollections(t *testing.T) {
 	store := &Store{
 		quoteProviders: map[string]QuoteProvider{
-			defaultQuoteSourceID: nil,
+			DefaultQuoteSourceID: nil,
 		},
 		quoteSourceOptions: nil,
 		state: persistedState{
 			Items:  nil,
 			Alerts: nil,
 			Settings: AppSettings{
-				PriceMode:              "live",
-				RefreshIntervalSeconds: 20,
-				QuoteSource:            defaultQuoteSourceID,
+				RefreshIntervalSeconds: 60,
+				QuoteSource:            DefaultQuoteSourceID,
+				CNQuoteSource:          DefaultCNQuoteSourceID,
+				HKQuoteSource:          DefaultHKQuoteSourceID,
+				USQuoteSource:          DefaultUSQuoteSourceID,
+				ThemeMode:              "system",
+				ColorTheme:             "blue",
 				FontPreset:             "system",
 				AmountDisplay:          "full",
 				CurrencyDisplay:        "symbol",
