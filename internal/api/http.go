@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"investgo/internal/marketdata"
@@ -23,6 +24,10 @@ type clientLogRequest struct {
 	Scope   string                    `json:"scope"`
 	Level   monitor.DeveloperLogLevel `json:"level"`
 	Message string                    `json:"message"`
+}
+
+type openExternalRequest struct {
+	URL string `json:"url"`
 }
 
 // NewHandler 返回统一的 API 处理器。
@@ -94,6 +99,26 @@ func sanitiseDeveloperLogLevel(level monitor.DeveloperLogLevel) monitor.Develope
 	default:
 		return monitor.DeveloperLogInfo
 	}
+}
+
+func sanitiseExternalURL(raw string) (string, error) {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return "", &apiError{message: "链接不能为空"}
+	}
+
+	parsed, err := url.Parse(value)
+	if err != nil {
+		return "", &apiError{message: "链接格式无效"}
+	}
+	if parsed.Scheme != "https" && parsed.Scheme != "http" {
+		return "", &apiError{message: "仅支持 http/https 链接"}
+	}
+	if parsed.Host == "" {
+		return "", &apiError{message: "链接缺少主机名"}
+	}
+
+	return parsed.String(), nil
 }
 
 // apiError 表示 API 层内部构造的响应错误。

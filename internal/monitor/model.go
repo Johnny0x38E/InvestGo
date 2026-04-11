@@ -136,6 +136,7 @@ type RuntimeStatus struct {
 	LastQuoteError     string     `json:"lastQuoteError,omitempty"`
 	QuoteSource        string     `json:"quoteSource"`
 	LivePriceCount     int        `json:"livePriceCount"`
+	AppVersion         string     `json:"appVersion"`
 }
 
 // persistedState 定义了需要持久化存储的应用状态，包括自选项列表、价格提醒规则列表、用户设置和上次更新的时间戳等。

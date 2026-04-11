@@ -2,7 +2,7 @@
 export type HistoryInterval = "1h" | "1d" | "1w" | "1mo" | "1y" | "3y" | "all";
 export type AlertCondition = "above" | "below";
 export type ModuleKey = "market" | "hot" | "watchlist" | "alerts";
-export type SettingsTabKey = "general" | "display" | "region" | "developer";
+export type SettingsTabKey = "general" | "display" | "region" | "developer" | "about";
 export type StatusTone = "success" | "warn" | "error";
 export type CardTone = "neutral" | "rise" | "fall" | "warn";
 export type DeveloperLogLevel = "debug" | "info" | "warn" | "error";
@@ -115,6 +115,7 @@ export interface RuntimeStatus {
     lastQuoteError?: string;
     quoteSource: string;
     livePriceCount: number;
+    appVersion: string;
 }
 
 export interface DashboardSummary {

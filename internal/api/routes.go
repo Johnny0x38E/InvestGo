@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -36,6 +37,7 @@ func (h *Handler) registerRoutes() []route {
 		{method: http.MethodGet, pattern: "/hot", handler: h.handleHot},
 		{method: http.MethodGet, pattern: "/history", handler: h.handleHistory},
 		{method: http.MethodPost, pattern: "/refresh", handler: h.handleRefresh},
+		{method: http.MethodPost, pattern: "/open-external", handler: h.handleOpenExternal},
 		{method: http.MethodPut, pattern: "/settings", handler: h.handleUpdateSettings},
 		{method: http.MethodPost, pattern: "/items", handler: h.handleCreateItem},
 		{method: http.MethodPut, pattern: "/items/{id}", handler: h.handleUpdateItem},
@@ -44,6 +46,27 @@ func (h *Handler) registerRoutes() []route {
 		{method: http.MethodPut, pattern: "/alerts/{id}", handler: h.handleUpdateAlert},
 		{method: http.MethodDelete, pattern: "/alerts/{id}", handler: h.handleDeleteAlert},
 	}
+}
+
+func (h *Handler) handleOpenExternal(writer http.ResponseWriter, request *http.Request, _ routeParams) {
+	var payload openExternalRequest
+	if err := decodeJSON(request, &payload); err != nil {
+		writeError(writer, http.StatusBadRequest, err)
+		return
+	}
+
+	targetURL, err := sanitiseExternalURL(payload.URL)
+	if err != nil {
+		writeError(writer, http.StatusBadRequest, err)
+		return
+	}
+
+	if err := exec.Command("open", targetURL).Start(); err != nil {
+		writeError(writer, http.StatusInternalServerError, &apiError{message: "打开链接失败"})
+		return
+	}
+
+	writeJSON(writer, http.StatusOK, map[string]bool{"ok": true})
 }
 
 // match 判断当前路由是否匹配给定的请求方法和路径。

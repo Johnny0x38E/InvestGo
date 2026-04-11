@@ -136,7 +136,7 @@ export function historyRangeLabel(interval: HistoryInterval): string {
         case "1d":
             return "1天";
         case "1w":
-            return "1周";
+            return "7天";
         case "1mo":
             return "1月";
         case "1y":

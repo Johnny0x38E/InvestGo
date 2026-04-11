@@ -92,27 +92,29 @@ func (s *HotService) List(ctx context.Context, category monitor.HotCategory, sor
 
 	switch {
 	case category == monitor.HotCategoryCNA:
-		// 沪深A股 uses East Money clist API, falls back to pool
+		// 沪深A股 优先使用东方财富 clist 接口，失败后回退到数据池
 		list, err := s.listEastMoney(ctx, category, sortBy, page, pageSize)
 		if err == nil {
 			return list, nil
 		}
 		return s.listFromPool(ctx, category, sortBy, page, pageSize)
 	case category == monitor.HotCategoryHK:
-		// 港股 uses East Money clist API, falls back to pool
+		// 港股 优先使用东方财富 clist 接口，失败后回退到数据池
 		list, err := s.listEastMoney(ctx, category, sortBy, page, pageSize)
 		if err == nil {
 			return list, nil
 		}
 		return s.listFromPool(ctx, category, sortBy, page, pageSize)
 	case category == monitor.HotCategoryCNETF || category == monitor.HotCategoryHKETF || isUSHotCategory(category):
-		// ETF and US indices always use pool + real-time quotes
+		// ETF 和美股分类 直接使用数据池 + 实时行情
 		return s.listFromPool(ctx, category, sortBy, page, pageSize)
 	default:
 		return monitor.HotListResponse{}, fmt.Errorf("不支持的热门分类: %s", category)
 	}
 }
 
+// search 在数据池基础上进行关键词过滤，并对美股 ETF 分类进行特殊处理
+// 先从数据池筛选，再调用 Yahoo Finance 搜索接口获取更多匹配项，最后合并去重并获取实时行情。
 func (s *HotService) search(ctx context.Context, category monitor.HotCategory, sortBy monitor.HotSort, keyword string, page, pageSize int) (monitor.HotListResponse, error) {
 	if category == monitor.HotCategoryUSETF {
 		return s.searchUSETFs(ctx, sortBy, keyword, page, pageSize)
@@ -139,6 +141,8 @@ func (s *HotService) search(ctx context.Context, category monitor.HotCategory, s
 	}, nil
 }
 
+// searchUSETFs 对美股 ETF 分类的搜索进行特殊处理
+// 先从数据池筛选，再调用 Yahoo Finance 搜索接口获取更多匹配项，最后合并去重并获取实时行情。
 func (s *HotService) searchUSETFs(ctx context.Context, sortBy monitor.HotSort, keyword string, page, pageSize int) (monitor.HotListResponse, error) {
 	seeds := filterHotSeeds(hotConstituents[monitor.HotCategoryUSETF], keyword)
 
@@ -166,6 +170,8 @@ func (s *HotService) searchUSETFs(ctx context.Context, sortBy monitor.HotSort, k
 	}, nil
 }
 
+// listAllSearchableItems 列出指定分类下所有可搜索的标的，用于搜索接口的全量匹配。
+// 对于东方财富支持的分类，优先调用 clist 接口获取完整列表并缓存；对于其他分类，直接使用数据池。
 func (s *HotService) listAllSearchableItems(ctx context.Context, category monitor.HotCategory, sortBy monitor.HotSort) ([]monitor.HotItem, error) {
 	cacheKey := hotSearchCacheKey(category, sortBy)
 	if items, ok := s.loadCachedItems(cacheKey); ok {
@@ -200,6 +206,7 @@ func (s *HotService) listAllSearchableItems(ctx context.Context, category monito
 	return cloneHotItems(items), nil
 }
 
+// fetchAllHotPages 通过翻页函数获取指定分类和排序的所有热门标的，直到没有更多页面为止。
 func (s *HotService) fetchAllHotPages(ctx context.Context, loadPage func(context.Context, int, int) (monitor.HotListResponse, error)) ([]monitor.HotItem, error) {
 	all := make([]monitor.HotItem, 0, hotSearchFetchSize)
 	for page := 1; ; page++ {
@@ -214,6 +221,7 @@ func (s *HotService) fetchAllHotPages(ctx context.Context, loadPage func(context
 	}
 }
 
+// loadCachedItems 从缓存中加载热门标的列表，如果缓存不存在或已过期则返回 false。
 func (s *HotService) loadCachedItems(key string) ([]monitor.HotItem, bool) {
 	s.mu.RLock()
 	cached, ok := s.cache[key]
@@ -224,6 +232,7 @@ func (s *HotService) loadCachedItems(key string) ([]monitor.HotItem, bool) {
 	return cloneHotItems(cached.items), true
 }
 
+// storeCachedItems 将热门标的列表存入缓存，并设置过期时间。
 func (s *HotService) storeCachedItems(key string, items []monitor.HotItem) {
 	s.mu.Lock()
 	s.cache[key] = cachedHotPage{

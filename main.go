@@ -24,6 +24,7 @@ import (
 
 var defaultTerminalLogging = "0"
 var defaultDevToolsBuild = "0"
+var appVersion = "dev"
 
 // frontendAssets 嵌入前端构建产物，供 Wails 在运行时直接提供静态资源。
 //
@@ -58,6 +59,7 @@ func main() {
 		quoteSourceOptions,
 		marketdata.NewSmartHistoryProvider(nil),
 		logs,
+		appVersion,
 	)
 	if err != nil {
 		log.Fatalf("initialise store: %v", err)
@@ -105,9 +107,9 @@ func main() {
 		Title:            "InvestGo",
 		URL:              "/",
 		Width:            1200,
-		Height:           820,
+		Height:           828,
 		MinWidth:         1180,
-		MinHeight:        820,
+		MinHeight:        828,
 		BackgroundColour: application.NewRGB(247, 243, 233),
 		Windows: application.WindowsWindow{
 			Theme: application.SystemDefault,

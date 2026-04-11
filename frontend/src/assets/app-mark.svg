@@ -1,63 +1,54 @@
-<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="panel-fill" x1="208" y1="132" x2="848" y2="760" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#11233E" />
-      <stop offset="0.62" stop-color="#1D467B" />
-      <stop offset="1" stop-color="#176F73" />
+    <linearGradient id="frame-fill" x1="56" y1="34" x2="190" y2="182" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#163153" />
+      <stop offset="0.58" stop-color="#1E4E85" />
+      <stop offset="1" stop-color="#1C7B70" />
     </linearGradient>
-    <linearGradient id="line-fill" x1="330" y1="612" x2="736" y2="350" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#7ED9FF" />
-      <stop offset="1" stop-color="#E0F8FF" />
+    <linearGradient id="screen-fill" x1="70" y1="48" x2="176" y2="154" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0C1D35" />
+      <stop offset="1" stop-color="#14365D" />
     </linearGradient>
-    <linearGradient id="watch-fill" x1="514" y1="694" x2="514" y2="886" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#F5CA77" />
-      <stop offset="1" stop-color="#E99B45" />
+    <linearGradient id="line-fill" x1="88" y1="138" x2="156" y2="92" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#88DFFF" />
+      <stop offset="1" stop-color="#F2FAFF" />
     </linearGradient>
-    <linearGradient id="rise-fill" x1="666" y1="630" x2="666" y2="886" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#55DD92" />
-      <stop offset="1" stop-color="#159C86" />
+    <linearGradient id="bar-a" x1="97" y1="162" x2="97" y2="212" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F8D78D" />
+      <stop offset="1" stop-color="#E8A44B" />
     </linearGradient>
-    <filter id="panel-shadow" x="126" y="110" width="772" height="820" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-      <feDropShadow dx="0" dy="22" stdDeviation="20" flood-color="#08101F" flood-opacity="0.22" />
-    </filter>
-    <filter id="bar-shadow" x="236" y="612" width="528" height="334" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-      <feDropShadow dx="0" dy="16" stdDeviation="16" flood-color="#08101F" flood-opacity="0.18" />
-    </filter>
+    <linearGradient id="bar-b" x1="128" y1="148" x2="128" y2="212" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#75E1A1" />
+      <stop offset="1" stop-color="#249F7B" />
+    </linearGradient>
+    <linearGradient id="bar-c" x1="159" y1="170" x2="159" y2="212" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A7D7FF" />
+      <stop offset="1" stop-color="#5B8EDF" />
+    </linearGradient>
   </defs>
 
-  <ellipse cx="512" cy="900" rx="254" ry="46" fill="#08101F" fill-opacity="0.14" />
+  <rect x="46" y="28" width="164" height="164" rx="42" fill="url(#frame-fill)" />
+  <rect x="55" y="37" width="146" height="146" rx="34" fill="url(#screen-fill)" />
+  <rect x="64" y="46" width="128" height="128" rx="28" fill="#0A1930" fill-opacity="0.3" stroke="#F8FBFF" stroke-opacity="0.72" stroke-width="3.5" />
 
-  <g filter="url(#panel-shadow)">
-    <rect x="168" y="128" width="688" height="560" rx="116" fill="url(#panel-fill)" />
-    <rect x="192" y="152" width="640" height="512" rx="92" fill="#0A172B" fill-opacity="0.22" stroke="#F9FBFF" stroke-opacity="0.78" stroke-width="22" />
+  <path d="M85 84H171" stroke="#DCEBFF" stroke-opacity="0.16" stroke-width="3.5" stroke-linecap="round" />
+  <path d="M85 116H171" stroke="#DCEBFF" stroke-opacity="0.16" stroke-width="3.5" stroke-linecap="round" />
+  <path d="M85 148H171" stroke="#DCEBFF" stroke-opacity="0.16" stroke-width="3.5" stroke-linecap="round" />
+  <path d="M90 158V72" stroke="#DCEBFF" stroke-opacity="0.12" stroke-width="3.5" stroke-linecap="round" />
+  <path d="M128 158V72" stroke="#DCEBFF" stroke-opacity="0.08" stroke-width="3" stroke-linecap="round" />
+  <path d="M166 158V72" stroke="#DCEBFF" stroke-opacity="0.08" stroke-width="3" stroke-linecap="round" />
 
-    <path d="M302 258V588" stroke="#F9FBFF" stroke-opacity="0.16" stroke-width="16" stroke-linecap="round" />
-    <path d="M454 238V588" stroke="#F9FBFF" stroke-opacity="0.11" stroke-width="12" stroke-linecap="round" />
-    <path d="M606 238V588" stroke="#F9FBFF" stroke-opacity="0.11" stroke-width="12" stroke-linecap="round" />
-    <path d="M270 358H754" stroke="#F9FBFF" stroke-opacity="0.12" stroke-width="12" stroke-linecap="round" />
-    <path d="M270 506H754" stroke="#F9FBFF" stroke-opacity="0.1" stroke-width="12" stroke-linecap="round" />
+  <path
+    d="M86 144L108 128L126 134L150 104L168 90"
+    stroke="url(#line-fill)"
+    stroke-width="8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <circle cx="168" cy="90" r="9" fill="#F8D78D" />
+  <circle cx="168" cy="90" r="3.5" fill="#15365B" />
 
-    <path
-      d="M304 556L392 492L478 526L596 410L720 328"
-      stroke="url(#line-fill)"
-      stroke-width="36"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-    />
-
-    <circle cx="720" cy="328" r="74" fill="#F6CC80" fill-opacity="0.18" />
-    <circle cx="720" cy="328" r="50" fill="#F6CC80" />
-    <circle cx="720" cy="328" r="18" fill="#13233D" />
-  </g>
-
-  <g filter="url(#bar-shadow)">
-    <path d="M314 704V888" stroke="#DCEBFF" stroke-opacity="0.42" stroke-width="16" stroke-linecap="round" />
-    <rect x="268" y="728" width="92" height="160" rx="30" fill="#F6F9FF" />
-
-    <path d="M514 664V888" stroke="#F0B66A" stroke-opacity="0.44" stroke-width="16" stroke-linecap="round" />
-    <rect x="468" y="688" width="92" height="200" rx="30" fill="url(#watch-fill)" />
-
-    <path d="M666 600V888" stroke="#32C18E" stroke-opacity="0.5" stroke-width="16" stroke-linecap="round" />
-    <rect x="620" y="624" width="92" height="264" rx="30" fill="url(#rise-fill)" />
-  </g>
+  <rect x="85" y="162" width="24" height="50" rx="8" fill="url(#bar-a)" />
+  <rect x="116" y="148" width="24" height="64" rx="8" fill="url(#bar-b)" />
+  <rect x="147" y="170" width="24" height="42" rx="8" fill="url(#bar-c)" />
 </svg>

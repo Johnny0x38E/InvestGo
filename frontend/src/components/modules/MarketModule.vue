@@ -128,7 +128,7 @@ const marketCards = computed<MarketMetricCard[]>(() => {
 
     return [
         {
-            label: "昨收 / 开盘",
+            label: "昨收 / 今开",
             value: `${formatUnitPrice(snapshot.previousClose, snapshot.item.currency)} / ${formatUnitPrice(snapshot.openPrice, snapshot.item.currency)}`,
             sub: snapshot.item.quoteSource || "-",
             tone: "neutral",
@@ -224,7 +224,7 @@ const marketCards = computed<MarketMetricCard[]>(() => {
                                     </div>
                                 </div>
                             </template>
-                            <span v-else class="market-pos-empty">未录入持仓数量</span>
+                            <span v-else class="market-pos-empty">无</span>
                         </article>
 
                         <article v-for="card in marketCards" :key="card.label" class="metric-strip" :class="`tone-${card.tone}`">

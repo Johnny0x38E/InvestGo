@@ -24,7 +24,7 @@ type Store struct {
 }
 
 // NewStore 创建 Store，并完成状态装载与运行时依赖注入。
-func NewStore(path string, quoteProviders map[string]QuoteProvider, quoteSourceOptions []QuoteSourceOption, historyProviders map[string]HistoryProvider, logs *LogBook) (*Store, error) {
+func NewStore(path string, quoteProviders map[string]QuoteProvider, quoteSourceOptions []QuoteSourceOption, historyProviders map[string]HistoryProvider, logs *LogBook, appVersion string) (*Store, error) {
 	store := &Store{
 		path:               path,
 		quoteProviders:     quoteProviders,
@@ -32,6 +32,9 @@ func NewStore(path string, quoteProviders map[string]QuoteProvider, quoteSourceO
 		historyProviders:   historyProviders,
 		logs:               logs,
 		fxRates:            NewFxRates(nil),
+		runtime: RuntimeStatus{
+			AppVersion: appVersion,
+		},
 	}
 	if err := store.load(); err != nil {
 		return nil, err

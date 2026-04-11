@@ -1,5 +1,9 @@
 import type { AlertCondition, AppSettings, HotCategory, HotMarketGroup, HotSort, HistoryInterval, MarketType, ModuleTab, OptionItem, SettingsTab } from "./types";
 
+export const projectMeta = {
+    repositoryUrl: "https://github.com/Johnny0x38E/InvestGo",
+} as const;
+
 export const moduleTabs: ModuleTab[] = [
     { key: "market", label: "市场行情", icon: "pi pi-chart-line" },
     { key: "hot", label: "热门榜单", icon: "pi pi-bolt" },
@@ -12,13 +16,14 @@ export const settingsTabs: SettingsTab[] = [
     { key: "display", label: "显示" },
     { key: "region", label: "区域" },
     { key: "developer", label: "开发" },
+    { key: "about", label: "关于" },
 ];
 
 // 市场模块使用的图表范围选项。
 export const historyRangeOptions: OptionItem<HistoryInterval>[] = [
     { value: "1h", label: "1小时" },
     { value: "1d", label: "1天" },
-    { value: "1w", label: "1周" },
+    { value: "1w", label: "7天" },
     { value: "1mo", label: "1月" },
     { value: "1y", label: "1年" },
     { value: "3y", label: "3年" },

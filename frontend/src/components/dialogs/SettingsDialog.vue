@@ -5,8 +5,21 @@ import Dialog from "primevue/dialog";
 import InputNumber from "primevue/inputnumber";
 import Select from "primevue/select";
 import ToggleSwitch from "primevue/toggleswitch";
+import appDockMark from "../../assets/app-dock.svg";
+import { api } from "../../api";
 
-import { amountDisplayOptions, colorThemeOptions, currencyDisplayOptions, dashboardCurrencyOptions, fontPresetOptions, localeOptions, priceColorOptions, settingsTabs, themeModeOptions } from "../../constants";
+import {
+    amountDisplayOptions,
+    colorThemeOptions,
+    currencyDisplayOptions,
+    dashboardCurrencyOptions,
+    fontPresetOptions,
+    localeOptions,
+    priceColorOptions,
+    projectMeta,
+    settingsTabs,
+    themeModeOptions,
+} from "../../constants";
 import { formatDateTime } from "../../format";
 import type { AppSettings, DeveloperLogEntry, QuoteSourceOption, RuntimeStatus, SettingsTabKey } from "../../types";
 
@@ -44,6 +57,13 @@ const settingsTabProxy = computed({
 });
 
 const developerLogCount = computed(() => props.developerLogs.length);
+
+async function openExternal(url: string): Promise<void> {
+    await api("/api/open-external", {
+        method: "POST",
+        body: JSON.stringify({ url }),
+    });
+}
 </script>
 
 <template>
@@ -85,7 +105,7 @@ const developerLogCount = computed(() => props.developerLogs.length);
                                 <InputNumber v-model="settingsDraft.refreshIntervalSeconds" :min="10" :step="10" fluid />
                             </label>
                         </div>
-                        <p class="settings-note">自选列表的实时行情按境内（A股+境内ETF）/ 港股（含港股ETF）/ 美股（含美股ETF）分三组走对应数据源，图表在所选源不支持时自动回退。</p>
+                        <!-- <p class="settings-note">自选列表的实时行情按境内（A股+境内ETF）/ 港股（含港股ETF）/ 美股（含美股ETF）分三组走对应数据源，图表在所选源不支持时自动回退。</p> -->
                     </div>
 
                     <div class="settings-section">
@@ -146,15 +166,16 @@ const developerLogCount = computed(() => props.developerLogs.length);
                                 <Select v-model="settingsDraft.dashboardCurrency" :options="dashboardCurrencyOptions" option-label="label" option-value="value" class="w-full" />
                             </label>
                         </div>
-                        <p class="settings-note">外观模式控制亮色、暗色或跟随系统。界面配色影响强调色、选中态与按钮层次；涨跌配色仍由下方的“涨跌配色”单独控制。多币种持仓会按当前汇率折算后统一展示。</p>
+                        <!-- <p class="settings-note">
+                            外观模式控制亮色、暗色或跟随系统。界面配色影响强调色、选中态与按钮层次；涨跌配色仍由下方的“涨跌配色”单独控制。多币种持仓会按当前汇率折算后统一展示。
+                        </p> -->
                     </div>
 
                     <div class="settings-section">
                         <h4>窗口</h4>
                         <label class="developer-toggle">
                             <div>
-                                <span>使用原生标题栏</span>
-                                <small>启用后可使用 macOS 原生双击标题栏缩放功能，但会失去自定义标题栏样式。修改后需重启应用生效。</small>
+                                <span>使用原生标题栏，修改后需重启应用生效。</span>
                             </div>
                             <ToggleSwitch v-model="settingsDraft.useNativeTitleBar" />
                         </label>
@@ -179,7 +200,6 @@ const developerLogCount = computed(() => props.developerLogs.length);
                         <label class="developer-toggle">
                             <div>
                                 <span>在应用内启用调试视图</span>
-                                <small>打开后会显示最近的前后端日志，方便排查运行时问题。</small>
                             </div>
                             <ToggleSwitch v-model="settingsDraft.developerMode" />
                         </label>
@@ -198,11 +218,9 @@ const developerLogCount = computed(() => props.developerLogs.length);
                             </div>
                         </div>
 
-                        <p class="settings-note">使用 `-dev` 构建出的二进制时，按 <kbd>F12</kbd> 会打开原生 Web Inspector，用来框选元素和查看样式。</p>
-
                         <div class="settings-meta-grid">
                             <article>
-                                <span>前后端日志</span><strong>{{ developerLogCount }}</strong>
+                                <span>日志</span><strong>{{ developerLogCount }}</strong>
                             </article>
                             <article>
                                 <span>日志文件</span><strong>{{ logFilePath || "-" }}</strong>
@@ -223,9 +241,59 @@ const developerLogCount = computed(() => props.developerLogs.length);
                             <div v-if="!developerLogs.length" class="developer-log-empty">还没有捕获到日志。你可以先执行一次刷新、保存设置，或等待下一次自动行情同步。</div>
                         </div>
                     </div>
+                </div>
 
-                    <div v-else class="settings-section">
-                        <p class="settings-note">开启后可在应用里查看运行日志，不再依赖终端输出。</p>
+                <div v-show="settingsTabProxy === 'about'" class="settings-pane">
+                    <div class="settings-section">
+                        <h4>关于</h4>
+                        <div class="settings-about-card">
+                            <div class="settings-about-brand">
+                                <img :src="appDockMark" alt="InvestGo" />
+                            </div>
+                            <div class="settings-about-summary">
+                                <div class="settings-about-heading">
+                                    <strong>InvestGo</strong>
+                                    <span class="settings-about-version">v{{ runtime.appVersion || "dev" }}</span>
+                                </div>
+                                <p>面向个人投资观察的桌面应用，提供自选标的、实时行情、历史走势、热门榜单和价格提醒。</p>
+                            </div>
+                        </div>
+
+                        <div class="settings-about-links">
+                            <button type="button" class="settings-about-action" @click="openExternal(projectMeta.repositoryUrl)">
+                                <span class="pi pi-github" aria-hidden="true"></span>
+                                <span>GitHub 仓库</span>
+                            </button>
+                        </div>
+
+                        <div class="settings-disclaimer-grid">
+                            <section class="settings-disclaimer-card">
+                                <div class="settings-disclaimer-header">
+                                    <strong>免责声明</strong>
+                                    <span>中文</span>
+                                </div>
+                                <p>本软件仅用于个人学习和投资观察目的，不构成任何形式的投资建议、财务建议或买卖建议。</p>
+                                <p>
+                                    使用本软件所提供的所有数据、信息和功能，用户应当自行判断其准确性和完整性。作者和贡献者不对因使用本软件而产生的投资损失、收益波动、数据中断、数据错误或任何基于本软件信息做出的投资决策结果承担责任。
+                                </p>
+                                <p>投资有风险，入市需谨慎。用户在使用本软件前应充分了解投资风险，并自行承担所有投资决策的后果。</p>
+                            </section>
+
+                            <section class="settings-disclaimer-card">
+                                <div class="settings-disclaimer-header">
+                                    <strong>Disclaimer</strong>
+                                    <span>English</span>
+                                </div>
+                                <p>
+                                    This software is intended for personal learning and investment observation purposes only and does not constitute any form of investment advice, financial advice, or
+                                    recommendation to buy or sell.
+                                </p>
+                                <p>
+                                    Users should independently verify the accuracy and completeness of all data, information, and functions provided by this software. The authors and contributors
+                                    assume no liability for investment losses, gains, data interruptions, data errors, or any outcomes from decisions made based on information from this software.
+                                </p>
+                            </section>
+                        </div>
                     </div>
                 </div>
             </section>

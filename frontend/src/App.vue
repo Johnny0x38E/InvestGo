@@ -28,6 +28,7 @@ const settings = ref<AppSettings>({ ...defaultSettings });
 const runtime = ref<StateSnapshot["runtime"]>({
     quoteSource: "",
     livePriceCount: 0,
+    appVersion: "dev",
 });
 const quoteSources = ref<QuoteSourceOption[]>([]);
 const storagePath = ref("");

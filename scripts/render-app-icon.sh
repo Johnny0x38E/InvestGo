@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SOURCE_FILE="${SOURCE_FILE:-$ROOT_DIR/frontend/src/assets/app-mark.svg}"
+SOURCE_FILE="${SOURCE_FILE:-$ROOT_DIR/frontend/src/assets/app-dock.svg}"
 APP_ICON_OUTPUT_FILE="${APP_ICON_OUTPUT_FILE:-$ROOT_DIR/build/appicon.png}"
 ICON_SIZE="${ICON_SIZE:-1024}"
 RENDER_SCRIPT="$ROOT_DIR/scripts/render-svg-icon.swift"

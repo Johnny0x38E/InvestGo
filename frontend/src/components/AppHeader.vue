@@ -1,9 +1,7 @@
 <script setup lang="ts">
-import Button from "primevue/button";
 import { reactive } from "vue";
 
 import { formatDateTime } from "../format";
-import appMark from "../assets/app-mark.svg";
 import { isWindowMaximised, maximiseWindow, restoreWindow, startWindowDrag } from "../wails-runtime";
 import type { StatusTone } from "../types";
 
@@ -105,21 +103,15 @@ async function handleBarDoubleClick(event: MouseEvent): Promise<void> {
 
 <template>
     <header class="window-bar" @mousedown="handleBarMouseDown" @mousemove="handleBarMouseMove" @mouseup="handleBarMouseUp" @mouseleave="handleBarMouseLeave" @dblclick="handleBarDoubleClick">
-        <div class="brand-block">
-            <div class="brand-mark" aria-hidden="true">
-                <img :src="appMark" alt="" />
-            </div>
-            <div class="brand-copy">
-                <strong>InvestGo</strong>
-                <span>Daily Market Desk</span>
-            </div>
-        </div>
+        <div class="window-bar-spacer" aria-hidden="true"></div>
         <div class="window-tools">
             <div class="window-status" :data-tone="statusTone">
                 <span class="window-status-text">{{ statusText }}</span>
-                <span class="window-status-time">最近渲染 {{ formatDateTime(generatedAt) }}</span>
+                <span class="window-status-time">最近刷新 {{ formatDateTime(generatedAt) }}</span>
             </div>
-            <Button text icon="pi pi-cog" label="设置" @click="$emit('open-settings')" />
+            <button type="button" class="window-settings-button" aria-label="设置" @click="$emit('open-settings')">
+                <span class="pi pi-cog" aria-hidden="true"></span>
+            </button>
         </div>
     </header>
 </template>

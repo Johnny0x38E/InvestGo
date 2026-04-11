@@ -1,6 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Usage:
+#   ./scripts/package-macos-dmg.sh
+#   VERSION=0.1.0 ./scripts/package-macos-dmg.sh
+#   VERSION=0.1.0 ./scripts/package-macos-dmg.sh --dev
+#
+# Notes:
+# - Version is injected at build/package time and is used for the app metadata and DMG filename.
+# - Use --dev when you want the packaged app to support F12 Web Inspector.
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_NAME="${APP_NAME:-InvestGo}"
 BINARY_NAME="${BINARY_NAME:-investgo}"
@@ -10,6 +19,7 @@ MACOS_MIN_VERSION="${MACOS_MIN_VERSION:-13.0}"
 VOLUME_NAME="${VOLUME_NAME:-$APP_NAME}"
 SKIP_APP_BUILD="${SKIP_APP_BUILD:-0}"
 SKIP_DMG_CREATE="${SKIP_DMG_CREATE:-0}"
+DEV_BUILD=0
 
 BUILD_DIR="$ROOT_DIR/build"
 APP_BUILD_DIR="$BUILD_DIR/macos"
@@ -18,11 +28,51 @@ APP_CONTENTS_DIR="$APP_DIR/Contents"
 APP_EXECUTABLE="$APP_CONTENTS_DIR/MacOS/$BINARY_NAME"
 APP_RESOURCES_DIR="$APP_CONTENTS_DIR/Resources"
 ICON_SOURCE="${ICON_SOURCE:-$BUILD_DIR/appicon.png}"
-ICON_TIFF="$BUILD_DIR/InvestMonitor.tiff"
-ICNS_FILE="$BUILD_DIR/InvestMonitor.icns"
+ICONSET_DIR="$BUILD_DIR/InvestGo.iconset"
+ICNS_FILE="$BUILD_DIR/InvestGo.icns"
 PLIST_TEMPLATE="$BUILD_DIR/Info.plist.template"
 STAGING_DIR="$BUILD_DIR/dmg-staging"
 DMG_PATH="$BUILD_DIR/bin/investgo-$VERSION-macos-arm64.dmg"
+
+print_usage() {
+  printf '%s\n' \
+    'Usage:' \
+    '  ./scripts/package-macos-dmg.sh' \
+    '  VERSION=0.1.0 ./scripts/package-macos-dmg.sh' \
+    '  VERSION=0.1.0 ./scripts/package-macos-dmg.sh --dev' \
+    '' \
+    'Notes:' \
+    '  - Version is injected at build/package time and is also used in the DMG filename.' \
+    '  - Use --dev to package an app that supports F12 Web Inspector.'
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -dev|--dev)
+      DEV_BUILD=1
+      shift
+      ;;
+    -h|--help)
+      print_usage
+      exit 0
+      ;;
+    *)
+      printf 'Unknown option: %s\n' "$1" >&2
+      printf '\n' >&2
+      print_usage >&2
+      exit 1
+      ;;
+  esac
+done
+
+cleanup_temporary_artifacts() {
+  rm -rf "$ICONSET_DIR" "$STAGING_DIR"
+
+  if [[ "$SKIP_DMG_CREATE" != "1" ]]; then
+    rm -f "$ICNS_FILE"
+    rm -rf "$APP_BUILD_DIR"
+  fi
+}
 
 require_command() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -30,6 +80,8 @@ require_command() {
     exit 1
   fi
 }
+
+trap cleanup_temporary_artifacts EXIT
 
 escape_sed_replacement() {
   printf '%s' "$1" | sed -e 's/[\\/&|]/\\&/g'
@@ -47,21 +99,28 @@ render_info_plist() {
 }
 
 generate_icns() {
-  rm -f "$ICNS_FILE"
-  sips -s format tiff "$ICON_SOURCE" --out "$ICON_TIFF" >/dev/null
-  tiff2icns "$ICON_TIFF" "$ICNS_FILE"
+  local size
+  local retina_size
 
-  if [[ ! -s "$ICNS_FILE" ]]; then
-    rm -f "$ICNS_FILE"
-    tiff2icns "$ICON_TIFF" "$ICNS_FILE"
-  fi
+  rm -f "$ICNS_FILE"
+  rm -rf "$ICONSET_DIR"
+  mkdir -p "$ICONSET_DIR"
+
+  for size in 16 32 128 256 512; do
+    retina_size=$((size * 2))
+    sips -z "$size" "$size" "$ICON_SOURCE" --out "$ICONSET_DIR/icon_${size}x${size}.png" >/dev/null
+    sips -z "$retina_size" "$retina_size" "$ICON_SOURCE" --out "$ICONSET_DIR/icon_${size}x${size}@2x.png" >/dev/null
+  done
+  cp "$ICON_SOURCE" "$ICONSET_DIR/icon_512x512@2x.png"
+
+  iconutil --convert icns --output "$ICNS_FILE" "$ICONSET_DIR"
 
   if [[ ! -s "$ICNS_FILE" ]]; then
     printf 'Generated icns file is empty: %s\n' "$ICNS_FILE" >&2
     exit 1
   fi
 
-  rm -f "$ICON_TIFF"
+  rm -rf "$ICONSET_DIR"
 }
 
 sign_app_if_configured() {
@@ -100,6 +159,8 @@ notarize_dmg_if_configured() {
 }
 
 build_app_bundle() {
+  local build_args=()
+
   if [[ ! -f "$ICON_SOURCE" ]]; then
     printf 'Missing icon source image: %s\n' "$ICON_SOURCE" >&2
     exit 1
@@ -111,11 +172,15 @@ build_app_bundle() {
   fi
 
   rm -rf "$APP_DIR"
-  rm -f "$ICON_TIFF"
+  rm -rf "$ICONSET_DIR"
 
   mkdir -p "$APP_RESOURCES_DIR"
 
-  OUTPUT_FILE="$APP_EXECUTABLE" MACOS_MIN_VERSION="$MACOS_MIN_VERSION" "$ROOT_DIR/scripts/build-macos-arm64.sh"
+  if [[ "$DEV_BUILD" == "1" ]]; then
+    build_args+=("--dev")
+  fi
+
+  OUTPUT_FILE="$APP_EXECUTABLE" MACOS_MIN_VERSION="$MACOS_MIN_VERSION" "$ROOT_DIR/scripts/build-macos-arm64.sh" "${build_args[@]}"
 
   if [[ ! -s "$ICNS_FILE" || "$ICON_SOURCE" -nt "$ICNS_FILE" ]]; then
     generate_icns
@@ -154,7 +219,7 @@ if [[ "$SKIP_APP_BUILD" != "1" ]]; then
   require_command npm
   require_command go
   require_command sips
-  require_command tiff2icns
+  require_command iconutil
 fi
 
 if [[ "$SKIP_DMG_CREATE" != "1" ]]; then
