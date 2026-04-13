@@ -1,8 +1,6 @@
 # InvestGo
 
-InvestGo 是一个面向个人投资观察的桌面应用，基于 Go 1.25、Wails v3、Vue 3、TypeScript 和 PrimeVue 构建，主要针对 macOS arm64。
-
-它提供自选标的管理、实时行情查看、历史走势、热门榜单和价格提醒，适合用来做日常投资观察与记录。
+个人投资观察桌面应用（Go + Wails v3）。支持自选标的、实时行情、历史走势、热门榜单及价格提醒。
 
 ## Screenshots
 
@@ -18,81 +16,29 @@ InvestGo 是一个面向个人投资观察的桌面应用，基于 Go 1.25、Wai
 
 ![Screenshot 5](assets/screenshot5.png)
 
-## Clone
+## Quick Start
 
 ```bash
 git clone https://github.com/Johnny0x38E/InvestGo.git
 cd InvestGo
-```
-
-## Environment
-
-开始前请准备：
-
-- Go 1.25+
-- Node.js 20+
-- npm 10+
-- macOS arm64
-- Wails v3 构建所需的本机开发环境
-
-安装依赖：
-
-```bash
 npm install
-```
-
-## Run
-
-前端开发：
-
-```bash
-npm run dev
-```
-
-后端开发：
-
-```bash
-go run main.go -dev
-```
-
-常用检查：
-
-```bash
-npm run typecheck
-env GOCACHE=/tmp/go-build-cache go test ./...
+npm run dev     # 前端开发 (localhost:5173)
+go run main.go -dev  # 后端开发
 ```
 
 ## Build
 
-构建前端：
-
 ```bash
-npm run build
+VERSION=0.1.0 ./scripts/build-macos-arm64.sh        # 生产构建
+./scripts/build-macos-arm64.sh --dev                # 调试构建 (F12 DevTools)
+./scripts/package-macos-dmg.sh                      # 打包 .app + .dmg
 ```
 
-构建 macOS arm64 二进制：
+## Requirements
 
-```bash
-./scripts/build-macos-arm64.sh
-```
-
-构建带 DevTools 的调试二进制：
-
-```bash
-./scripts/build-macos-arm64.sh --dev
-```
-
-打包 `.app` 和 `.dmg`：
-
-```bash
-./scripts/package-macos-dmg.sh
-```
-
-打包带 DevTools 的调试版：
-
-```bash
-./scripts/package-macos-dmg.sh --dev
-```
+- Go 1.25+
+- Node.js 20+
+- macOS arm64
 
 ## Disclaimer
 
