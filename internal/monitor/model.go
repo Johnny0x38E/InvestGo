@@ -9,7 +9,7 @@ const (
 	AlertBelow AlertCondition = "below"
 )
 
-// DCAEntry 记录一次定投操作。date + amount + shares 三者确定一笔定投，买入价由前端推算展示。
+// DCAEntry 记录一次定投操作。date + amount + shares 三者确定一笔定投。
 type DCAEntry struct {
 	ID     string    `json:"id"`
 	Date   time.Time `json:"date"`
@@ -84,7 +84,7 @@ type AlertRule struct {
 // AppSettings 存储用户的应用设置，如刷新频率、数据来源和显示偏好等。
 type AppSettings struct {
 	RefreshIntervalSeconds int    `json:"refreshIntervalSeconds"`
-	QuoteSource            string `json:"quoteSource"` // legacy fallback for older state files
+	QuoteSource            string `json:"quoteSource"` // "auto"、"cn"、"hk"、"us"，默认 "auto"
 	CNQuoteSource          string `json:"cnQuoteSource"`
 	HKQuoteSource          string `json:"hkQuoteSource"`
 	USQuoteSource          string `json:"usQuoteSource"`
@@ -129,7 +129,8 @@ type HistorySeries struct {
 	GeneratedAt   time.Time       `json:"generatedAt"`
 }
 
-// RuntimeStatus 存储应用运行时的状态信息，如上次行情请求时间、上次行情刷新时间、上次行情错误信息、当前使用的数据来源和有效价格数量等。
+// RuntimeStatus 存储应用运行时的状态信息，
+// 如上次行情请求时间、上次行情刷新时间、上次行情错误信息、当前使用的数据来源和有效价格数量等。
 type RuntimeStatus struct {
 	LastQuoteAttemptAt *time.Time `json:"lastQuoteAttemptAt,omitempty"`
 	LastQuoteRefreshAt *time.Time `json:"lastQuoteRefreshAt,omitempty"`
@@ -139,7 +140,8 @@ type RuntimeStatus struct {
 	AppVersion         string     `json:"appVersion"`
 }
 
-// persistedState 定义了需要持久化存储的应用状态，包括自选项列表、价格提醒规则列表、用户设置和上次更新的时间戳等。
+// persistedState 定义了需要持久化存储的应用状态,
+// 包括自选项列表、价格提醒规则列表、用户设置和上次更新的时间戳等。
 type persistedState struct {
 	Items     []WatchlistItem `json:"items"`
 	Alerts    []AlertRule     `json:"alerts"`
@@ -147,7 +149,7 @@ type persistedState struct {
 	UpdatedAt time.Time       `json:"updatedAt"`
 }
 
-// DashboardSummary 定义了仪表盘上需要展示的汇总数据，如总成本、总市值、总盈亏金额、总盈亏百分比、持仓数量、触发的提醒数量、盈利数量、亏损数量和显示货币等。
+// DashboardSummary 定义了仪表盘上需要展示的汇总数据
 type DashboardSummary struct {
 	TotalCost       float64 `json:"totalCost"`
 	TotalValue      float64 `json:"totalValue"`
@@ -160,7 +162,8 @@ type DashboardSummary struct {
 	DisplayCurrency string  `json:"displayCurrency"`
 }
 
-// StateSnapshot 定义了应用状态的完整快照，包括仪表盘汇总数据、自选项列表、价格提醒规则列表、用户设置、运行时状态、可用的数据来源列表和存储路径等。
+// StateSnapshot 定义了应用状态的完整快照，
+// 包括仪表盘汇总数据、自选项列表、价格提醒规则列表、用户设置、运行时状态、可用的数据来源列表和存储路径等。
 type StateSnapshot struct {
 	Dashboard    DashboardSummary    `json:"dashboard"`
 	Items        []WatchlistItem     `json:"items"`
@@ -197,7 +200,8 @@ const (
 	HotSortPrice     HotSort = "price"
 )
 
-// HotItem 定义了热门榜单中每个标的的详细信息，包括代码、名称、市场、货币、当前价格、涨跌额、涨跌幅、成交量、市值、数据来源和更新时间等。
+// HotItem 定义了热门榜单中每个标的的详细信息，
+// 包括代码、名称、市场、货币、当前价格、涨跌额、涨跌幅、成交量、市值、数据来源和更新时间等。
 type HotItem struct {
 	Symbol        string    `json:"symbol"`
 	Name          string    `json:"name"`

@@ -25,7 +25,7 @@ type FxRates struct {
 // fallbackFxRates 在接口不可用时使用的兜底汇率（粗略值）。
 var fallbackFxRates = map[string]float64{
 	"CNY": 1.0,
-	"USD": 7,
+	"USD": 6.9,
 	"HKD": 0.85,
 }
 

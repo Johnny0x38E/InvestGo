@@ -21,6 +21,7 @@ type hotSeed struct {
 	Currency string
 }
 
+// fetchPoolQuotes 根据预定义的热门分类成分股池批量请求实时行情数据，并转换为统一格式返回。
 func (s *HotService) fetchPoolQuotes(ctx context.Context, seeds []hotSeed) ([]monitor.HotItem, error) {
 	secids := make([]string, 0, len(seeds)*2)
 	indexBySecID := make(map[string]hotSeed, len(seeds)*2)
@@ -114,6 +115,7 @@ func (s *HotService) fetchPoolQuotes(ctx context.Context, seeds []hotSeed) ([]mo
 	return items, nil
 }
 
+// resolvePoolSecID 返回种子标的对应的一个 secid 以供批量行情接口使用。
 func resolvePoolSecID(seed hotSeed) (string, error) {
 	target, err := monitor.ResolveQuoteTarget(monitor.WatchlistItem{
 		Symbol:   seed.Symbol,

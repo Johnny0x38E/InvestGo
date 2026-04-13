@@ -24,21 +24,25 @@ type EastMoneyQuoteProvider struct {
 }
 
 type eastMoneyQuoteResponse struct {
-	RC   int `json:"rc"`
-	Data struct {
-		Diff []struct {
-			MarketID      int     `json:"f13"`
-			Code          string  `json:"f12"`
-			Name          string  `json:"f14"`
-			CurrentPrice  emFloat `json:"f2"`
-			ChangePercent emFloat `json:"f3"`
-			Change        emFloat `json:"f4"`
-			DayHigh       emFloat `json:"f15"`
-			DayLow        emFloat `json:"f16"`
-			OpenPrice     emFloat `json:"f17"`
-			PreviousClose emFloat `json:"f18"`
-		} `json:"diff"`
-	} `json:"data"`
+	RC   int                `json:"rc"`
+	Data EastMoneyQuoteData `json:"data"`
+}
+
+type EastMoneyQuoteData struct {
+	Diff []EastMoneyQuoteDataDiff `json:"diff"`
+}
+
+type EastMoneyQuoteDataDiff struct {
+	MarketID      int     `json:"f13"`
+	Code          string  `json:"f12"`
+	Name          string  `json:"f14"`
+	CurrentPrice  emFloat `json:"f2"`
+	ChangePercent emFloat `json:"f3"`
+	Change        emFloat `json:"f4"`
+	DayHigh       emFloat `json:"f15"`
+	DayLow        emFloat `json:"f16"`
+	OpenPrice     emFloat `json:"f17"`
+	PreviousClose emFloat `json:"f18"`
 }
 
 // DefaultQuoteSourceRegistry 返回默认行情源注册表及其前端展示配置。
@@ -48,24 +52,16 @@ func DefaultQuoteSourceRegistry(client *http.Client) (map[string]monitor.QuotePr
 
 	options := []monitor.QuoteSourceOption{
 		{
-			ID:          "eastmoney",
-			Name:        "东方财富",
-			Description: "覆盖沪深港美，字段完整，热门榜单与图表兼容性最好。",
-			SupportedMarkets: []string{
-				"CN-A", "CN-GEM", "CN-STAR", "CN-ETF",
-				"HK-MAIN", "HK-GEM", "HK-ETF",
-				"US-STOCK", "US-ETF",
-			},
+			ID:               "eastmoney",
+			Name:             "东方财富",
+			Description:      "覆盖沪深港美，字段完整，热门榜单与图表兼容性最好。",
+			SupportedMarkets: []string{"CN-A", "CN-GEM", "CN-STAR", "CN-ETF", "HK-MAIN", "HK-GEM", "HK-ETF", "US-STOCK", "US-ETF"},
 		},
 		{
-			ID:          "yahoo",
-			Name:        "Yahoo Finance",
-			Description: "港股和美股覆盖稳定，适合以境外市场为主的组合。",
-			SupportedMarkets: []string{
-				"CN-A", "CN-GEM", "CN-STAR", "CN-ETF",
-				"HK-MAIN", "HK-GEM", "HK-ETF",
-				"US-STOCK", "US-ETF",
-			},
+			ID:               "yahoo",
+			Name:             "Yahoo Finance",
+			Description:      "港股和美股覆盖稳定，适合以境外市场为主的组合。",
+			SupportedMarkets: []string{"CN-A", "CN-GEM", "CN-STAR", "CN-ETF", "HK-MAIN", "HK-GEM", "HK-ETF", "US-STOCK", "US-ETF"},
 		},
 	}
 
@@ -88,6 +84,7 @@ func (p *YahooQuoteProvider) Name() string {
 	return "Yahoo Finance"
 }
 
+// Fetch 批量请求 Yahoo Finance 实时行情，并映射回标准 Quote 结构。
 func (p *YahooQuoteProvider) Fetch(ctx context.Context, items []monitor.WatchlistItem) (map[string]monitor.Quote, error) {
 	targets, problems := collectQuoteTargets(items)
 	quotes := make(map[string]monitor.Quote, len(targets))
@@ -122,6 +119,7 @@ func (p *YahooQuoteProvider) Fetch(ctx context.Context, items []monitor.Watchlis
 	return quotes, collapseProblems(problems)
 }
 
+// fetchChartSnapshot 请求 Yahoo Finance 的图表数据接口，解析最近 5 天的日线数据，并从中提取最新价格点构建 Quote 对象。
 func (p *YahooQuoteProvider) fetchChartSnapshot(ctx context.Context, item monitor.WatchlistItem, yahooSymbol string) (monitor.Quote, error) {
 	params := url.Values{}
 	params.Set("range", "5d")

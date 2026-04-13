@@ -22,7 +22,6 @@ type historyQuerySpec struct {
 	trimWindow      time.Duration
 }
 
-// NewYahooChartProvider 创建 Yahoo 历史数据 provider。
 func NewYahooChartProvider(client *http.Client) *YahooChartProvider {
 	if client == nil {
 		client = &http.Client{Timeout: 10 * time.Second}
@@ -35,6 +34,7 @@ func (p *YahooChartProvider) Name() string {
 	return "Yahoo Finance"
 }
 
+// Fetch 实现了 monitor.HistoryProvider 接口，负责从 Yahoo Finance 获取历史行情数据并转换为统一格式。
 func (p *YahooChartProvider) Fetch(ctx context.Context, item monitor.WatchlistItem, interval monitor.HistoryInterval) (monitor.HistorySeries, error) {
 	yahooSymbol, err := resolveYahooSymbol(item)
 	if err != nil {
@@ -112,6 +112,7 @@ func resolveYahooSymbol(item monitor.WatchlistItem) (string, error) {
 	return "", fmt.Errorf("Yahoo 不支持该市场: %s", target.DisplaySymbol)
 }
 
+// historyQuerySpecFor 根据用户选择的历史范围返回适合 Yahoo Finance API 的查询参数和数据修剪窗口。
 func historyQuerySpecFor(interval monitor.HistoryInterval) (historyQuerySpec, error) {
 	switch interval {
 	case monitor.HistoryRange1h:
@@ -133,6 +134,7 @@ func historyQuerySpecFor(interval monitor.HistoryInterval) (historyQuerySpec, er
 	}
 }
 
+// buildHistoryPoints 从 Yahoo Finance 的原始数据中构造统一的历史价格点列表，自动过滤掉无效数据。
 func buildHistoryPoints(timestamps []int64, quote struct {
 	Open   []*float64 `json:"open"`
 	High   []*float64 `json:"high"`

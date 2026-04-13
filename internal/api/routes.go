@@ -10,6 +10,7 @@ import (
 	"investgo/internal/monitor"
 )
 
+// route 定义了一个 API 路由，包括 HTTP 方法、路径模板和处理函数。
 type route struct {
 	method  string
 	pattern string
@@ -48,6 +49,7 @@ func (h *Handler) registerRoutes() []route {
 	}
 }
 
+// handleOpenExternal 在 macOS 上使用系统默认浏览器打开一个外部链接。
 func (h *Handler) handleOpenExternal(writer http.ResponseWriter, request *http.Request, _ routeParams) {
 	var payload openExternalRequest
 	if err := decodeJSON(request, &payload); err != nil {

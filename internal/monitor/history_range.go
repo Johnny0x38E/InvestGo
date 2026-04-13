@@ -2,19 +2,16 @@ package monitor
 
 import "context"
 
-// HistoryProvider abstracts historical chart backends away from Store.
+// HistoryProvider 定义了获取历史数据的接口，供监控模块调用以展示历史走势图表。
 type HistoryProvider interface {
 	Fetch(ctx context.Context, item WatchlistItem, interval HistoryInterval) (HistorySeries, error)
 	Name() string
 }
 
-// HistoryInterval represents the chart range selected by the UI.
+// HistoryInterval 定义了历史数据的时间范围和粒度，供 Fetch 方法使用。
 type HistoryInterval string
 
 const (
-	HistoryRange5m  HistoryInterval = "5m"
-	HistoryRange15m HistoryInterval = "15m"
-	HistoryRange30m HistoryInterval = "30m"
 	HistoryRange1h  HistoryInterval = "1h"
 	HistoryRange1d  HistoryInterval = "1d"
 	HistoryRange1w  HistoryInterval = "1w"

@@ -276,7 +276,7 @@ func (w *logBookWriter) Write(payload []byte) (int, error) {
 		return len(payload), nil
 	}
 
-	for _, line := range strings.Split(message, "\n") {
+	for line := range strings.SplitSeq(message, "\n") {
 		clean := strings.TrimSpace(line)
 		if clean == "" {
 			continue

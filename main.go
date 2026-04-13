@@ -26,17 +26,16 @@ var defaultTerminalLogging = "0"
 var defaultDevToolsBuild = "0"
 var appVersion = "dev"
 
-// frontendAssets 嵌入前端构建产物，供 Wails 在运行时直接提供静态资源。
+// 嵌入前端构建产物，供 Wails 在运行时直接提供静态资源。
 //
 //go:embed frontend/dist
 var frontendAssets embed.FS
 
-// 用 PNG 直接嵌入运行时应用图标，这样开发构建和生产构建看到的是同一套品牌资产。
+// 嵌入应用图标
 //
 //go:embed build/appicon.png
 var appIcon []byte
 
-// main 负责组装后端依赖、注册 HTTP 入口并启动桌面应用。
 func main() {
 	logs := monitor.NewLogBook(400)
 	if terminalLoggingEnabled() {
@@ -157,7 +156,7 @@ func defaultStatePath() string {
 }
 
 // defaultLogPath 返回日志文件的默认存储路径。
-// 日志文件和 state.json 放在同一个配置根目录下，便于用户备份和排障。
+// 日志文件和 state.json 都在 $HOME/Library/Application Support/investgo/ 路径下。
 func defaultLogPath() string {
 	if configDir, err := os.UserConfigDir(); err == nil {
 		return filepath.Join(configDir, "investgo", "logs", "app.log")
@@ -186,7 +185,7 @@ func devToolsBuildEnabled() bool {
 	return defaultDevToolsBuild == "1"
 }
 
-// applySystemProxy 在 macOS 上读取系统代理设置，并在用户未手动配置时自动注入到进程环境变量。
+// applySystemProxy 在 macOS 上读取系统代理设置，并在未手动配置时自动注入到进程环境变量。
 // 后续所有 net/http 客户端都会通过 http.ProxyFromEnvironment 透明地走代理，
 // 无需在工具侧额外配置"增强模式" / TUN 模式。
 func applySystemProxy(logs *monitor.LogBook) {

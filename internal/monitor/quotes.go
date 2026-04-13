@@ -338,7 +338,7 @@ func isUSSymbol(value string) bool {
 	return true
 }
 
-// normaliseUSSymbol 把美股代码收敛到系统内部使用的标准格式。
+// normaliseUSSymbol 把美股代码转换为系统内部使用的标准格式。
 func normaliseUSSymbol(value string) string {
 	value = strings.ToUpper(strings.TrimSpace(value))
 	value = strings.ReplaceAll(value, ".", "-")

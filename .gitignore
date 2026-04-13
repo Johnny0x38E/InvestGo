@@ -30,6 +30,7 @@ Thumbs.db
 /frontend/vendor
 
 # Other
+.agents/
 .claude/
 AGENTS.md
 CLAUDE.md

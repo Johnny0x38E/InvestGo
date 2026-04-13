@@ -115,6 +115,7 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
+// partsAt 安全访问字符串切片中的元素，越界时返回空字符串。
 func partsAt(parts []string, index int) string {
 	if index < 0 || index >= len(parts) {
 		return ""
@@ -122,6 +123,7 @@ func partsAt(parts []string, index int) string {
 	return parts[index]
 }
 
+// parseTimestamp 安全解析接口里的时间字段，支持多种常见格式。
 func parseTimestamp(raw string) time.Time {
 	candidate := strings.TrimSpace(strings.NewReplacer("/", "-", "\"", "", ";", "").Replace(raw))
 	if candidate == "" {
@@ -143,6 +145,7 @@ func parseTimestamp(raw string) time.Time {
 	return time.Time{}
 }
 
+// decodeGB18030Body 把 GB18030 编码的响应体转换成 UTF-8 字符串。
 func decodeGB18030Body(body io.Reader) (string, error) {
 	reader := transform.NewReader(body, simplifiedchinese.GB18030.NewDecoder())
 	payload, err := io.ReadAll(reader)
@@ -152,6 +155,7 @@ func decodeGB18030Body(body io.Reader) (string, error) {
 	return strings.TrimSpace(string(bytes.TrimPrefix(payload, []byte{0xef, 0xbb, 0xbf}))), nil
 }
 
+// fetchTextWithHeaders 发起带自定义请求头的 GET 请求，并返回响应文本。可选地对 GB18030 编码的响应进行解码。
 func fetchTextWithHeaders(ctx context.Context, client *http.Client, requestURL string, headers map[string]string, decodeGB18030 bool) (string, error) {
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
 	if err != nil {

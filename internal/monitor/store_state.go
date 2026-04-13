@@ -251,6 +251,7 @@ func (s *Store) quoteProviderNameLocked(market string) string {
 	return "Manual"
 }
 
+// quoteProviderSummaryLocked 返回当前各市场行情源的简要描述，用于界面展示。
 func (s *Store) quoteProviderSummaryLocked() string {
 	parts := []string{
 		"A股 " + s.quoteProviderNameLocked("CN-A"),
@@ -260,6 +261,7 @@ func (s *Store) quoteProviderSummaryLocked() string {
 	return strings.Join(parts, " / ")
 }
 
+// defaultQuoteSourceIDForMarket 返回给定市场的默认行情源 ID。
 func defaultQuoteSourceIDForMarket(market string) string {
 	switch marketGroupForMarket(market) {
 	case "cn":
@@ -273,6 +275,7 @@ func defaultQuoteSourceIDForMarket(market string) string {
 	}
 }
 
+// marketGroupForMarket 把具体市场归类到更宽泛的市场组，以便复用设置和逻辑。
 func marketGroupForMarket(market string) string {
 	switch market {
 	case "CN-A", "CN-GEM", "CN-STAR", "CN-ETF", "CN-BJ":
@@ -286,6 +289,13 @@ func marketGroupForMarket(market string) string {
 	}
 }
 
+// quoteSourceIDForMarketLocked 返回给定市场当前应生效的行情源 ID，优先级为：
+// 1. 市场专属设置（HKQuoteSource、USQuoteSource、CNQuoteSource）
+// 2. 通用设置（QuoteSource）
+// 3. 各市场默认值（defaultQuoteSourceIDForMarket）
+// 4. 可用行情源列表中的第一个支持该市场的选项
+// 5. 可用行情源列表中的第一个选项
+// 6. 内置默认值 DefaultQuoteSourceID
 func (s *Store) quoteSourceIDForMarketLocked(market string) string {
 	settings := s.state.Settings
 	switch marketGroupForMarket(market) {
@@ -298,6 +308,7 @@ func (s *Store) quoteSourceIDForMarketLocked(market string) string {
 	}
 }
 
+// normaliseQuoteSourceIDLocked 验证并规范化用户输入的行情源 ID，确保其在可用选项中有效且支持指定市场；否则回落到合理的默认值。
 func (s *Store) normaliseQuoteSourceIDLocked(sourceID, market string) string {
 	sourceID = strings.ToLower(strings.TrimSpace(sourceID))
 	if sourceID != "" {
@@ -324,6 +335,7 @@ func (s *Store) normaliseQuoteSourceIDLocked(sourceID, market string) string {
 	return DefaultQuoteSourceID
 }
 
+// quoteSourceSupportsMarketLocked 检查指定的行情源 ID 是否在可用选项中，并且支持给定市场。
 func (s *Store) quoteSourceSupportsMarketLocked(sourceID, market string) bool {
 	for _, option := range s.quoteSourceOptions {
 		if option.ID == sourceID {
@@ -333,6 +345,7 @@ func (s *Store) quoteSourceSupportsMarketLocked(sourceID, market string) bool {
 	return false
 }
 
+// quoteSourceSupportsMarketOption 检查行情源选项是否支持给定市场；如果 SupportedMarkets 为空，则表示支持所有市场。
 func (s *Store) quoteSourceSupportsMarketOption(option QuoteSourceOption, market string) bool {
 	if len(option.SupportedMarkets) == 0 {
 		return true
@@ -368,6 +381,14 @@ func (s *Store) activeQuoteSourceIDLocked(market string) string {
 	return s.quoteSourceIDForMarketLocked(market)
 }
 
+// historyProviderCandidatesLocked 返回给定市场的历史数据 provider 候选列表，优先级为：
+// 1. 当前行情源（如果也提供历史数据）
+// 2. 同市场组的其他默认行情源（如用户设置的行情源不支持历史数据，则回落到同市场组的默认值）
+// 3. 同市场组的其他可用行情源（如同市场组默认值不支持历史数据，则回落到同市场组的其他选项）
+// 4. 其他市场组的默认行情源（如同市场组没有任何选项支持历史数据，则回落到其他市场组的默认值）
+// 5. 其他市场组的可用行情源（如其他市场组默认值不支持历史数据，则回落到其他市场组的其他选项）
+// 6. 可用行情源列表中的第一个提供历史数据的选项
+// 7. 内置默认值 DefaultQuoteSourceID（如果提供历史数据）
 func (s *Store) historyProviderCandidatesLocked(market string) []HistoryProvider {
 	if len(s.historyProviders) == 0 {
 		return nil
@@ -458,41 +479,28 @@ func seedState() persistedState {
 	items := []WatchlistItem{
 		{
 			ID:           newID("item"),
-			Symbol:       "600519.SH",
-			Name:         "贵州茅台",
-			Market:       "CN-A",
-			Currency:     "CNY",
-			Quantity:     20,
-			CostPrice:    1680,
-			CurrentPrice: 1728,
-			Thesis:       "高端白酒现金流稳定，适合作为组合压舱石。",
-			Tags:         []string{"白酒", "核心仓"},
-			UpdatedAt:    now.Add(-4 * time.Hour),
-		},
-		{
-			ID:           newID("item"),
-			Symbol:       "00700.HK",
-			Name:         "腾讯控股",
+			Symbol:       "09988.HK",
+			Name:         "阿里巴巴-W",
 			Market:       "HK-MAIN",
 			Currency:     "HKD",
 			Quantity:     100,
 			CostPrice:    310,
 			CurrentPrice: 328,
-			Thesis:       "广告和游戏现金牛，适合中长期跟踪估值修复。",
+			Thesis:       "阿里巴巴港股，长期持有，关注电商和云计算业务发展",
 			Tags:         []string{"互联网平台", "观察"},
 			UpdatedAt:    now.Add(-2 * time.Hour),
 		},
 		{
 			ID:           newID("item"),
-			Symbol:       "QQQ",
-			Name:         "Invesco QQQ Trust",
+			Symbol:       "VOO",
+			Name:         "标普500ETF-Vanguard",
 			Market:       "US-ETF",
 			Currency:     "USD",
 			Quantity:     15,
 			CostPrice:    430,
 			CurrentPrice: 447,
-			Thesis:       "用来观察美股科技主线风险偏好。",
-			Tags:         []string{"ETF", "科技"},
+			Thesis:       "标普500指数ETF，分散投资美国大盘股，长期持有",
+			Tags:         []string{"ETF"},
 			UpdatedAt:    now.Add(-90 * time.Minute),
 		},
 	}
@@ -500,17 +508,8 @@ func seedState() persistedState {
 	alerts := []AlertRule{
 		{
 			ID:        newID("alert"),
-			ItemID:    items[0].ID,
-			Name:      "茅台上破观察位",
-			Condition: AlertAbove,
-			Threshold: 1750,
-			Enabled:   true,
-			UpdatedAt: now.Add(-45 * time.Minute),
-		},
-		{
-			ID:        newID("alert"),
 			ItemID:    items[1].ID,
-			Name:      "腾讯回撤止损位",
+			Name:      "阿里巴巴下破300止损",
 			Condition: AlertBelow,
 			Threshold: 300,
 			Enabled:   true,
@@ -519,7 +518,7 @@ func seedState() persistedState {
 		{
 			ID:        newID("alert"),
 			ItemID:    items[2].ID,
-			Name:      "QQQ 上破趋势确认位",
+			Name:      "VOO 上破450止盈",
 			Condition: AlertAbove,
 			Threshold: 450,
 			Enabled:   true,

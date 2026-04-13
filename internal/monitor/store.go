@@ -7,10 +7,11 @@ import (
 	"time"
 )
 
-// Store 是桌面端的中心协调器：
-// 1. 管理本地持久化状态；
-// 2. 协调实时行情与历史行情；
-// 3. 输出适合前端直接消费的快照。
+// Store 是监控模块的核心状态管理器，负责维护和协调所有与前端交互相关的状态数据，提供线程安全的访问接口。它的职责包括：
+// 1. 持久化管理：负责将用户设置和监控数据持久化到磁盘，并在应用启动时装载这些数据，确保用户配置的连续性。
+// 2. 运行时状态维护：维护当前的监控状态、历史数据和汇率信息，供前端仪表盘展示和交互使用。
+// 3. 依赖协调：协调行情提供者、历史数据提供者和日志系统等多个组件，确保它们的数据能够正确地反映在前端。
+// 4. 锁管理：通过读写锁机制确保在多线程环境下对状态的安全访问，避免数据竞争和不一致。
 type Store struct {
 	mu                 sync.RWMutex
 	path               string
@@ -32,9 +33,7 @@ func NewStore(path string, quoteProviders map[string]QuoteProvider, quoteSourceO
 		historyProviders:   historyProviders,
 		logs:               logs,
 		fxRates:            NewFxRates(nil),
-		runtime: RuntimeStatus{
-			AppVersion: appVersion,
-		},
+		runtime:            RuntimeStatus{AppVersion: appVersion},
 	}
 	if err := store.load(); err != nil {
 		return nil, err

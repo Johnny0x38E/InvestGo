@@ -101,6 +101,7 @@ func sanitiseDeveloperLogLevel(level monitor.DeveloperLogLevel) monitor.Develope
 	}
 }
 
+// sanitiseExternalURL 验证并清理外部链接输入，确保其格式正确且使用安全协议。
 func sanitiseExternalURL(raw string) (string, error) {
 	value := strings.TrimSpace(raw)
 	if value == "" {

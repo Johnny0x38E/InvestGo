@@ -363,6 +363,7 @@ func (s *HotService) loadPoolItems(ctx context.Context, category monitor.HotCate
 	return items, nil
 }
 
+// loadHotItemsForSeeds 根据给定的 hotSeed 列表获取实时行情数据，构建 HotItem 列表。
 func (s *HotService) loadHotItemsForSeeds(ctx context.Context, seeds []hotSeed, fallbackSource string) ([]monitor.HotItem, error) {
 	if len(seeds) == 0 {
 		return []monitor.HotItem{}, nil
@@ -480,6 +481,9 @@ func normaliseHotKeyword(keyword string) string {
 	return strings.ToLower(strings.TrimSpace(keyword))
 }
 
+// filterHotSeeds 根据关键词过滤 hotSeed 列表，匹配名称或代码包含关键词的项；如果关键词为空，则返回原列表的副本。
+// hotSeed 是我们预定义的数据池中的项，包含基本的市场、代码和名称信息；
+// 用于在搜索时对这些项进行初步筛选，以减少后续获取实时行情的开销。
 func filterHotSeeds(seeds []hotSeed, keyword string) []hotSeed {
 	keyword = normaliseHotKeyword(keyword)
 	if keyword == "" {
@@ -495,6 +499,8 @@ func filterHotSeeds(seeds []hotSeed, keyword string) []hotSeed {
 	return filtered
 }
 
+// filterHotItems 根据关键词过滤 monitor.HotItem 列表，匹配名称或代码包含关键词的项；如果关键词为空，则返回原列表的副本。
+// 与 filterHotSeeds 类似，但作用于 monitor.HotItem 列表。
 func filterHotItems(items []monitor.HotItem, keyword string) []monitor.HotItem {
 	keyword = normaliseHotKeyword(keyword)
 	if keyword == "" {
@@ -533,10 +539,12 @@ func paginateHotItems(total, page, pageSize int) (start, end int) {
 	return start, end
 }
 
+// hotSearchCacheKey 生成热门搜索缓存的键，基于分类和排序条件。
 func hotSearchCacheKey(category monitor.HotCategory, sortBy monitor.HotSort) string {
 	return string(category) + "|" + string(sortBy)
 }
 
+// mergeHotSeeds 合并两个 hotSeed 列表，去重后返回新列表。
 func mergeHotSeeds(base, extra []hotSeed) []hotSeed {
 	merged := append([]hotSeed(nil), base...)
 	seen := make(map[string]struct{}, len(base))
@@ -555,6 +563,8 @@ func mergeHotSeeds(base, extra []hotSeed) []hotSeed {
 	return merged
 }
 
+// mergeHotItemsWithSeeds 将 hotSeed 列表中的项合并到 monitor.HotItem 列表中，去重后返回新列表；
+// 如果某个 hotSeed 没有对应的 monitor.HotItem，则使用 hotSeed 信息构建一个新的 monitor.HotItem，并设置 quoteSource 为 fallbackSource。
 func mergeHotItemsWithSeeds(items []monitor.HotItem, seeds []hotSeed, fallbackSource string) []monitor.HotItem {
 	merged := cloneHotItems(items)
 	seen := make(map[string]struct{}, len(items))
@@ -601,6 +611,7 @@ func cloneHotItems(items []monitor.HotItem) []monitor.HotItem {
 	return append([]monitor.HotItem(nil), items...)
 }
 
+// sortHotItems 根据指定的排序条件对热门标的列表进行原地排序。
 func sortHotItems(items []monitor.HotItem, sortBy monitor.HotSort) {
 	sort.SliceStable(items, func(i, j int) bool {
 		switch sortBy {
@@ -625,6 +636,7 @@ func maxInt(a, b int) int {
 	return b
 }
 
+// searchYahooUSSeeds 获取与关键词匹配的美股 ETF 标的列表，并过滤出可能在美国交易所上市的 ETF。
 func (s *HotService) searchYahooUSSeeds(ctx context.Context, keyword string) ([]hotSeed, error) {
 	parsed, err := fetchYahooSearch(ctx, s.client, keyword)
 	if err != nil {
@@ -680,6 +692,7 @@ func fetchYahooSearch(ctx context.Context, client *http.Client, keyword string) 
 	return yahooSearchResponse{}, collapseProblems(problems)
 }
 
+// fetchYahooSearchFromHost 从指定的 Yahoo Search API host 获取搜索结果，并解析为 yahooSearchResponse 结构。
 func fetchYahooSearchFromHost(ctx context.Context, client *http.Client, host string, params url.Values) (yahooSearchResponse, error) {
 	query := make(url.Values, len(params))
 	for key, values := range params {
@@ -729,6 +742,7 @@ func isYahooETFQuote(quoteType, typeDisp string) bool {
 	return quoteType == "ETF" || strings.Contains(typeDisp, "ETF")
 }
 
+// isLikelyUSExchange 判断给定的交易所信息是否可能是美国交易所，基于常见的美国交易所标识进行简单匹配。
 func isLikelyUSExchange(exchange, exchDisp string) bool {
 	label := strings.ToUpper(strings.TrimSpace(exchange + " " + exchDisp))
 	if label == "" {
