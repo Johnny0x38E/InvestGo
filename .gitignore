@@ -6,7 +6,7 @@
 /frontend/dist
 
 # IDE
-.zed
+.zed/
 .idea/
 .vscode/
 
@@ -20,7 +20,7 @@ Thumbs.db
 *.prof
 
 # Go testing
-*_test.go
+*test.go
 
 # Frontend cache
 .vite/
