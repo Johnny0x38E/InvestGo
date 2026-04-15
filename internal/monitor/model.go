@@ -2,6 +2,7 @@ package monitor
 
 import "time"
 
+// AlertCondition 价格提醒的条件
 type AlertCondition string
 
 const (
@@ -9,7 +10,7 @@ const (
 	AlertBelow AlertCondition = "below"
 )
 
-// DCAEntry 记录一次定投操作。date + amount + shares 三者确定一笔定投。
+// DCAEntry 定投
 type DCAEntry struct {
 	ID     string    `json:"id"`
 	Date   time.Time `json:"date"`
@@ -20,27 +21,27 @@ type DCAEntry struct {
 	Note   string    `json:"note,omitempty"`
 }
 
-// WatchlistItem 表示用户自选的一个投资标的，可以是股票、基金、加密货币等任何有价格的资产。
+// WatchlistItem 自选的一个投资标的
 type WatchlistItem struct {
-	ID             string     `json:"id"`
-	Symbol         string     `json:"symbol"`
-	Name           string     `json:"name"`
-	Market         string     `json:"market"`
-	Currency       string     `json:"currency"`
-	Quantity       float64    `json:"quantity"`
-	CostPrice      float64    `json:"costPrice"`
-	CurrentPrice   float64    `json:"currentPrice"`
-	PreviousClose  float64    `json:"previousClose"`
-	OpenPrice      float64    `json:"openPrice"`
-	DayHigh        float64    `json:"dayHigh"`
-	DayLow         float64    `json:"dayLow"`
-	Change         float64    `json:"change"`
-	ChangePercent  float64    `json:"changePercent"`
-	QuoteSource    string     `json:"quoteSource"`
-	QuoteUpdatedAt *time.Time `json:"quoteUpdatedAt,omitempty"`
-	Thesis         string     `json:"thesis"`
-	Tags           []string   `json:"tags"`
-	DCAEntries     []DCAEntry `json:"dcaEntries,omitempty"`
+	ID             string     `json:"id"`                       // 唯一标识符，格式为 "市场-代码"，如 "CN-A-000001"、"HK-MAIN-00700"、"US-STOCK-AAPL"
+	Symbol         string     `json:"symbol"`                   // 标准化的标的代码，格式为 "市场-代码"，如 "CN-A-000001"、"HK-MAIN-00700"、"US-STOCK-AAPL"
+	Name           string     `json:"name"`                     // 标的名称，如 "Apple Inc."、"Tesla, Inc."、"贵州茅台"
+	Market         string     `json:"market"`                   // 市场标识，如 "CN-A"（沪深A股）、"HK-MAIN"（港股主板）、"US-STOCK"（美股）
+	Currency       string     `json:"currency"`                 // 货币代码，如 "CNY"、"HKD"、"USD"
+	Quantity       float64    `json:"quantity"`                 // 持仓数量
+	CostPrice      float64    `json:"costPrice"`                // 持仓的平均成本价（含手续费），即总成本金额除以持仓数量
+	CurrentPrice   float64    `json:"currentPrice"`             // 当前价格
+	PreviousClose  float64    `json:"previousClose"`            // 昨收价格
+	OpenPrice      float64    `json:"openPrice"`                // 今日开盘价
+	DayHigh        float64    `json:"dayHigh"`                  // 今日最高价
+	DayLow         float64    `json:"dayLow"`                   // 今日最低价
+	Change         float64    `json:"change"`                   // 今日涨跌额
+	ChangePercent  float64    `json:"changePercent"`            // 今日涨跌幅（百分比）
+	QuoteSource    string     `json:"quoteSource"`              // 当前价格数据来源，如 "eastmoney"、"yahoo"
+	QuoteUpdatedAt *time.Time `json:"quoteUpdatedAt,omitempty"` // 当前价格的最后更新时间
+	Thesis         string     `json:"thesis"`                   // 备注
+	Tags           []string   `json:"tags"`                     // 标签列表
+	DCAEntries     []DCAEntry `json:"dcaEntries,omitempty"`     // 定投记录列表
 	UpdatedAt      time.Time  `json:"updatedAt"`
 }
 
@@ -68,20 +69,20 @@ func (w WatchlistItem) UnrealisedPnLPct() float64 {
 	return w.UnrealisedPnL() / w.CostBasis() * 100
 }
 
-// AlertRule 定义了一个价格提醒规则，用户可以设置当某个标的的价格超过或低于某个阈值时触发提醒。
+// AlertRule 价格提醒规则
 type AlertRule struct {
 	ID              string         `json:"id"`
 	ItemID          string         `json:"itemId"`
 	Name            string         `json:"name"`
-	Condition       AlertCondition `json:"condition"`
-	Threshold       float64        `json:"threshold"`
+	Condition       AlertCondition `json:"condition"` // "above" 表示价格超过阈值时触发，"below" 表示价格低于阈值时触发
+	Threshold       float64        `json:"threshold"` // 价格阈值
 	Enabled         bool           `json:"enabled"`
-	Triggered       bool           `json:"triggered"`
-	LastTriggeredAt *time.Time     `json:"lastTriggeredAt,omitempty"`
+	Triggered       bool           `json:"triggered"`                 // 是否已触发过，触发后会自动设置为 true
+	LastTriggeredAt *time.Time     `json:"lastTriggeredAt,omitempty"` // 上次触发时间
 	UpdatedAt       time.Time      `json:"updatedAt"`
 }
 
-// AppSettings 存储用户的应用设置，如刷新频率、数据来源和显示偏好等。
+// AppSettings 应用设置
 type AppSettings struct {
 	RefreshIntervalSeconds int    `json:"refreshIntervalSeconds"`
 	QuoteSource            string `json:"quoteSource"` // "auto"、"cn"、"hk"、"us"，默认 "auto"
@@ -101,7 +102,7 @@ type AppSettings struct {
 	UseNativeTitleBar      bool   `json:"useNativeTitleBar"`
 }
 
-// HistoryPoint 表示一根历史行情 K 线数据点。
+// HistoryPoint 一根历史行情 K 线数据点
 type HistoryPoint struct {
 	Timestamp time.Time `json:"timestamp"`
 	Open      float64   `json:"open"`
@@ -111,72 +112,70 @@ type HistoryPoint struct {
 	Volume    float64   `json:"volume"`
 }
 
-// HistorySeries 表示某个标的在指定区间下的完整历史走势。
+// HistorySeries 标的在指定区间下的完整历史走势
 type HistorySeries struct {
 	Symbol        string          `json:"symbol"`
 	Name          string          `json:"name"`
 	Market        string          `json:"market"`
 	Currency      string          `json:"currency"`
-	Interval      HistoryInterval `json:"interval"`
-	Source        string          `json:"source"`
-	StartPrice    float64         `json:"startPrice"`
-	EndPrice      float64         `json:"endPrice"`
-	High          float64         `json:"high"`
-	Low           float64         `json:"low"`
-	Change        float64         `json:"change"`
-	ChangePercent float64         `json:"changePercent"`
-	Points        []HistoryPoint  `json:"points"`
-	GeneratedAt   time.Time       `json:"generatedAt"`
+	Interval      HistoryInterval `json:"interval"`      // 历史数据的时间间隔，如 "1d","1mo"
+	Source        string          `json:"source"`        // 数据来源，如 "eastmoney"、"yahoo"
+	StartPrice    float64         `json:"startPrice"`    // 区间的起始价格，即第一个数据点的开盘价
+	EndPrice      float64         `json:"endPrice"`      // 区间的结束价格，即最后一个数据点的收盘价
+	High          float64         `json:"high"`          // 区间内的最高价
+	Low           float64         `json:"low"`           // 区间内的最低价
+	Change        float64         `json:"change"`        // 区间内的涨跌额，即结束价格减去起始价格
+	ChangePercent float64         `json:"changePercent"` // 区间内的涨跌幅，即涨跌额除以起始价格再乘以100
+	Points        []HistoryPoint  `json:"points"`        // 数据点列表，按时间顺序排列
+	GeneratedAt   time.Time       `json:"generatedAt"`   // 数据生成时间
 }
 
-// RuntimeStatus 存储应用运行时的状态信息，
-// 如上次行情请求时间、上次行情刷新时间、上次行情错误信息、当前使用的数据来源和有效价格数量等。
+// RuntimeStatus 存储应用运行时的状态信息
 type RuntimeStatus struct {
-	LastQuoteAttemptAt *time.Time `json:"lastQuoteAttemptAt,omitempty"`
-	LastQuoteRefreshAt *time.Time `json:"lastQuoteRefreshAt,omitempty"`
-	LastQuoteError     string     `json:"lastQuoteError,omitempty"`
-	QuoteSource        string     `json:"quoteSource"`
-	LivePriceCount     int        `json:"livePriceCount"`
-	AppVersion         string     `json:"appVersion"`
+	LastQuoteAttemptAt *time.Time `json:"lastQuoteAttemptAt,omitempty"` // 上次行情请求时间
+	LastQuoteRefreshAt *time.Time `json:"lastQuoteRefreshAt,omitempty"` // 上次行情刷新时间
+	LastQuoteError     string     `json:"lastQuoteError,omitempty"`     // 上次行情请求错误信息
+	QuoteSource        string     `json:"quoteSource"`                  // 当前使用的数据来源，"auto" 表示自动选择
+	LivePriceCount     int        `json:"livePriceCount"`               // 当前持仓中有价格的标的数量
+	AppVersion         string     `json:"appVersion"`                   // 当前应用版本
+	LastFxError        string     `json:"lastFxError,omitempty"`        // 上次汇率错误信息
+	LastFxRefreshAt    *time.Time `json:"lastFxRefreshAt,omitempty"`    // 上次汇率刷新时间
 }
 
-// persistedState 定义了需要持久化存储的应用状态,
-// 包括自选项列表、价格提醒规则列表、用户设置和上次更新的时间戳等。
+// persistedState 需要持久化存储的应用状态
 type persistedState struct {
-	Items     []WatchlistItem `json:"items"`
-	Alerts    []AlertRule     `json:"alerts"`
-	Settings  AppSettings     `json:"settings"`
-	UpdatedAt time.Time       `json:"updatedAt"`
+	Items     []WatchlistItem `json:"items"`     // 持仓列表
+	Alerts    []AlertRule     `json:"alerts"`    // 价格提醒规则列表
+	Settings  AppSettings     `json:"settings"`  // 设置
+	UpdatedAt time.Time       `json:"updatedAt"` // 上次更新的时间戳
 }
 
-// DashboardSummary 定义了仪表盘上需要展示的汇总数据
+// DashboardSummary 仪表盘上需要展示的汇总数据
 type DashboardSummary struct {
-	TotalCost       float64 `json:"totalCost"`
-	TotalValue      float64 `json:"totalValue"`
-	TotalPnL        float64 `json:"totalPnL"`
-	TotalPnLPct     float64 `json:"totalPnLPct"`
-	ItemCount       int     `json:"itemCount"`
-	TriggeredAlerts int     `json:"triggeredAlerts"`
-	WinCount        int     `json:"winCount"`
-	LossCount       int     `json:"lossCount"`
-	DisplayCurrency string  `json:"displayCurrency"`
+	TotalCost       float64 `json:"totalCost"`       // 组合成本
+	TotalValue      float64 `json:"totalValue"`      // 总资产
+	TotalPnL        float64 `json:"totalPnL"`        // 总盈亏金额
+	TotalPnLPct     float64 `json:"totalPnLPct"`     // 总盈亏百分比
+	ItemCount       int     `json:"itemCount"`       // 持仓数量
+	TriggeredAlerts int     `json:"triggeredAlerts"` // 触发的提醒数量
+	WinCount        int     `json:"winCount"`        // 盈亏统计中的盈利数量
+	LossCount       int     `json:"lossCount"`       // 盈亏统计中的亏损数量
+	DisplayCurrency string  `json:"displayCurrency"` // 汇总数据的显示货币
 }
 
-// StateSnapshot 定义了应用状态的完整快照，
-// 包括仪表盘汇总数据、自选项列表、价格提醒规则列表、用户设置、运行时状态、可用的数据来源列表和存储路径等。
+// StateSnapshot 应用状态的完整快照
 type StateSnapshot struct {
-	Dashboard    DashboardSummary    `json:"dashboard"`
-	Items        []WatchlistItem     `json:"items"`
-	Alerts       []AlertRule         `json:"alerts"`
-	Settings     AppSettings         `json:"settings"`
-	Runtime      RuntimeStatus       `json:"runtime"`
-	QuoteSources []QuoteSourceOption `json:"quoteSources"`
-	StoragePath  string              `json:"storagePath"`
-	GeneratedAt  time.Time           `json:"generatedAt"`
+	Dashboard    DashboardSummary    `json:"dashboard"`    // 仪表盘汇总数据
+	Items        []WatchlistItem     `json:"items"`        // 持仓列表
+	Alerts       []AlertRule         `json:"alerts"`       // 价格提醒规则列表
+	Settings     AppSettings         `json:"settings"`     // 设置
+	Runtime      RuntimeStatus       `json:"runtime"`      // 运行状态
+	QuoteSources []QuoteSourceOption `json:"quoteSources"` // 可用的数据来源列表
+	StoragePath  string              `json:"storagePath"`  // 持久化存储路径
+	GeneratedAt  time.Time           `json:"generatedAt"`  // 快照生成时间
 }
 
-// HotCategory 定义了热门榜单的分类。
-// A股合并为一个分类（排除B股/ST），ETF单列；港股不再细分主板/创业板；美股按三大指数分类。
+// HotCategory 热门榜单的分类
 type HotCategory string
 
 const (
@@ -190,36 +189,36 @@ const (
 	HotCategoryUSETF    HotCategory = "us-etf"    // 美股ETF
 )
 
+// HotSort 热门榜单表格排序
 type HotSort string
 
 const (
-	HotSortVolume    HotSort = "volume"
-	HotSortGainers   HotSort = "gainers"
-	HotSortLosers    HotSort = "losers"
-	HotSortMarketCap HotSort = "market-cap"
-	HotSortPrice     HotSort = "price"
+	HotSortVolume    HotSort = "volume"     // 成交量榜
+	HotSortGainers   HotSort = "gainers"    // 涨幅榜
+	HotSortLosers    HotSort = "losers"     // 跌幅榜
+	HotSortMarketCap HotSort = "market-cap" // 市值榜
+	HotSortPrice     HotSort = "price"      // 价格榜
 )
 
-// HotItem 定义了热门榜单中每个标的的详细信息，
-// 包括代码、名称、市场、货币、当前价格、涨跌额、涨跌幅、成交量、市值、数据来源和更新时间等。
+// HotItem 热门榜单中每个标的的详细信息
 type HotItem struct {
 	Symbol        string    `json:"symbol"`
 	Name          string    `json:"name"`
 	Market        string    `json:"market"`
 	Currency      string    `json:"currency"`
 	CurrentPrice  float64   `json:"currentPrice"`
-	Change        float64   `json:"change"`
-	ChangePercent float64   `json:"changePercent"`
-	Volume        float64   `json:"volume"`
-	MarketCap     float64   `json:"marketCap"`
+	Change        float64   `json:"change"`        // 涨跌额
+	ChangePercent float64   `json:"changePercent"` // 涨跌幅（百分比）
+	Volume        float64   `json:"volume"`        // 成交量
+	MarketCap     float64   `json:"marketCap"`     // 市值
 	QuoteSource   string    `json:"quoteSource"`
 	UpdatedAt     time.Time `json:"updatedAt"`
 }
 
-// HotListResponse 表示热门榜单接口返回的分页结果。
+// HotListResponse 表示热门榜单接口返回的分页结果
 type HotListResponse struct {
-	Category    HotCategory `json:"category"`
-	Sort        HotSort     `json:"sort"`
+	Category    HotCategory `json:"category"` // 热门榜单分类，如 "cn-a"、"hk"、"us-sp500"
+	Sort        HotSort     `json:"sort"`     // 排序方式，如 "volume"、"gainers"、"losers"
 	Page        int         `json:"page"`
 	PageSize    int         `json:"pageSize"`
 	Total       int         `json:"total"`

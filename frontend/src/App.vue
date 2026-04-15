@@ -210,6 +210,8 @@ async function refreshQuotes(silent = false, refreshHistory = true): Promise<voi
         }
         if (snapshot.runtime.lastQuoteError) {
             setStatus(snapshot.runtime.lastQuoteError, "error");
+        } else if (snapshot.runtime.lastFxError) {
+            setStatus(`行情已同步，但汇率获取失败：${snapshot.runtime.lastFxError}`, "warn");
         } else if (!silent) {
             setStatus("实时行情已同步。", "success");
         }

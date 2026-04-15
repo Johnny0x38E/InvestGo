@@ -2,10 +2,10 @@ package monitor
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"io"
-	"maps"
 	"net/http"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -13,76 +13,129 @@ import (
 	"investgo/internal/datasource"
 )
 
-// FxRates 缓存常用货币对人民币的汇率，用于仪表盘多币种合并计算。
+// FxRates 缓存各货币对人民币的汇率，用于仪表盘多币种合并计算。
 // 所有汇率以"1单位外币 = X 人民币"为基准存储。
+// 使用 Frankfurter API（欧洲央行数据），缓存至少 2 小时。
 type FxRates struct {
-	mu      sync.RWMutex
-	rates   map[string]float64
-	validAt time.Time
-	client  *http.Client
+	mu        sync.RWMutex
+	rates     map[string]float64 // 外币 → 人民币
+	validAt   time.Time
+	lastError string // 最近一次获取失败的错误信息
+	client    *http.Client
 }
 
-// fallbackFxRates 在接口不可用时使用的兜底汇率（粗略值）。
-var fallbackFxRates = map[string]float64{
-	"CNY": 1.0,
-	"USD": 6.9,
-	"HKD": 0.85,
-}
-
-// NewFxRates 创建汇率服务，并初始化兜底汇率。
+// NewFxRates 创建汇率服务，初始化时仅包含 CNY=1.0。
 func NewFxRates(client *http.Client) *FxRates {
 	if client == nil {
-		client = &http.Client{Timeout: 5 * time.Second}
+		client = &http.Client{Timeout: 10 * time.Second}
 	}
-	f := &FxRates{
+	return &FxRates{
 		client: client,
-		rates:  make(map[string]float64, len(fallbackFxRates)),
+		rates:  map[string]float64{"CNY": 1.0},
 	}
-	maps.Copy(f.rates, fallbackFxRates)
-	return f
 }
 
-// IsStale 返回汇率缓存是否已超过允许的陈旧时间。
+// IsStale 返回汇率缓存是否已超过 2 小时。
 func (f *FxRates) IsStale() bool {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
-	return f.validAt.IsZero() || time.Since(f.validAt) > 4*time.Hour
+	return f.validAt.IsZero() || time.Since(f.validAt) > 2*time.Hour
 }
 
-// Fetch 从新浪财经拉取 USD/CNY 和 HKD/CNY 实时汇率。
-// 若拉取失败，保留既有汇率（兜底或上次成功值）不报错。
+// LastError 返回最近一次获取失败的错误信息，成功时为空。
+func (f *FxRates) LastError() string {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	return f.lastError
+}
+
+// ValidAt 返回最近一次成功获取汇率的时间。
+func (f *FxRates) ValidAt() time.Time {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	return f.validAt
+}
+
+// CurrencyCount 返回当前缓存中的币种数量。
+func (f *FxRates) CurrencyCount() int {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	return len(f.rates)
+}
+
+// frankfurterResponse 是 Frankfurter API 响应的结构。
+type frankfurterResponse struct {
+	Base  string             `json:"base"`
+	Date  string             `json:"date"`
+	Rates map[string]float64 `json:"rates"`
+}
+
+// Fetch 从 Frankfurter API 拉取各货币对 CNY 的汇率。
+// 以 CNY 为 base 获取各外币汇率，然后取倒数得到"外币→人民币"的映射。
+// 成功时清除 lastError，失败时记录错误信息。
 func (f *FxRates) Fetch(ctx context.Context) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, datasource.SinaFXRatesAPI, nil)
+	url := datasource.FrankfurterAPI + "?from=CNY"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
+		f.setError(fmt.Sprintf("创建汇率请求失败: %v", err))
 		return
 	}
-	req.Header.Set("Referer", datasource.SinaFinanceReferer)
-	req.Header.Set("User-Agent", "Mozilla/5.0")
 
 	resp, err := f.client.Do(req)
 	if err != nil {
+		f.setError(fmt.Sprintf("汇率服务不可达: %v", err))
 		return
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
+		f.setError(fmt.Sprintf("读取汇率响应失败: %v", err))
 		return
 	}
 
-	parsed := parseSinaFxRates(string(body))
-	if len(parsed) == 0 {
+	if resp.StatusCode != http.StatusOK {
+		detail := string(body)
+		if len(detail) > 200 {
+			detail = detail[:200]
+		}
+		f.setError(fmt.Sprintf("汇率服务返回 %d: %s", resp.StatusCode, detail))
 		return
+	}
+
+	var data frankfurterResponse
+	if err := json.Unmarshal(body, &data); err != nil {
+		f.setError(fmt.Sprintf("解析汇率数据失败: %v", err))
+		return
+	}
+	if data.Base != "CNY" || len(data.Rates) == 0 {
+		f.setError("汇率数据格式异常")
+		return
+	}
+
+	newRates := make(map[string]float64, len(data.Rates)+1)
+	newRates["CNY"] = 1.0
+	for currency, rate := range data.Rates {
+		if rate > 0 {
+			// rate 是 1 CNY = X 外币，取倒数得到 1 外币 = X CNY
+			newRates[currency] = 1.0 / rate
+		}
 	}
 
 	f.mu.Lock()
-	maps.Copy(f.rates, parsed)
-	f.rates["CNY"] = 1.0
+	f.rates = newRates
 	f.validAt = time.Now()
+	f.lastError = ""
 	f.mu.Unlock()
 }
 
-// Convert 将给定金额从来源货币转换为目标货币，并以 CNY 作为中间货币。
+func (f *FxRates) setError(msg string) {
+	f.mu.Lock()
+	f.lastError = msg
+	f.mu.Unlock()
+}
+
+// Convert 将给定金额从来源货币转换为目标货币，以 CNY 作为中间货币。
 // 若货币相同或无法解析，返回原值。
 func (f *FxRates) Convert(value float64, from, to string) float64 {
 	from = strings.ToUpper(strings.TrimSpace(from))
@@ -94,9 +147,8 @@ func (f *FxRates) Convert(value float64, from, to string) float64 {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
-	// 先折算成 CNY，再从 CNY 换算到目标货币，避免维护全量货币对。
-	fromRate := f.rateOrFallback(from)
-	if fromRate <= 0 {
+	fromRate, ok := f.rates[from]
+	if !ok || fromRate <= 0 {
 		return value
 	}
 	cnyValue := value * fromRate
@@ -104,64 +156,9 @@ func (f *FxRates) Convert(value float64, from, to string) float64 {
 	if to == "CNY" {
 		return cnyValue
 	}
-	toRate := f.rateOrFallback(to)
-	if toRate <= 0 {
+	toRate, ok := f.rates[to]
+	if !ok || toRate <= 0 {
 		return cnyValue
 	}
 	return cnyValue / toRate
-}
-
-// rateOrFallback 返回指定货币的可用汇率，不存在时回退到兜底值。
-func (f *FxRates) rateOrFallback(currency string) float64 {
-	if r, ok := f.rates[currency]; ok && r > 0 {
-		return r
-	}
-	return fallbackFxRates[currency]
-}
-
-// parseSinaFxRates 解析新浪财经汇率响应，并返回货币到人民币的汇率映射。
-// 期望格式：var hq_str_usdcny="美元人民币,7.2516,...";
-func parseSinaFxRates(raw string) map[string]float64 {
-	rates := make(map[string]float64)
-	// strings.SplitSeq 返回迭代器，可避免一次性切分大字符串带来的额外分配。
-	for line := range strings.SplitSeq(raw, "\n") {
-		line = strings.TrimSpace(line)
-		var currency string
-		switch {
-		case strings.Contains(line, "hq_str_usdcny"):
-			currency = "USD"
-		case strings.Contains(line, "hq_str_hkdcny"):
-			currency = "HKD"
-		default:
-			continue
-		}
-
-		start := strings.Index(line, `"`)
-		end := strings.LastIndex(line, `"`)
-		if start < 0 || end <= start {
-			continue
-		}
-		parts := strings.Split(line[start+1:end], ",")
-		if len(parts) < 2 {
-			continue
-		}
-		if r := parseFloat(parts[1]); r > 0 {
-			rates[currency] = r
-		}
-	}
-	return rates
-}
-
-// parseFloat 把接口返回的数值字符串安全解析为 float64。
-func parseFloat(raw string) float64 {
-	clean := strings.TrimSpace(strings.NewReplacer("\"", "", ";", "", ",", "").Replace(raw))
-	if clean == "" || clean == "-" {
-		return 0
-	}
-
-	value, err := strconv.ParseFloat(clean, 64)
-	if err != nil {
-		return 0
-	}
-	return value
 }
