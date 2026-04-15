@@ -14,8 +14,7 @@ const (
 	YahooScreenerListAPI = "https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved"
 	YahooScreenerAPI     = "https://query2.finance.yahoo.com/v1/finance/screener"
 	YahooChartPathPrefix = "/v8/finance/chart/"
-	SinaFXRatesAPI       = "http://hq.sinajs.cn/list=usdcny,hkdcny"
-	SinaFinanceReferer   = "http://finance.sina.com.cn"
+	FrankfurterAPI       = "https://api.frankfurter.dev/v1/latest" // 欧洲央行数据，提供多币种汇率
 )
 
 var YahooChartHosts = [...]string{

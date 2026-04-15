@@ -20,6 +20,13 @@ func (s *Store) Refresh(ctx context.Context) (StateSnapshot, error) {
 	quotes := map[string]Quote{}
 	var problems []string
 
+	// 顺带刷新汇率缓存（若已过期），与行情刷新并行，不参与 Store 锁生命周期。
+	var fxFetched bool
+	if s.fxRates.IsStale() {
+		s.fxRates.Fetch(ctx)
+		fxFetched = true
+	}
+
 	if len(items) > 0 {
 		grouped := make(map[string][]WatchlistItem)
 		for _, item := range items {
@@ -71,6 +78,18 @@ func (s *Store) Refresh(ctx context.Context) (StateSnapshot, error) {
 	if fetchErr := joinProblems(problems); fetchErr != nil {
 		s.runtime.LastQuoteError = fetchErr.Error()
 		s.logWarn("quotes", fmt.Sprintf("quote refresh failed: %v", fetchErr))
+	}
+
+	// 更新汇率运行时状态。
+	if fxFetched {
+		if fxErr := s.fxRates.LastError(); fxErr != "" {
+			s.runtime.LastFxError = fxErr
+			s.logWarn("fx-rates", fxErr)
+		} else {
+			s.runtime.LastFxError = ""
+			s.runtime.LastFxRefreshAt = ptrTime(s.fxRates.ValidAt())
+			s.logInfo("fx-rates", fmt.Sprintf("汇率已刷新，共 %d 个币种", s.fxRates.CurrencyCount()))
+		}
 	}
 
 	s.evaluateAlertsLocked()

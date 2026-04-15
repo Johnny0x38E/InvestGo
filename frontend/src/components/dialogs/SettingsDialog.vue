@@ -126,6 +126,12 @@ async function openExternal(url: string): Promise<void> {
                             <article class="full-span">
                                 <span>同步问题</span><strong>{{ runtime.lastQuoteError || "无" }}</strong>
                             </article>
+                            <article>
+                                <span>汇率上次刷新</span><strong>{{ formatDateTime(runtime.lastFxRefreshAt) }}</strong>
+                            </article>
+                            <article class="full-span">
+                                <span>汇率问题</span><strong>{{ runtime.lastFxError || "无" }}</strong>
+                            </article>
                             <article class="full-span">
                                 <span>本地状态文件</span><strong>{{ storagePath || "-" }}</strong>
                             </article>

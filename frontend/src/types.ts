@@ -116,6 +116,8 @@ export interface RuntimeStatus {
     quoteSource: string;
     livePriceCount: number;
     appVersion: string;
+    lastFxError?: string;
+    lastFxRefreshAt?: string;
 }
 
 export interface DashboardSummary {

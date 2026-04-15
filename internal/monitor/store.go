@@ -61,6 +61,21 @@ func (s *Store) Snapshot() StateSnapshot {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
 		s.fxRates.Fetch(ctx)
+
+		// 将汇率获取结果写入运行时状态并记录日志。
+		if fxErr := s.fxRates.LastError(); fxErr != "" {
+			s.mu.Lock()
+			s.runtime.LastFxError = fxErr
+			s.logWarn("fx-rates", fxErr)
+			s.mu.Unlock()
+		} else {
+			validAt := s.fxRates.ValidAt()
+			s.mu.Lock()
+			s.runtime.LastFxError = ""
+			s.runtime.LastFxRefreshAt = ptrTime(validAt)
+			s.logInfo("fx-rates", fmt.Sprintf("汇率已刷新，共 %d 个币种", s.fxRates.CurrencyCount()))
+			s.mu.Unlock()
+		}
 	}
 
 	s.mu.RLock()
