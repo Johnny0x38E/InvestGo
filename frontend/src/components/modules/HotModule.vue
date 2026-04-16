@@ -6,8 +6,9 @@ import Select from "primevue/select";
 import Tag from "primevue/tag";
 
 import { ApiAbortError, api } from "../../api";
-import { hotCategoryOptions, hotMarketOptions } from "../../constants";
+import { getHotCategoryOptions, getHotMarketOptions } from "../../constants";
 import { formatDateTime, formatMoney, formatPercent, formatUnitPrice } from "../../format";
+import { useI18n } from "../../i18n";
 import type { HotCategory, HotItem, HotListResponse, HotMarketGroup } from "../../types";
 
 type SortField = "volume" | "changePercent" | "marketCap" | "currentPrice" | null;
@@ -38,10 +39,13 @@ const sentinelRef = ref<HTMLElement | null>(null);
 let observer: IntersectionObserver | null = null;
 let inflightController: AbortController | null = null;
 let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+const { t } = useI18n();
 
 const trackedSet = computed(() => new Set(props.trackedKeys));
 const normalizedKeyword = computed(() => activeKeyword.value);
-const categoryOptions = computed(() => hotCategoryOptions[marketGroup.value]);
+const hotMarketOptions = computed(() => getHotMarketOptions());
+const hotCategoryOptions = computed(() => getHotCategoryOptions());
+const categoryOptions = computed(() => hotCategoryOptions.value[marketGroup.value]);
 
 const sortedItems = computed(() => {
     const result = [...items.value];
@@ -68,9 +72,9 @@ const emptyMessage = computed(() => {
         return error.value;
     }
     if (normalizedKeyword.value) {
-        return "没有匹配的热门标的。";
+        return t("hot.noMatch");
     }
-    return "暂无热门数据。";
+    return t("hot.noData");
 });
 
 function handleSort(field: SortField): void {
@@ -175,11 +179,11 @@ function clearSearchDebounce(): void {
 }
 
 function firstCategoryForGroup(group: HotMarketGroup): HotCategory {
-    return hotCategoryOptions[group][0]?.value ?? "cn-a";
+    return hotCategoryOptions.value[group][0]?.value ?? "cn-a";
 }
 
 function categoryBelongsToGroup(next: HotCategory, group: HotMarketGroup): boolean {
-    return hotCategoryOptions[group].some((entry) => entry.value === next);
+    return hotCategoryOptions.value[group].some((entry) => entry.value === next);
 }
 
 function normalizeCategory(next: HotCategory): HotCategory {
@@ -252,7 +256,7 @@ async function loadPage(nextPage: number, append: boolean): Promise<void> {
         if (requestError instanceof ApiAbortError) {
             return;
         }
-        error.value = requestError instanceof Error ? requestError.message : "热门列表加载失败";
+        error.value = requestError instanceof Error ? requestError.message : t("hot.loadFailed");
     } finally {
         if (inflightController === controller) {
             inflightController = null;
@@ -302,11 +306,11 @@ function unbindObserver(): void {
     <section class="module-content hot-module">
         <div class="panel-header">
             <div>
-                <h3 class="title">热门</h3>
+                <h3 class="title">{{ t("hot.title") }}</h3>
             </div>
             <div class="hot-toolbar">
                 <Select v-model="marketGroup" :options="hotMarketOptions" option-label="label" option-value="value" class="compact-select hot-market-select" />
-                <div class="hot-category-tabs" role="tablist" aria-label="热门分类">
+                <div class="hot-category-tabs" role="tablist" :aria-label="t('hot.ariaCategoryTabs')">
                     <button
                         v-for="entry in categoryOptions"
                         :key="entry.value"
@@ -320,37 +324,37 @@ function unbindObserver(): void {
                         {{ entry.label }}
                     </button>
                 </div>
-                <InputText v-model="searchKeyword" class="search-input" placeholder="搜索名称 / 代码" />
+                <InputText v-model="searchKeyword" class="search-input" :placeholder="t('hot.searchPlaceholder')" />
             </div>
         </div>
 
         <div class="hot-summary">
-            <span v-if="normalizedKeyword">搜索结果 {{ items.length }} / {{ total }}</span>
-            <span v-else>当前已加载 {{ items.length }} / {{ total }}</span>
+            <span v-if="normalizedKeyword">{{ t("hot.searchResults", { count: items.length, total }) }}</span>
+            <span v-else>{{ t("hot.loadedSummary", { count: items.length, total }) }}</span>
         </div>
 
         <div class="hot-table-shell">
             <table class="hot-table">
                 <thead>
                     <tr>
-                        <th>标的</th>
+                        <th>{{ t("hot.table.item") }}</th>
                         <th @click="handleSort('currentPrice')" class="sortable">
-                            现价
+                            {{ t("hot.table.currentPrice") }}
                             <span :class="getSortIcon('currentPrice')"></span>
                         </th>
                         <th @click="handleSort('changePercent')" class="sortable">
-                            涨跌幅
+                            {{ t("hot.table.changePercent") }}
                             <span :class="getSortIcon('changePercent')"></span>
                         </th>
                         <th @click="handleSort('marketCap')" class="sortable">
-                            市值
+                            {{ t("hot.table.marketCap") }}
                             <span :class="getSortIcon('marketCap')"></span>
                         </th>
                         <th @click="handleSort('volume')" class="sortable">
-                            交易量
+                            {{ t("hot.table.volume") }}
                             <span :class="getSortIcon('volume')"></span>
                         </th>
-                        <th>来源</th>
+                        <th>{{ t("hot.table.source") }}</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -377,13 +381,13 @@ function unbindObserver(): void {
                         <td>
                             <div class="value-stack">
                                 <strong>{{ formatMoney(item.marketCap) }}</strong>
-                                <span>总市值</span>
+                                <span>{{ t("hot.totalMarketCap") }}</span>
                             </div>
                         </td>
                         <td>
                             <div class="value-stack">
                                 <strong>{{ formatMoney(item.volume) }}</strong>
-                                <span>成交量</span>
+                                <span>{{ t("hot.tradedVolume") }}</span>
                             </div>
                         </td>
                         <td>
@@ -394,17 +398,8 @@ function unbindObserver(): void {
                         </td>
                         <td class="table-action-cell">
                             <div class="action-stack table-action-stack" @click.stop>
-                                <Tag v-if="isTracked(item)" value="已添加" severity="success" />
-                                <Button
-                                    v-else
-                                    size="small"
-                                    text
-                                    icon="pi pi-plus"
-                                    label="加入自选"
-                                    aria-label="加入自选"
-                                    class="table-action-button table-action-button-primary"
-                                    @click="$emit('add-item', item)"
-                                />
+                                <Tag v-if="isTracked(item)" :value="t('hot.added')" severity="success" />
+                                <Button v-else size="small" outlined icon="pi pi-plus" :label="t('hot.addToWatchlist')" :aria-label="t('hot.addToWatchlist')" @click="$emit('add-item', item)" />
                             </div>
                         </td>
                     </tr>
@@ -416,12 +411,12 @@ function unbindObserver(): void {
                 </tbody>
             </table>
 
-            <div v-if="loading" class="hot-feedback">正在加载热门列表…</div>
+            <div v-if="loading" class="hot-feedback">{{ t("hot.loading") }}</div>
             <div v-else-if="error && items.length" class="hot-feedback hot-feedback-error">{{ error }}</div>
             <div ref="sentinelRef" class="hot-sentinel">
-                <span v-if="loadingMore">正在加载更多…</span>
-                <span v-else-if="hasMore">下滑继续加载</span>
-                <span v-else-if="items.length">已加载全部</span>
+                <span v-if="loadingMore">{{ t("hot.loadingMore") }}</span>
+                <span v-else-if="hasMore">{{ t("hot.scrollToLoad") }}</span>
+                <span v-else-if="items.length">{{ t("hot.allLoaded") }}</span>
             </div>
         </div>
     </section>

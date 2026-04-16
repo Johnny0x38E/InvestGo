@@ -9,18 +9,19 @@ import appDockMark from "../../assets/app-dock.svg";
 import { api } from "../../api";
 
 import {
-    amountDisplayOptions,
-    colorThemeOptions,
-    currencyDisplayOptions,
-    dashboardCurrencyOptions,
-    fontPresetOptions,
-    localeOptions,
-    priceColorOptions,
+    getAmountDisplayOptions,
+    getColorThemeOptions,
+    getCurrencyDisplayOptions,
+    getDashboardCurrencyOptions,
+    getFontPresetOptions,
+    getLocaleOptions,
+    getPriceColorOptions,
     projectMeta,
-    settingsTabs,
-    themeModeOptions,
+    getSettingsTabs,
+    getThemeModeOptions,
 } from "../../constants";
 import { formatDateTime } from "../../format";
+import { useI18n } from "../../i18n";
 import type { AppSettings, DeveloperLogEntry, QuoteSourceOption, RuntimeStatus, SettingsTabKey } from "../../types";
 
 const props = defineProps<{
@@ -57,6 +58,16 @@ const settingsTabProxy = computed({
 });
 
 const developerLogCount = computed(() => props.developerLogs.length);
+const { locale, t } = useI18n();
+const settingsTabs = computed(() => getSettingsTabs());
+const themeModeOptions = computed(() => getThemeModeOptions());
+const colorThemeOptions = computed(() => getColorThemeOptions());
+const fontPresetOptions = computed(() => getFontPresetOptions());
+const amountDisplayOptions = computed(() => getAmountDisplayOptions());
+const currencyDisplayOptions = computed(() => getCurrencyDisplayOptions());
+const priceColorOptions = computed(() => getPriceColorOptions());
+const dashboardCurrencyOptions = computed(() => getDashboardCurrencyOptions());
+const localeOptions = computed(() => getLocaleOptions());
 
 async function openExternal(url: string): Promise<void> {
     await api("/api/open-external", {
@@ -67,7 +78,7 @@ async function openExternal(url: string): Promise<void> {
 </script>
 
 <template>
-    <Dialog v-model:visible="visibleProxy" modal :closable="false" header="设置" :style="{ width: '980px' }" class="desk-dialog settings-dialog">
+    <Dialog v-model:visible="visibleProxy" modal :closable="false" :header="t('settings.title')" :style="{ width: '980px' }" class="desk-dialog settings-dialog">
         <div class="settings-layout">
             <aside class="settings-nav">
                 <button
@@ -85,23 +96,23 @@ async function openExternal(url: string): Promise<void> {
             <section class="settings-body">
                 <div v-show="settingsTabProxy === 'general'" class="settings-pane">
                     <div class="settings-section">
-                        <h4>运行</h4>
+                        <h4>{{ t("settings.sections.runtime") }}</h4>
                         <div class="settings-grid">
                             <label>
-                                <span>A股 / 境内ETF 行情源</span>
+                                <span>{{ t("settings.labels.cnQuoteSource") }}</span>
                                 <Select v-model="settingsDraft.cnQuoteSource" :options="quoteSources" option-label="name" option-value="id" class="w-full" />
                             </label>
                             <label>
-                                <span>港股 / 港股ETF 行情源</span>
+                                <span>{{ t("settings.labels.hkQuoteSource") }}</span>
                                 <Select v-model="settingsDraft.hkQuoteSource" :options="quoteSources" option-label="name" option-value="id" class="w-full" />
                             </label>
                             <label>
-                                <span>美股 / 美股ETF 行情源</span>
+                                <span>{{ t("settings.labels.usQuoteSource") }}</span>
                                 <Select v-model="settingsDraft.usQuoteSource" :options="quoteSources" option-label="name" option-value="id" class="w-full" />
                             </label>
 
                             <label>
-                                <span>自动刷新间隔</span>
+                                <span>{{ t("settings.labels.refreshInterval") }}</span>
                                 <InputNumber v-model="settingsDraft.refreshIntervalSeconds" :min="10" :step="10" fluid />
                             </label>
                         </div>
@@ -109,31 +120,31 @@ async function openExternal(url: string): Promise<void> {
                     </div>
 
                     <div class="settings-section">
-                        <h4>运行状态</h4>
+                        <h4>{{ t("settings.sections.runtimeStatus") }}</h4>
                         <div class="settings-meta-grid">
                             <article>
-                                <span>行情源</span><strong>{{ runtime.quoteSource || "-" }}</strong>
+                                <span>{{ t("settings.labels.quoteSource") }}</span><strong>{{ runtime.quoteSource || "-" }}</strong>
                             </article>
                             <article>
-                                <span>同步覆盖</span><strong>{{ runtime.livePriceCount }}/{{ itemCount }}</strong>
+                                <span>{{ t("settings.labels.liveCoverage") }}</span><strong>{{ runtime.livePriceCount }}/{{ itemCount }}</strong>
                             </article>
                             <article>
-                                <span>上次成功同步</span><strong>{{ formatDateTime(runtime.lastQuoteRefreshAt) }}</strong>
+                                <span>{{ t("settings.labels.lastQuoteRefreshAt") }}</span><strong>{{ formatDateTime(runtime.lastQuoteRefreshAt) }}</strong>
                             </article>
                             <article>
-                                <span>最近一次尝试</span><strong>{{ formatDateTime(runtime.lastQuoteAttemptAt) }}</strong>
+                                <span>{{ t("settings.labels.lastQuoteAttemptAt") }}</span><strong>{{ formatDateTime(runtime.lastQuoteAttemptAt) }}</strong>
                             </article>
                             <article class="full-span">
-                                <span>同步问题</span><strong>{{ runtime.lastQuoteError || "无" }}</strong>
+                                <span>{{ t("settings.labels.lastQuoteError") }}</span><strong>{{ runtime.lastQuoteError || t("common.none") }}</strong>
                             </article>
                             <article>
-                                <span>汇率上次刷新</span><strong>{{ formatDateTime(runtime.lastFxRefreshAt) }}</strong>
+                                <span>{{ t("settings.labels.lastFxRefreshAt") }}</span><strong>{{ formatDateTime(runtime.lastFxRefreshAt) }}</strong>
                             </article>
                             <article class="full-span">
-                                <span>汇率问题</span><strong>{{ runtime.lastFxError || "无" }}</strong>
+                                <span>{{ t("settings.labels.lastFxError") }}</span><strong>{{ runtime.lastFxError || t("common.none") }}</strong>
                             </article>
                             <article class="full-span">
-                                <span>本地状态文件</span><strong>{{ storagePath || "-" }}</strong>
+                                <span>{{ t("settings.labels.storagePath") }}</span><strong>{{ storagePath || "-" }}</strong>
                             </article>
                         </div>
                     </div>
@@ -141,47 +152,60 @@ async function openExternal(url: string): Promise<void> {
 
                 <div v-show="settingsTabProxy === 'display'" class="settings-pane">
                     <div class="settings-section">
-                        <h4>外观与金额展示</h4>
+                        <h4>{{ t("settings.sections.appearance") }}</h4>
                         <div class="settings-grid">
                             <label>
-                                <span>外观模式</span>
+                                <span>{{ t("settings.labels.themeMode") }}</span>
                                 <Select v-model="settingsDraft.themeMode" :options="themeModeOptions" option-label="label" option-value="value" class="w-full" />
                             </label>
                             <label>
-                                <span>界面配色</span>
+                                <span>{{ t("settings.labels.colorTheme") }}</span>
                                 <Select v-model="settingsDraft.colorTheme" :options="colorThemeOptions" option-label="label" option-value="value" class="w-full" />
                             </label>
                             <label>
-                                <span>全局字体</span>
+                                <span>{{ t("settings.labels.fontPreset") }}</span>
                                 <Select v-model="settingsDraft.fontPreset" :options="fontPresetOptions" option-label="label" option-value="value" class="w-full" />
                             </label>
                             <label>
-                                <span>金额展示</span>
+                                <span>{{ t("settings.labels.amountDisplay") }}</span>
                                 <Select v-model="settingsDraft.amountDisplay" :options="amountDisplayOptions" option-label="label" option-value="value" class="w-full" />
                             </label>
                             <label>
-                                <span>币种显示</span>
+                                <span>{{ t("settings.labels.currencyDisplay") }}</span>
                                 <Select v-model="settingsDraft.currencyDisplay" :options="currencyDisplayOptions" option-label="label" option-value="value" class="w-full" />
                             </label>
                             <label>
-                                <span>涨跌配色</span>
+                                <span>{{ t("settings.labels.priceColorScheme") }}</span>
                                 <Select v-model="settingsDraft.priceColorScheme" :options="priceColorOptions" option-label="label" option-value="value" class="w-full" />
                             </label>
                             <label>
-                                <span>组合展示货币</span>
+                                <span>{{ t("settings.labels.dashboardCurrency") }}</span>
                                 <Select v-model="settingsDraft.dashboardCurrency" :options="dashboardCurrencyOptions" option-label="label" option-value="value" class="w-full" />
                             </label>
                         </div>
-                        <!-- <p class="settings-note">
-                            外观模式控制亮色、暗色或跟随系统。界面配色影响强调色、选中态与按钮层次；涨跌配色仍由下方的“涨跌配色”单独控制。多币种持仓会按当前汇率折算后统一展示。
-                        </p> -->
+                        <div class="settings-theme-preview">
+                            <div class="settings-theme-preview-copy">
+                                <strong>{{ t("settings.themePreview.title") }}</strong>
+                                <span>{{ t("settings.themePreview.description") }}</span>
+                            </div>
+                            <div class="settings-theme-preview-swatches">
+                                <span class="settings-theme-swatch accent">{{ t("settings.themePreview.accent") }}</span>
+                                <span class="settings-theme-swatch rise">{{ t("settings.themePreview.rise") }}</span>
+                                <span class="settings-theme-swatch fall">{{ t("settings.themePreview.fall") }}</span>
+                            </div>
+                            <div class="settings-theme-preview-actions" aria-hidden="true">
+                                <Button size="small" :label="t('settings.themePreview.primary')" tabindex="-1" />
+                                <Button size="small" outlined :label="t('settings.themePreview.secondary')" tabindex="-1" />
+                                <Button size="small" text :label="t('settings.themePreview.text')" tabindex="-1" />
+                            </div>
+                        </div>
                     </div>
 
                     <div class="settings-section">
-                        <h4>窗口</h4>
+                        <h4>{{ t("settings.sections.window") }}</h4>
                         <label class="developer-toggle">
                             <div>
-                                <span>使用原生标题栏，修改后需重启应用生效。</span>
+                                <span>{{ t("settings.labels.useNativeTitleBar") }}</span>
                             </div>
                             <ToggleSwitch v-model="settingsDraft.useNativeTitleBar" />
                         </label>
@@ -190,10 +214,10 @@ async function openExternal(url: string): Promise<void> {
 
                 <div v-show="settingsTabProxy === 'region'" class="settings-pane">
                     <div class="settings-section">
-                        <h4>语言与区域</h4>
+                        <h4>{{ t("settings.sections.region") }}</h4>
                         <div class="settings-grid">
                             <label>
-                                <span>语言与区域</span>
+                                <span>{{ t("settings.labels.locale") }}</span>
                                 <Select v-model="settingsDraft.locale" :options="localeOptions" option-label="label" option-value="value" class="w-full" />
                             </label>
                         </div>
@@ -202,10 +226,10 @@ async function openExternal(url: string): Promise<void> {
 
                 <div v-show="settingsTabProxy === 'developer'" class="settings-pane">
                     <div class="settings-section">
-                        <h4>开发者模式</h4>
+                        <h4>{{ t("settings.sections.developerMode") }}</h4>
                         <label class="developer-toggle">
                             <div>
-                                <span>在应用内启用调试视图</span>
+                                <span>{{ t("settings.labels.developerMode") }}</span>
                             </div>
                             <ToggleSwitch v-model="settingsDraft.developerMode" />
                         </label>
@@ -214,22 +238,22 @@ async function openExternal(url: string): Promise<void> {
                     <div v-if="settingsDraft.developerMode" class="settings-section">
                         <div class="developer-toolbar">
                             <div class="developer-summary">
-                                <strong>最近日志 {{ developerLogCount }} 条</strong>
-                                <span>{{ loadingLogs ? "正在刷新日志…" : "日志会持续写入内存缓冲与本地日志文件。" }}</span>
+                                <strong>{{ t("settings.developer.recentLogs", { count: developerLogCount }) }}</strong>
+                                <span>{{ loadingLogs ? t("settings.developer.loading") : t("settings.developer.idle") }}</span>
                             </div>
                             <div class="developer-actions">
-                                <Button text icon="pi pi-refresh" label="刷新" @click="$emit('refresh-logs')" />
-                                <Button text icon="pi pi-copy" label="复制" @click="$emit('copy-logs')" />
-                                <Button text severity="danger" icon="pi pi-trash" label="清空" @click="$emit('clear-logs')" />
+                                <Button size="small" text icon="pi pi-refresh" :label="t('common.refresh')" @click="$emit('refresh-logs')" />
+                                <Button size="small" text icon="pi pi-copy" :label="t('common.copy')" @click="$emit('copy-logs')" />
+                                <Button size="small" text severity="danger" icon="pi pi-trash" :label="t('common.clear')" @click="$emit('clear-logs')" />
                             </div>
                         </div>
 
                         <div class="settings-meta-grid">
                             <article>
-                                <span>日志</span><strong>{{ developerLogCount }}</strong>
+                                <span>{{ t("settings.labels.logCount") }}</span><strong>{{ developerLogCount }}</strong>
                             </article>
                             <article>
-                                <span>日志文件</span><strong>{{ logFilePath || "-" }}</strong>
+                                <span>{{ t("settings.labels.logFilePath") }}</span><strong>{{ logFilePath || "-" }}</strong>
                             </article>
                         </div>
 
@@ -244,14 +268,14 @@ async function openExternal(url: string): Promise<void> {
                                 <pre>{{ entry.message }}</pre>
                             </article>
 
-                            <div v-if="!developerLogs.length" class="developer-log-empty">还没有捕获到日志。你可以先执行一次刷新、保存设置，或等待下一次自动行情同步。</div>
+                            <div v-if="!developerLogs.length" class="developer-log-empty">{{ t("settings.developer.empty") }}</div>
                         </div>
                     </div>
                 </div>
 
                 <div v-show="settingsTabProxy === 'about'" class="settings-pane">
                     <div class="settings-section">
-                        <h4>关于</h4>
+                        <h4>{{ t("settings.sections.about") }}</h4>
                         <div class="settings-about-card">
                             <div class="settings-about-brand">
                                 <img :src="appDockMark" alt="InvestGo" />
@@ -261,43 +285,23 @@ async function openExternal(url: string): Promise<void> {
                                     <strong>InvestGo</strong>
                                     <span class="settings-about-version">v{{ runtime.appVersion || "dev" }}</span>
                                 </div>
-                                <p>面向个人投资观察的桌面应用，提供自选标的、实时行情、历史走势、热门榜单和价格提醒。</p>
+                                <p>{{ t("settings.about.description") }}</p>
                             </div>
                         </div>
 
                         <div class="settings-about-links">
-                            <button type="button" class="settings-about-action" @click="openExternal(projectMeta.repositoryUrl)">
-                                <span class="pi pi-github" aria-hidden="true"></span>
-                                <span>GitHub 仓库</span>
-                            </button>
+                            <Button size="small" outlined icon="pi pi-github" :label="t('settings.about.repository')" class="settings-about-action" @click="openExternal(projectMeta.repositoryUrl)" />
                         </div>
 
                         <div class="settings-disclaimer-grid">
                             <section class="settings-disclaimer-card">
                                 <div class="settings-disclaimer-header">
-                                    <strong>免责声明</strong>
-                                    <span>中文</span>
+                                    <strong>{{ t("settings.about.disclaimer") }}</strong>
+                                    <span>{{ t(`options.locale.${locale}`) }}</span>
                                 </div>
-                                <p>本软件仅用于个人学习和投资观察目的，不构成任何形式的投资建议、财务建议或买卖建议。</p>
-                                <p>
-                                    使用本软件所提供的所有数据、信息和功能，用户应当自行判断其准确性和完整性。作者和贡献者不对因使用本软件而产生的投资损失、收益波动、数据中断、数据错误或任何基于本软件信息做出的投资决策结果承担责任。
-                                </p>
-                                <p>投资有风险，入市需谨慎。用户在使用本软件前应充分了解投资风险，并自行承担所有投资决策的后果。</p>
-                            </section>
-
-                            <section class="settings-disclaimer-card">
-                                <div class="settings-disclaimer-header">
-                                    <strong>Disclaimer</strong>
-                                    <span>English</span>
-                                </div>
-                                <p>
-                                    This software is intended for personal learning and investment observation purposes only and does not constitute any form of investment advice, financial advice, or
-                                    recommendation to buy or sell.
-                                </p>
-                                <p>
-                                    Users should independently verify the accuracy and completeness of all data, information, and functions provided by this software. The authors and contributors
-                                    assume no liability for investment losses, gains, data interruptions, data errors, or any outcomes from decisions made based on information from this software.
-                                </p>
+                                <p>{{ t("settings.about.disclaimerParagraph1") }}</p>
+                                <p>{{ t("settings.about.disclaimerParagraph2") }}</p>
+                                <p>{{ t("settings.about.disclaimerParagraph3") }}</p>
                             </section>
                         </div>
                     </div>
@@ -306,8 +310,8 @@ async function openExternal(url: string): Promise<void> {
         </div>
 
         <template #footer>
-            <Button text label="取消" @click="visibleProxy = false" />
-            <Button label="保存" :loading="saving" @click="$emit('save')" />
+            <Button size="small" text :label="t('common.cancel')" @click="visibleProxy = false" />
+            <Button size="small" :label="t('common.save')" :loading="saving" @click="$emit('save')" />
         </template>
     </Dialog>
 </template>

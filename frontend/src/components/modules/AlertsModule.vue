@@ -5,6 +5,7 @@ import Tag from "primevue/tag";
 
 import { appendClientLog } from "../../devlog";
 import { formatDateTime, formatUnitPrice } from "../../format";
+import { useI18n } from "../../i18n";
 import type { AlertRule, WatchlistItem } from "../../types";
 
 const props = defineProps<{
@@ -21,9 +22,10 @@ defineEmits<{
 const safeAlerts = computed(() => props.alerts ?? []);
 const safeItems = computed(() => props.items ?? []);
 const itemMap = computed(() => new Map(safeItems.value.map((item) => [item.id, item])));
+const { t } = useI18n();
 
 function itemName(itemId: string): string {
-    return itemMap.value.get(itemId)?.name || "已删除标的";
+    return itemMap.value.get(itemId)?.name || t("alerts.deletedItem");
 }
 
 function itemCurrency(itemId: string): string {
@@ -43,10 +45,10 @@ onBeforeUnmount(() => {
     <section class="module-content">
         <div class="panel-header">
             <div>
-                <h3 class="title">提醒</h3>
+                <h3 class="title">{{ t("alerts.title") }}</h3>
             </div>
             <div class="toolbar-row">
-                <Button size="small" icon="pi pi-plus" label="添加" @click="$emit('add-alert')" :disabled="!safeItems.length" />
+                <Button size="small" icon="pi pi-plus" :label="t('common.add')" @click="$emit('add-alert')" :disabled="!safeItems.length" />
             </div>
         </div>
 
@@ -57,29 +59,21 @@ onBeforeUnmount(() => {
                         <strong>{{ alert.name }}</strong>
                         <span>{{ itemName(alert.itemId) }}</span>
                     </div>
-                    <Tag :severity="alert.triggered ? 'danger' : alert.enabled ? 'success' : 'secondary'" :value="alert.triggered ? '已触发' : alert.enabled ? '监控中' : '已停用'" rounded />
+                    <Tag :severity="alert.triggered ? 'danger' : alert.enabled ? 'success' : 'secondary'" :value="alert.triggered ? t('alerts.triggered') : alert.enabled ? t('alerts.monitoring') : t('alerts.disabled')" rounded />
                 </div>
                 <div class="alert-pills">
-                    <Tag :value="`${alert.condition === 'above' ? '高于' : '低于'} ${formatUnitPrice(alert.threshold, itemCurrency(alert.itemId))}`" />
-                    <Tag v-if="alert.lastTriggeredAt" severity="warn" :value="`最近触发 ${formatDateTime(alert.lastTriggeredAt)}`" />
+                    <Tag :value="alert.condition === 'above' ? t('alerts.above', { value: formatUnitPrice(alert.threshold, itemCurrency(alert.itemId)) }) : t('alerts.below', { value: formatUnitPrice(alert.threshold, itemCurrency(alert.itemId)) })" />
+                    <Tag v-if="alert.lastTriggeredAt" severity="warn" :value="t('alerts.lastTriggered', { time: formatDateTime(alert.lastTriggeredAt) })" />
                 </div>
                 <div class="alert-actions">
-                    <span>更新时间 {{ formatDateTime(alert.updatedAt) }}</span>
+                    <span>{{ t("alerts.updatedAt", { time: formatDateTime(alert.updatedAt) }) }}</span>
                     <div class="action-stack table-action-stack" @click.stop>
-                        <Button size="small" text icon="pi pi-pencil" aria-label="编辑" class="table-action-button" @click="$emit('edit-alert', alert)" />
-                        <Button
-                            size="small"
-                            text
-                            severity="danger"
-                            icon="pi pi-trash"
-                            aria-label="删除"
-                            class="table-action-button table-action-button-danger"
-                            @click="$emit('delete-alert', alert.id)"
-                        />
+                        <Button size="small" text rounded icon="pi pi-pencil" :aria-label="t('alerts.aria.edit')" @click="$emit('edit-alert', alert)" />
+                        <Button size="small" text rounded severity="danger" icon="pi pi-trash" :aria-label="t('alerts.aria.delete')" @click="$emit('delete-alert', alert.id)" />
                     </div>
                 </div>
             </article>
         </div>
-        <div v-else class="empty-card">还没有提醒规则。</div>
+        <div v-else class="empty-card">{{ t("alerts.empty") }}</div>
     </section>
 </template>

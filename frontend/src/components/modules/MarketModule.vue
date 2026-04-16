@@ -4,8 +4,9 @@ import Button from "primevue/button";
 import Select from "primevue/select";
 
 import PriceChart from "../PriceChart.vue";
-import { historyRangeOptions } from "../../constants";
+import { getHistoryRangeOptions } from "../../constants";
 import { formatDateTime, formatMoney, formatPercent, formatUnitPrice, historyRangeLabel } from "../../format";
+import { useI18n } from "../../i18n";
 import type { HistoryInterval, HistorySeries, MarketMetricCard, OptionItem, WatchlistItem } from "../../types";
 
 const props = defineProps<{
@@ -23,6 +24,9 @@ const emit = defineEmits<{
     (event: "update:selectedItemId", value: string): void;
     (event: "select-interval", value: HistoryInterval): void;
 }>();
+
+const { t } = useI18n();
+const historyRangeOptions = computed(() => getHistoryRangeOptions());
 
 // 绑定右侧下拉框的当前选中标的。
 const selectedItemProxy = computed({
@@ -91,11 +95,11 @@ const marketOverview = computed(() => {
         market: snapshot.item.market,
         symbol: snapshot.item.symbol,
         price: formatUnitPrice(snapshot.livePrice, snapshot.item.currency),
-        changeLabel: `${historyRangeLabel(props.historyInterval)}变化`,
+        changeLabel: t("market.changeLabel", { range: historyRangeLabel(props.historyInterval) }),
         changeValue: formatMoney(snapshot.effectiveChange, true),
         changePercent: formatPercent(snapshot.effectiveChangePct),
         quoteSource: snapshot.item.quoteSource || "-",
-        chartSource: snapshot.series?.source || "无图表数据",
+        chartSource: snapshot.series?.source || t("market.noChartData"),
         syncedAt: formatDateTime(snapshot.item.quoteUpdatedAt),
         tone: snapshot.changeTone,
     };
@@ -128,21 +132,21 @@ const marketCards = computed<MarketMetricCard[]>(() => {
 
     return [
         {
-            label: "昨收 / 今开",
+            label: t("market.cards.prevCloseOpen"),
             value: `${formatUnitPrice(snapshot.previousClose, snapshot.item.currency)} / ${formatUnitPrice(snapshot.openPrice, snapshot.item.currency)}`,
             sub: snapshot.item.quoteSource || "-",
             tone: "neutral",
         },
         {
-            label: "区间高低",
+            label: t("market.cards.rangeHighLow"),
             value: `${formatUnitPrice(snapshot.rangeHigh, snapshot.item.currency)} / ${formatUnitPrice(snapshot.rangeLow, snapshot.item.currency)}`,
             sub: historyRangeLabel(props.historyInterval),
             tone: "neutral",
         },
         {
-            label: "日内振幅",
+            label: t("market.cards.amplitude"),
             value: formatPercent(snapshot.amplitudePct),
-            sub: snapshot.previousClose > 0 ? "按昨收估算" : "等待价格同步",
+            sub: snapshot.previousClose > 0 ? t("market.cards.amplitudeEstimated") : t("market.cards.amplitudePending"),
             tone: "neutral",
         },
     ];
@@ -153,8 +157,8 @@ const marketCards = computed<MarketMetricCard[]>(() => {
     <section class="module-content market-module">
         <div class="panel-header">
             <div class="toolbar-row">
-                <h3 class="title">行情</h3>
-                <Button text icon="pi pi-refresh" label="刷新" @click="$emit('refresh')" />
+                <h3 class="title">{{ t("market.title") }}</h3>
+                <Button size="small" text icon="pi pi-refresh" :label="t('market.refresh')" @click="$emit('refresh')" />
             </div>
             <Select v-model="selectedItemProxy" :options="historyItemOptions" option-label="label" option-value="value" class="compact-select market-symbol-select" />
         </div>
@@ -193,20 +197,20 @@ const marketCards = computed<MarketMetricCard[]>(() => {
                         </div>
 
                         <footer class="market-hero-foot">
-                            <span class="market-hero-badge">报价 {{ marketOverview.quoteSource }}</span>
-                            <span class="market-hero-badge">图表 {{ marketOverview.chartSource }}</span>
+                            <span class="market-hero-badge">{{ t("market.hero.quote", { source: marketOverview.quoteSource }) }}</span>
+                            <span class="market-hero-badge">{{ t("market.hero.chart", { source: marketOverview.chartSource }) }}</span>
                             <span class="market-hero-sync">{{ marketOverview.syncedAt }}</span>
                         </footer>
                     </section>
 
                     <div class="market-metrics">
                         <article v-if="positionDetail" class="market-position-card" :class="positionDetail.hasPosition ? `tone-${positionDetail.tone}` : ''">
-                            <span class="market-pos-label">我的持仓</span>
+                            <span class="market-pos-label">{{ t("market.position.title") }}</span>
                             <template v-if="positionDetail.hasPosition">
                                 <div class="market-pos-main">
                                     <div class="market-pos-stat">
                                         <strong class="market-pos-value">{{ positionDetail.value }}</strong>
-                                        <span class="market-pos-stat-label">当前资产</span>
+                                        <span class="market-pos-stat-label">{{ t("market.position.currentValue") }}</span>
                                     </div>
                                     <div class="market-pos-stat market-pos-stat--right">
                                         <b class="market-pos-pnl">{{ positionDetail.pnl }}</b>
@@ -215,16 +219,16 @@ const marketCards = computed<MarketMetricCard[]>(() => {
                                 </div>
                                 <div class="market-pos-detail">
                                     <div class="market-pos-stat">
-                                        <span class="market-pos-stat-label">成本价</span>
+                                        <span class="market-pos-stat-label">{{ t("market.position.costPrice") }}</span>
                                         <span class="market-pos-detail-val">{{ positionDetail.costPrice }}</span>
                                     </div>
                                     <div class="market-pos-stat market-pos-stat--right">
-                                        <span class="market-pos-stat-label">持仓量</span>
-                                        <span class="market-pos-detail-val">{{ positionDetail.quantity }} 股/份</span>
+                                        <span class="market-pos-stat-label">{{ t("market.position.quantity") }}</span>
+                                        <span class="market-pos-detail-val">{{ t("market.position.quantityValue", { count: positionDetail.quantity }) }}</span>
                                     </div>
                                 </div>
                             </template>
-                            <span v-else class="market-pos-empty">无</span>
+                            <span v-else class="market-pos-empty">{{ t("market.position.empty") }}</span>
                         </article>
 
                         <article v-for="card in marketCards" :key="card.label" class="metric-strip" :class="`tone-${card.tone}`">
@@ -236,7 +240,7 @@ const marketCards = computed<MarketMetricCard[]>(() => {
                 </div>
 
                 <div v-else class="market-inspector market-inspector-empty">
-                    <span>请选择标的查看行情详情</span>
+                    <span>{{ t("market.selectPrompt") }}</span>
                 </div>
             </aside>
         </div>

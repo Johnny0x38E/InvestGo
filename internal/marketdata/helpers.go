@@ -102,7 +102,7 @@ func collapseProblems(problems []string) error {
 		return nil
 	}
 
-	return errors.New(strings.Join(uniq, "；"))
+	return errors.New(strings.Join(uniq, "; "))
 }
 
 // firstNonEmpty 返回第一个非空字符串。

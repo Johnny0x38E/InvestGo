@@ -65,7 +65,7 @@ func (s *Store) UpsertItem(input WatchlistItem) (StateSnapshot, error) {
 	} else {
 		index := s.findItemIndexLocked(item.ID)
 		if index == -1 {
-			return StateSnapshot{}, fmt.Errorf("标的不存在: %s", item.ID)
+			return StateSnapshot{}, fmt.Errorf("Item not found: %s", item.ID)
 		}
 		item.UpdatedAt = time.Now()
 		s.state.Items[index] = item
@@ -90,7 +90,7 @@ func (s *Store) DeleteItem(id string) (StateSnapshot, error) {
 
 	index := s.findItemIndexLocked(id)
 	if index == -1 {
-		return StateSnapshot{}, fmt.Errorf("标的不存在: %s", id)
+		return StateSnapshot{}, fmt.Errorf("Item not found: %s", id)
 	}
 
 	itemSymbol := s.state.Items[index].Symbol
@@ -125,7 +125,7 @@ func (s *Store) UpsertAlert(input AlertRule) (StateSnapshot, error) {
 		return StateSnapshot{}, err
 	}
 	if s.findItemIndexLocked(alert.ItemID) == -1 {
-		return StateSnapshot{}, fmt.Errorf("提醒关联的标的不存在: %s", alert.ItemID)
+		return StateSnapshot{}, fmt.Errorf("Alert item not found: %s", alert.ItemID)
 	}
 
 	if alert.ID == "" {
@@ -136,7 +136,7 @@ func (s *Store) UpsertAlert(input AlertRule) (StateSnapshot, error) {
 	} else {
 		index := s.findAlertIndexLocked(alert.ID)
 		if index == -1 {
-			return StateSnapshot{}, fmt.Errorf("提醒不存在: %s", alert.ID)
+			return StateSnapshot{}, fmt.Errorf("Alert not found: %s", alert.ID)
 		}
 		alert.UpdatedAt = time.Now()
 		s.state.Alerts[index] = alert
@@ -160,7 +160,7 @@ func (s *Store) DeleteAlert(id string) (StateSnapshot, error) {
 
 	index := s.findAlertIndexLocked(id)
 	if index == -1 {
-		return StateSnapshot{}, fmt.Errorf("提醒不存在: %s", id)
+		return StateSnapshot{}, fmt.Errorf("Alert not found: %s", id)
 	}
 
 	alertName := s.state.Alerts[index].Name
@@ -272,10 +272,10 @@ func sanitiseItem(input WatchlistItem) (WatchlistItem, error) {
 	}
 
 	if item.Quantity < 0 {
-		return WatchlistItem{}, errors.New("持仓数量不能小于 0")
+		return WatchlistItem{}, errors.New("Quantity must not be negative")
 	}
 	if item.CostPrice < 0 || item.CurrentPrice < 0 {
-		return WatchlistItem{}, errors.New("价格不能小于 0")
+		return WatchlistItem{}, errors.New("Price must not be negative")
 	}
 
 	return item, nil
@@ -288,16 +288,16 @@ func sanitiseAlert(input AlertRule) (AlertRule, error) {
 	alert.ItemID = strings.TrimSpace(alert.ItemID)
 
 	if alert.Name == "" {
-		return AlertRule{}, errors.New("提醒名称不能为空")
+		return AlertRule{}, errors.New("Alert name is required")
 	}
 	if alert.ItemID == "" {
-		return AlertRule{}, errors.New("提醒必须关联一个标的")
+		return AlertRule{}, errors.New("Alert must reference an item")
 	}
 	if alert.Condition != AlertAbove && alert.Condition != AlertBelow {
-		return AlertRule{}, errors.New("提醒条件无效")
+		return AlertRule{}, errors.New("Alert condition is invalid")
 	}
 	if alert.Threshold <= 0 {
-		return AlertRule{}, errors.New("提醒阈值必须大于 0")
+		return AlertRule{}, errors.New("Alert threshold must be greater than 0")
 	}
 
 	return alert, nil
@@ -353,7 +353,7 @@ func sanitiseSettings(input AppSettings, current AppSettings, quoteProviders map
 	settings.UseNativeTitleBar = input.UseNativeTitleBar
 
 	if settings.RefreshIntervalSeconds < 10 {
-		return AppSettings{}, errors.New("刷新间隔不能低于 10 秒")
+		return AppSettings{}, errors.New("Refresh interval must be at least 10 seconds")
 	}
 	settings.CNQuoteSource = normaliseQuoteSourceIDForSettings(settings.CNQuoteSource, settings.QuoteSource, "CN-A", quoteProviders)
 	settings.HKQuoteSource = normaliseQuoteSourceIDForSettings(settings.HKQuoteSource, settings.QuoteSource, "HK-MAIN", quoteProviders)
@@ -361,13 +361,13 @@ func sanitiseSettings(input AppSettings, current AppSettings, quoteProviders map
 	settings.QuoteSource = DefaultQuoteSourceID
 	if len(quoteProviders) > 0 {
 		if _, ok := quoteProviders[settings.CNQuoteSource]; !ok {
-			return AppSettings{}, errors.New("A股行情来源无效")
+			return AppSettings{}, errors.New("China quote source is invalid")
 		}
 		if _, ok := quoteProviders[settings.HKQuoteSource]; !ok {
-			return AppSettings{}, errors.New("港股行情来源无效")
+			return AppSettings{}, errors.New("Hong Kong quote source is invalid")
 		}
 		if _, ok := quoteProviders[settings.USQuoteSource]; !ok {
-			return AppSettings{}, errors.New("美股行情来源无效")
+			return AppSettings{}, errors.New("US quote source is invalid")
 		}
 	}
 	switch settings.FontPreset {
@@ -375,56 +375,56 @@ func sanitiseSettings(input AppSettings, current AppSettings, quoteProviders map
 		settings.FontPreset = "system"
 	case "reading", "compact":
 	default:
-		return AppSettings{}, errors.New("字体预设仅支持 system / reading / compact")
+		return AppSettings{}, errors.New("Font preset must be one of: system / reading / compact")
 	}
 	switch settings.ThemeMode {
 	case "", "system":
 		settings.ThemeMode = "system"
 	case "light", "dark":
 	default:
-		return AppSettings{}, errors.New("外观模式仅支持 system / light / dark")
+		return AppSettings{}, errors.New("Theme mode must be one of: system / light / dark")
 	}
 	switch settings.ColorTheme {
 	case "", "blue":
 		settings.ColorTheme = "blue"
 	case "graphite", "forest", "sunset":
 	default:
-		return AppSettings{}, errors.New("界面配色仅支持 blue / graphite / forest / sunset")
+		return AppSettings{}, errors.New("Color theme must be one of: blue / graphite / forest / sunset")
 	}
 	switch settings.AmountDisplay {
 	case "", "full":
 		settings.AmountDisplay = "full"
 	case "compact":
 	default:
-		return AppSettings{}, errors.New("金额展示仅支持 full / compact")
+		return AppSettings{}, errors.New("Amount display must be one of: full / compact")
 	}
 	switch settings.CurrencyDisplay {
 	case "", "symbol":
 		settings.CurrencyDisplay = "symbol"
 	case "code":
 	default:
-		return AppSettings{}, errors.New("币种展示仅支持 symbol / code")
+		return AppSettings{}, errors.New("Currency display must be one of: symbol / code")
 	}
 	switch settings.PriceColorScheme {
 	case "", "cn":
 		settings.PriceColorScheme = "cn"
 	case "intl":
 	default:
-		return AppSettings{}, errors.New("涨跌配色仅支持 cn / intl")
+		return AppSettings{}, errors.New("Price color scheme must be one of: cn / intl")
 	}
 	switch settings.Locale {
 	case "", "system":
 		settings.Locale = "system"
 	case "zh-CN", "en-US":
 	default:
-		return AppSettings{}, errors.New("语言区域仅支持 system / zh-CN / en-US")
+		return AppSettings{}, errors.New("Locale must be one of: system / zh-CN / en-US")
 	}
 	switch settings.DashboardCurrency {
 	case "", "CNY":
 		settings.DashboardCurrency = "CNY"
 	case "HKD", "USD":
 	default:
-		return AppSettings{}, errors.New("展示货币仅支持 CNY / HKD / USD")
+		return AppSettings{}, errors.New("Dashboard currency must be one of: CNY / HKD / USD")
 	}
 	switch settings.HotUSSource {
 	case "", "eastmoney":
@@ -432,7 +432,7 @@ func sanitiseSettings(input AppSettings, current AppSettings, quoteProviders map
 	case "yahoo":
 		// valid
 	default:
-		return AppSettings{}, errors.New("热门美股来源仅支持 eastmoney / yahoo")
+		return AppSettings{}, errors.New("US hot source must be one of: eastmoney / yahoo")
 	}
 
 	return settings, nil

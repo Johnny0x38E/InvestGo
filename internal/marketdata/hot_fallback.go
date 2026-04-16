@@ -37,7 +37,7 @@ func (s *HotService) fetchPoolQuotes(ctx context.Context, seeds []hotSeed) ([]mo
 	}
 
 	if len(secids) == 0 {
-		return nil, fmt.Errorf("热门备援列表没有可请求的行情代码")
+		return nil, fmt.Errorf("No quote symbols are available in the hot fallback pool")
 	}
 
 	params := url.Values{}
@@ -62,7 +62,7 @@ func (s *HotService) fetchPoolQuotes(ctx context.Context, seeds []hotSeed) ([]mo
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("热门备援行情请求失败: status %d", response.StatusCode)
+		return nil, fmt.Errorf("Hot fallback quote request failed: status %d", response.StatusCode)
 	}
 
 	payload, err := io.ReadAll(response.Body)
@@ -75,7 +75,7 @@ func (s *HotService) fetchPoolQuotes(ctx context.Context, seeds []hotSeed) ([]mo
 		return nil, err
 	}
 	if parsed.RC != 0 {
-		return nil, fmt.Errorf("热门备援行情返回 rc=%d", parsed.RC)
+		return nil, fmt.Errorf("Hot fallback quote response returned rc=%d", parsed.RC)
 	}
 
 	items := make([]monitor.HotItem, 0, len(parsed.Data.Diff))
@@ -103,13 +103,13 @@ func (s *HotService) fetchPoolQuotes(ctx context.Context, seeds []hotSeed) ([]mo
 			ChangePercent: float64(item.ChangePercent),
 			Volume:        float64(item.Volume),
 			MarketCap:     float64(item.MarketCap),
-			QuoteSource:   "东方财富",
+			QuoteSource:   "EastMoney",
 			UpdatedAt:     time.Now(),
 		})
 	}
 
 	if len(items) == 0 {
-		return nil, fmt.Errorf("热门备援行情无数据")
+		return nil, fmt.Errorf("Hot fallback quote response is empty")
 	}
 
 	return items, nil

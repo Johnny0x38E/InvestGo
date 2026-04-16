@@ -105,7 +105,7 @@ func fetchYahooChartFromHost(ctx context.Context, client *http.Client, host, sym
 		return yahooChartResponse{}, errors.New(parsed.Chart.Error.Description)
 	}
 	if len(parsed.Chart.Result) == 0 {
-		return yahooChartResponse{}, errors.New("返回空结果")
+		return yahooChartResponse{}, errors.New("No results returned")
 	}
 
 	return parsed, nil

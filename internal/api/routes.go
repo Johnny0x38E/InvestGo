@@ -53,18 +53,18 @@ func (h *Handler) registerRoutes() []route {
 func (h *Handler) handleOpenExternal(writer http.ResponseWriter, request *http.Request, _ routeParams) {
 	var payload openExternalRequest
 	if err := decodeJSON(request, &payload); err != nil {
-		writeError(writer, http.StatusBadRequest, err)
+		writeError(writer, request, http.StatusBadRequest, err)
 		return
 	}
 
 	targetURL, err := sanitiseExternalURL(payload.URL)
 	if err != nil {
-		writeError(writer, http.StatusBadRequest, err)
+		writeError(writer, request, http.StatusBadRequest, err)
 		return
 	}
 
 	if err := exec.Command("open", targetURL).Start(); err != nil {
-		writeError(writer, http.StatusInternalServerError, &apiError{message: "打开链接失败"})
+		writeError(writer, request, http.StatusInternalServerError, &apiError{message: "Failed to open external URL"})
 		return
 	}
 
@@ -111,8 +111,8 @@ func routeSegments(path string) []string {
 }
 
 // handleState 返回前端当前依赖的完整状态快照。
-func (h *Handler) handleState(writer http.ResponseWriter, _ *http.Request, _ routeParams) {
-	writeJSON(writer, http.StatusOK, h.store.Snapshot())
+func (h *Handler) handleState(writer http.ResponseWriter, request *http.Request, _ routeParams) {
+	writeJSON(writer, http.StatusOK, localizeSnapshot(h.store.Snapshot(), requestLocale(request)))
 }
 
 // handleLogs 返回开发日志快照。
@@ -130,10 +130,10 @@ func (h *Handler) handleLogs(writer http.ResponseWriter, request *http.Request, 
 }
 
 // handleClearLogs 清空已持久化的开发日志。
-func (h *Handler) handleClearLogs(writer http.ResponseWriter, _ *http.Request, _ routeParams) {
+func (h *Handler) handleClearLogs(writer http.ResponseWriter, request *http.Request, _ routeParams) {
 	if h.logs != nil {
 		if err := h.logs.Clear(); err != nil {
-			writeError(writer, http.StatusInternalServerError, err)
+			writeError(writer, request, http.StatusInternalServerError, err)
 			return
 		}
 	}
@@ -150,7 +150,7 @@ func (h *Handler) handleClientLogs(writer http.ResponseWriter, request *http.Req
 
 	var payload clientLogRequest
 	if err := decodeJSON(request, &payload); err != nil {
-		writeError(writer, http.StatusBadRequest, err)
+		writeError(writer, request, http.StatusBadRequest, err)
 		return
 	}
 
@@ -161,7 +161,7 @@ func (h *Handler) handleClientLogs(writer http.ResponseWriter, request *http.Req
 // handleHot 返回指定分类和排序方式的热门榜单。
 func (h *Handler) handleHot(writer http.ResponseWriter, request *http.Request, _ routeParams) {
 	if h.hot == nil {
-		writeError(writer, http.StatusServiceUnavailable, &apiError{message: "热门服务不可用"})
+		writeError(writer, request, http.StatusServiceUnavailable, &apiError{message: "Hot service is unavailable"})
 		return
 	}
 
@@ -172,7 +172,7 @@ func (h *Handler) handleHot(writer http.ResponseWriter, request *http.Request, _
 	pageSize, _ := strconv.Atoi(strings.TrimSpace(request.URL.Query().Get("pageSize")))
 	list, err := h.hot.List(request.Context(), category, sortBy, keyword, page, pageSize)
 	if err != nil {
-		writeError(writer, http.StatusBadRequest, err)
+		writeError(writer, request, http.StatusBadRequest, err)
 		return
 	}
 
@@ -189,7 +189,7 @@ func (h *Handler) handleHistory(writer http.ResponseWriter, request *http.Reques
 
 	series, err := h.store.ItemHistory(request.Context(), itemID, interval)
 	if err != nil {
-		writeError(writer, http.StatusBadRequest, err)
+		writeError(writer, request, http.StatusBadRequest, err)
 		return
 	}
 
@@ -200,118 +200,118 @@ func (h *Handler) handleHistory(writer http.ResponseWriter, request *http.Reques
 func (h *Handler) handleRefresh(writer http.ResponseWriter, request *http.Request, _ routeParams) {
 	snapshot, err := h.store.Refresh(request.Context())
 	if err != nil {
-		writeError(writer, http.StatusInternalServerError, err)
+		writeError(writer, request, http.StatusInternalServerError, err)
 		return
 	}
 
-	writeJSON(writer, http.StatusOK, snapshot)
+	writeJSON(writer, http.StatusOK, localizeSnapshot(snapshot, requestLocale(request)))
 }
 
 // handleUpdateSettings 更新应用设置。
 func (h *Handler) handleUpdateSettings(writer http.ResponseWriter, request *http.Request, _ routeParams) {
 	var settings monitor.AppSettings
 	if err := decodeJSON(request, &settings); err != nil {
-		writeError(writer, http.StatusBadRequest, err)
+		writeError(writer, request, http.StatusBadRequest, err)
 		return
 	}
 
 	snapshot, err := h.store.UpdateSettings(settings)
 	if err != nil {
-		writeError(writer, http.StatusBadRequest, err)
+		writeError(writer, request, http.StatusBadRequest, err)
 		return
 	}
 
-	writeJSON(writer, http.StatusOK, snapshot)
+	writeJSON(writer, http.StatusOK, localizeSnapshot(snapshot, requestLocale(request)))
 }
 
 // handleCreateItem 新增一个自选标的。
 func (h *Handler) handleCreateItem(writer http.ResponseWriter, request *http.Request, _ routeParams) {
 	var item monitor.WatchlistItem
 	if err := decodeJSON(request, &item); err != nil {
-		writeError(writer, http.StatusBadRequest, err)
+		writeError(writer, request, http.StatusBadRequest, err)
 		return
 	}
 
 	snapshot, err := h.store.UpsertItem(item)
 	if err != nil {
-		writeError(writer, http.StatusBadRequest, err)
+		writeError(writer, request, http.StatusBadRequest, err)
 		return
 	}
 
-	writeJSON(writer, http.StatusOK, snapshot)
+	writeJSON(writer, http.StatusOK, localizeSnapshot(snapshot, requestLocale(request)))
 }
 
 // handleUpdateItem 更新指定 ID 的自选标的。
 func (h *Handler) handleUpdateItem(writer http.ResponseWriter, request *http.Request, params routeParams) {
 	var item monitor.WatchlistItem
 	if err := decodeJSON(request, &item); err != nil {
-		writeError(writer, http.StatusBadRequest, err)
+		writeError(writer, request, http.StatusBadRequest, err)
 		return
 	}
 
 	item.ID = params.Value("id")
 	snapshot, err := h.store.UpsertItem(item)
 	if err != nil {
-		writeError(writer, http.StatusBadRequest, err)
+		writeError(writer, request, http.StatusBadRequest, err)
 		return
 	}
 
-	writeJSON(writer, http.StatusOK, snapshot)
+	writeJSON(writer, http.StatusOK, localizeSnapshot(snapshot, requestLocale(request)))
 }
 
 // handleDeleteItem 删除指定 ID 的自选标的。
-func (h *Handler) handleDeleteItem(writer http.ResponseWriter, _ *http.Request, params routeParams) {
+func (h *Handler) handleDeleteItem(writer http.ResponseWriter, request *http.Request, params routeParams) {
 	snapshot, err := h.store.DeleteItem(params.Value("id"))
 	if err != nil {
-		writeError(writer, http.StatusBadRequest, err)
+		writeError(writer, request, http.StatusBadRequest, err)
 		return
 	}
 
-	writeJSON(writer, http.StatusOK, snapshot)
+	writeJSON(writer, http.StatusOK, localizeSnapshot(snapshot, requestLocale(request)))
 }
 
 // handleCreateAlert 新增一个价格提醒。
 func (h *Handler) handleCreateAlert(writer http.ResponseWriter, request *http.Request, _ routeParams) {
 	var alert monitor.AlertRule
 	if err := decodeJSON(request, &alert); err != nil {
-		writeError(writer, http.StatusBadRequest, err)
+		writeError(writer, request, http.StatusBadRequest, err)
 		return
 	}
 
 	snapshot, err := h.store.UpsertAlert(alert)
 	if err != nil {
-		writeError(writer, http.StatusBadRequest, err)
+		writeError(writer, request, http.StatusBadRequest, err)
 		return
 	}
 
-	writeJSON(writer, http.StatusOK, snapshot)
+	writeJSON(writer, http.StatusOK, localizeSnapshot(snapshot, requestLocale(request)))
 }
 
 // handleUpdateAlert 更新指定 ID 的价格提醒。
 func (h *Handler) handleUpdateAlert(writer http.ResponseWriter, request *http.Request, params routeParams) {
 	var alert monitor.AlertRule
 	if err := decodeJSON(request, &alert); err != nil {
-		writeError(writer, http.StatusBadRequest, err)
+		writeError(writer, request, http.StatusBadRequest, err)
 		return
 	}
 
 	alert.ID = params.Value("id")
 	snapshot, err := h.store.UpsertAlert(alert)
 	if err != nil {
-		writeError(writer, http.StatusBadRequest, err)
+		writeError(writer, request, http.StatusBadRequest, err)
 		return
 	}
 
-	writeJSON(writer, http.StatusOK, snapshot)
+	writeJSON(writer, http.StatusOK, localizeSnapshot(snapshot, requestLocale(request)))
 }
 
 // handleDeleteAlert 删除指定 ID 的价格提醒。
-func (h *Handler) handleDeleteAlert(writer http.ResponseWriter, _ *http.Request, params routeParams) {
+func (h *Handler) handleDeleteAlert(writer http.ResponseWriter, request *http.Request, params routeParams) {
 	snapshot, err := h.store.DeleteAlert(params.Value("id"))
 	if err != nil {
-		writeError(writer, http.StatusBadRequest, err)
+		writeError(writer, request, http.StatusBadRequest, err)
 		return
 	}
 
-	writeJSON(writer, http.StatusOK, snapshot)
+	writeJSON(writer, http.StatusOK, localizeSnapshot(snapshot, requestLocale(request)))
 }

@@ -1,4 +1,5 @@
 import type { AppSettings, HistoryInterval } from "./types";
+import { translate } from "./i18n";
 
 let settings: AppSettings = {
     refreshIntervalSeconds: 60,
@@ -132,20 +133,20 @@ export function resolvedLocale(): string {
 export function historyRangeLabel(interval: HistoryInterval): string {
     switch (interval) {
         case "1h":
-            return "1小时";
+            return translate("options.historyRange.1h");
         case "1d":
-            return "1天";
+            return translate("options.historyRange.1d");
         case "1w":
-            return "7天";
+            return translate("options.historyRange.1w");
         case "1mo":
-            return "1月";
+            return translate("options.historyRange.1mo");
         case "1y":
-            return "1年";
+            return translate("options.historyRange.1y");
         case "3y":
-            return "3年";
+            return translate("options.historyRange.3y");
         case "all":
-            return "全部";
+            return translate("options.historyRange.all");
         default:
-            return "区间";
+            return translate("options.historyRange.fallback");
     }
 }

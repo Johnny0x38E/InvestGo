@@ -5,6 +5,7 @@ import InputText from "primevue/inputtext";
 import Tag from "primevue/tag";
 
 import { formatDateTime, formatMoney, formatPercent, formatRange, formatShortTime, formatUnitPrice } from "../../format";
+import { useI18n } from "../../i18n";
 import type { WatchlistItem } from "../../types";
 
 const props = defineProps<{
@@ -26,17 +27,19 @@ const searchProxy = computed({
     get: () => props.search,
     set: (value: string) => emit("update:search", value),
 });
+
+const { t } = useI18n();
 </script>
 
 <template>
     <section class="module-content">
         <div class="panel-header">
             <div>
-                <h3 class="title">自选</h3>
+                <h3 class="title">{{ t("watchlist.title") }}</h3>
             </div>
             <div class="toolbar-row">
-                <InputText v-model="searchProxy" class="search-input" placeholder="代码 / 名称 / 标签" />
-                <Button size="small" icon="pi pi-plus" label="添加" @click="$emit('add-item')" />
+                <InputText v-model="searchProxy" class="search-input" :placeholder="t('watchlist.searchPlaceholder')" />
+                <Button size="small" icon="pi pi-plus" :label="t('common.add')" @click="$emit('add-item')" />
             </div>
         </div>
 
@@ -44,13 +47,13 @@ const searchProxy = computed({
             <table class="watch-table">
                 <thead>
                     <tr>
-                        <th>标的</th>
-                        <th>现价</th>
-                        <th>日涨跌</th>
-                        <th>浮盈亏</th>
-                        <th>日内区间</th>
-                        <th>最近同步</th>
-                        <th>定投</th>
+                        <th>{{ t("watchlist.table.item") }}</th>
+                        <th>{{ t("watchlist.table.currentPrice") }}</th>
+                        <th>{{ t("watchlist.table.dayChange") }}</th>
+                        <th>{{ t("watchlist.table.unrealizedPnL") }}</th>
+                        <th>{{ t("watchlist.table.intradayRange") }}</th>
+                        <th>{{ t("watchlist.table.lastSynced") }}</th>
+                        <th>{{ t("watchlist.table.dca") }}</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -90,7 +93,7 @@ const searchProxy = computed({
                         <td>
                             <div class="value-stack">
                                 <strong>{{ formatRange(item.dayLow, item.dayHigh, item.currency) }}</strong>
-                                <span>{{ item.openPrice > 0 ? `开盘 ${formatUnitPrice(item.openPrice, item.currency)}` : "区间待同步" }}</span>
+                                <span>{{ item.openPrice > 0 ? t("watchlist.openPrice", { price: formatUnitPrice(item.openPrice, item.currency) }) : t("watchlist.rangePending") }}</span>
                             </div>
                         </td>
                         <td>
@@ -101,32 +104,29 @@ const searchProxy = computed({
                         </td>
                         <td class="watch-table-cell-dca">
                             <div class="action-stack table-action-stack table-action-stack-centered">
-                                <button v-if="item.dcaEntries?.length" class="dca-list-badge" type="button" @click.stop="$emit('show-dca', item)">
-                                    <i class="pi pi-chart-line" style="font-size: 9px" />
-                                    {{ item.dcaEntries.length }} 笔
-                                </button>
+                                <Button
+                                    v-if="item.dcaEntries?.length"
+                                    size="small"
+                                    outlined
+                                    icon="pi pi-chart-line"
+                                    :label="t('watchlist.dcaEntries', { count: item.dcaEntries.length })"
+                                    class="dca-list-button"
+                                    @click.stop="$emit('show-dca', item)"
+                                />
                                 <span v-else style="color: var(--muted); font-size: 12px">—</span>
                             </div>
                         </td>
                         <td class="table-action-cell">
                             <div class="action-stack table-action-stack" @click.stop>
-                                <Button size="small" text icon="pi pi-pencil" aria-label="编辑" class="table-action-button" @click="$emit('edit-item', item)" />
-                                <Button
-                                    size="small"
-                                    text
-                                    severity="danger"
-                                    icon="pi pi-trash"
-                                    aria-label="删除"
-                                    class="table-action-button table-action-button-danger"
-                                    @click="$emit('delete-item', item.id)"
-                                />
+                                <Button size="small" text rounded icon="pi pi-pencil" :aria-label="t('watchlist.aria.edit')" @click="$emit('edit-item', item)" />
+                                <Button size="small" text rounded severity="danger" icon="pi pi-trash" :aria-label="t('watchlist.aria.delete')" @click="$emit('delete-item', item.id)" />
                             </div>
                         </td>
                     </tr>
                 </tbody>
                 <tbody v-else>
                     <tr>
-                        <td colspan="8" class="empty-row">还没有匹配到标的。</td>
+                        <td colspan="8" class="empty-row">{{ t("watchlist.empty") }}</td>
                     </tr>
                 </tbody>
             </table>

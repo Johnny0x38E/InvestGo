@@ -77,20 +77,20 @@ func (f *FxRates) Fetch(ctx context.Context) {
 	url := datasource.FrankfurterAPI + "?from=CNY"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		f.setError(fmt.Sprintf("创建汇率请求失败: %v", err))
+		f.setError(fmt.Sprintf("Failed to create FX request: %v", err))
 		return
 	}
 
 	resp, err := f.client.Do(req)
 	if err != nil {
-		f.setError(fmt.Sprintf("汇率服务不可达: %v", err))
+		f.setError(fmt.Sprintf("FX service is unreachable: %v", err))
 		return
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		f.setError(fmt.Sprintf("读取汇率响应失败: %v", err))
+		f.setError(fmt.Sprintf("Failed to read FX response: %v", err))
 		return
 	}
 
@@ -99,17 +99,17 @@ func (f *FxRates) Fetch(ctx context.Context) {
 		if len(detail) > 200 {
 			detail = detail[:200]
 		}
-		f.setError(fmt.Sprintf("汇率服务返回 %d: %s", resp.StatusCode, detail))
+		f.setError(fmt.Sprintf("FX service returned %d: %s", resp.StatusCode, detail))
 		return
 	}
 
 	var data frankfurterResponse
 	if err := json.Unmarshal(body, &data); err != nil {
-		f.setError(fmt.Sprintf("解析汇率数据失败: %v", err))
+		f.setError(fmt.Sprintf("Failed to decode FX data: %v", err))
 		return
 	}
 	if data.Base != "CNY" || len(data.Rates) == 0 {
-		f.setError("汇率数据格式异常")
+		f.setError("FX payload is invalid")
 		return
 	}
 

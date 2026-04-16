@@ -19,6 +19,8 @@ import { useDeveloperLogs } from "./composables/useDeveloperLogs";
 import { useHistorySeries } from "./composables/useHistorySeries";
 import { defaultSettings, emptyAlertForm, emptyItemForm, mapAlertToForm, mapItemToForm, serialiseItemForm } from "./forms";
 import { setFormatterSettings } from "./format";
+import { setI18nLocale, translate } from "./i18n";
+import { applyPrimeVueColorTheme } from "./theme";
 import type { AlertFormModel, AlertRule, AppSettings, HotItem, ItemFormModel, ModuleKey, OptionItem, QuoteSourceOption, SettingsTabKey, StateSnapshot, StatusTone, WatchlistItem } from "./types";
 
 const dashboard = ref<StateSnapshot["dashboard"] | null>(null);
@@ -33,7 +35,7 @@ const runtime = ref<StateSnapshot["runtime"]>({
 const quoteSources = ref<QuoteSourceOption[]>([]);
 const storagePath = ref("");
 const generatedAt = ref("");
-const statusText = ref("正在加载...");
+const statusText = ref(translate("app.loading"));
 const statusTone = ref<StatusTone>("success");
 const search = ref("");
 const selectedItemId = ref("");
@@ -57,7 +59,7 @@ const itemForm = reactive<ItemFormModel>(emptyItemForm());
 const alertForm = reactive<AlertFormModel>(emptyAlertForm());
 const confirmTitle = ref("");
 const confirmMessage = ref("");
-const confirmLabel = ref("确认删除");
+const confirmLabel = ref(translate("common.delete"));
 const pendingDelete = reactive<{ kind: "" | "item" | "alert"; id: string }>({
     kind: "",
     id: "",
@@ -88,16 +90,38 @@ const trackedHotKeys = computed(() => items.value.map((item) => `${item.market}:
 watch(
     settings,
     (value) => {
-        // 格式化设置和根节点 data 属性统一从这里同步，避免散落在多个组件里。
+        // 数值格式等真正生效的业务设置仍以已保存值为准，避免草稿影响数据展示。
         setFormatterSettings(value);
-        document.documentElement.dataset.fontPreset = value.fontPreset;
-        document.documentElement.dataset.colorTheme = value.colorTheme;
-        document.documentElement.dataset.priceColorScheme = value.priceColorScheme;
-        document.documentElement.dataset.themeMode = value.themeMode;
+        setI18nLocale(value.locale);
         document.documentElement.lang = value.locale === "system" ? navigator.language || "zh-CN" : value.locale;
-        applyResolvedTheme(value.themeMode);
     },
     { deep: true, immediate: true },
+);
+
+watch(
+    () =>
+        [
+            settingsVisible.value,
+            settings.value.fontPreset,
+            settings.value.colorTheme,
+            settings.value.priceColorScheme,
+            settings.value.themeMode,
+            settingsDraft.fontPreset,
+            settingsDraft.colorTheme,
+            settingsDraft.priceColorScheme,
+            settingsDraft.themeMode,
+        ] as const,
+    () => {
+        // 设置弹窗打开时，允许在当前界面先预览外观草稿；关闭后自动回到已保存状态。
+        const appearance = settingsVisible.value ? settingsDraft : settings.value;
+        document.documentElement.dataset.fontPreset = appearance.fontPreset;
+        document.documentElement.dataset.colorTheme = appearance.colorTheme;
+        document.documentElement.dataset.priceColorScheme = appearance.priceColorScheme;
+        document.documentElement.dataset.themeMode = appearance.themeMode;
+        applyPrimeVueColorTheme(appearance.colorTheme);
+        applyResolvedTheme(appearance.themeMode);
+    },
+    { immediate: true },
 );
 
 watch(settingsVisible, (visible) => {
@@ -165,17 +189,17 @@ function applyResolvedTheme(themeMode: AppSettings["themeMode"]): void {
 // 从后端拉取完整快照，供首次加载和手动刷新使用。
 async function loadState(silent = false): Promise<void> {
     if (!silent) {
-        setStatus("正在加载观察台…", "success");
+        setStatus(translate("app.loadingDashboard"), "success");
     }
 
     try {
         const snapshot = await api<StateSnapshot>("/api/state");
         applySnapshot(snapshot);
-        setStatus("观察台已加载。", "success");
+        setStatus(translate("app.dashboardLoaded"), "success");
 
         void refreshQuotes(true, false);
     } catch (error) {
-        setStatus(error instanceof Error ? error.message : "加载失败", "error");
+        setStatus(error instanceof Error ? error.message : translate("app.loadFailed"), "error");
     }
 }
 
@@ -185,6 +209,7 @@ function applySnapshot(snapshot: StateSnapshot): void {
     items.value = snapshot.items ?? [];
     alerts.value = snapshot.alerts ?? [];
     settings.value = snapshot.settings;
+    setI18nLocale(snapshot.settings.locale);
     runtime.value = snapshot.runtime;
     quoteSources.value = snapshot.quoteSources ?? [];
     storagePath.value = snapshot.storagePath;
@@ -201,7 +226,7 @@ function applySnapshot(snapshot: StateSnapshot): void {
 async function refreshQuotes(silent = false, refreshHistory = true): Promise<void> {
     try {
         if (!silent) {
-            setStatus("正在同步实时行情…", "success");
+            setStatus(translate("app.syncingQuotes"), "success");
         }
         const snapshot = await api<StateSnapshot>("/api/refresh", { method: "POST" });
         applySnapshot(snapshot);
@@ -211,12 +236,12 @@ async function refreshQuotes(silent = false, refreshHistory = true): Promise<voi
         if (snapshot.runtime.lastQuoteError) {
             setStatus(snapshot.runtime.lastQuoteError, "error");
         } else if (snapshot.runtime.lastFxError) {
-            setStatus(`行情已同步，但汇率获取失败：${snapshot.runtime.lastFxError}`, "warn");
+            setStatus(translate("app.quotesSyncedFxFailed", { error: snapshot.runtime.lastFxError }), "warn");
         } else if (!silent) {
-            setStatus("实时行情已同步。", "success");
+            setStatus(translate("app.quotesSynced"), "success");
         }
     } catch (error) {
-        setStatus(error instanceof Error ? error.message : "刷新失败", "error");
+        setStatus(error instanceof Error ? error.message : translate("app.refreshFailed"), "error");
     } finally {
         scheduleAutoRefresh();
     }
@@ -254,13 +279,13 @@ async function saveSettings(): Promise<void> {
         });
         applySnapshot(snapshot);
         settingsVisible.value = false;
-        setStatus("设置已保存。", "success");
+        setStatus(translate("app.settingsSaved"), "success");
         // 设置保存后，如果当前在市场模块，刷新图表以确保使用新设置
         if (activeModule.value === "market" && selectedItem.value) {
             void loadHistory(true, true);
         }
     } catch (error) {
-        setStatus(error instanceof Error ? error.message : "设置保存失败", "error");
+        setStatus(error instanceof Error ? error.message : translate("app.settingsSaveFailed"), "error");
     } finally {
         savingSettings.value = false;
     }
@@ -297,10 +322,10 @@ async function saveItem(): Promise<void> {
         clearHistoryCache();
         applySnapshot(snapshot);
         itemDialogVisible.value = false;
-        setStatus(itemForm.id ? "标的已更新。" : "标的已新增。", "success");
+        setStatus(itemForm.id ? translate("app.itemUpdated") : translate("app.itemAdded"), "success");
         activeModule.value = "watchlist";
     } catch (error) {
-        setStatus(error instanceof Error ? error.message : "标的保存失败", "error");
+        setStatus(error instanceof Error ? error.message : translate("app.itemSaveFailed"), "error");
     } finally {
         savingItem.value = false;
     }
@@ -310,7 +335,7 @@ async function saveItem(): Promise<void> {
 async function quickAddHotItem(item: HotItem): Promise<void> {
     const key = `${item.market}:${item.symbol}`;
     if (trackedHotKeys.value.includes(key)) {
-        setStatus("该标的已经在观察列表中。", "warn");
+        setStatus(translate("app.itemAlreadyTracked"), "warn");
         return;
     }
 
@@ -325,14 +350,14 @@ async function quickAddHotItem(item: HotItem): Promise<void> {
                 currency: item.currency,
                 quantity: 0,
                 costPrice: item.currentPrice || 0,
-                tags: ["热门"],
-                thesis: "来自热门榜单",
+                tags: [translate("app.quickAddTag")],
+                thesis: translate("app.quickAddThesis"),
             }),
         });
         applySnapshot(snapshot);
-        setStatus(`已将 ${item.symbol} 加入观察列表。`, "success");
+        setStatus(translate("app.hotItemAdded", { symbol: item.symbol }), "success");
     } catch (error) {
-        setStatus(error instanceof Error ? error.message : "新增标的失败", "error");
+        setStatus(error instanceof Error ? error.message : translate("app.addItemFailed"), "error");
     }
 }
 
@@ -342,9 +367,9 @@ async function performDeleteItem(id: string): Promise<void> {
         const snapshot = await api<StateSnapshot>(`/api/items/${id}`, { method: "DELETE" });
         clearHistoryCache();
         applySnapshot(snapshot);
-        setStatus("标的已删除。", "success");
+        setStatus(translate("app.itemDeleted"), "success");
     } catch (error) {
-        setStatus(error instanceof Error ? error.message : "删除失败", "error");
+        setStatus(error instanceof Error ? error.message : translate("app.deleteFailed"), "error");
     }
 }
 
@@ -366,10 +391,10 @@ async function saveAlert(): Promise<void> {
         });
         applySnapshot(snapshot);
         alertDialogVisible.value = false;
-        setStatus(alertForm.id ? "提醒已更新。" : "提醒已新增。", "success");
+        setStatus(alertForm.id ? translate("app.alertUpdated") : translate("app.alertAdded"), "success");
         activeModule.value = "alerts";
     } catch (error) {
-        setStatus(error instanceof Error ? error.message : "提醒保存失败", "error");
+        setStatus(error instanceof Error ? error.message : translate("app.alertSaveFailed"), "error");
     } finally {
         savingAlert.value = false;
     }
@@ -380,9 +405,9 @@ async function performDeleteAlert(id: string): Promise<void> {
     try {
         const snapshot = await api<StateSnapshot>(`/api/alerts/${id}`, { method: "DELETE" });
         applySnapshot(snapshot);
-        setStatus("提醒已删除。", "success");
+        setStatus(translate("app.alertDeleted"), "success");
     } catch (error) {
-        setStatus(error instanceof Error ? error.message : "删除失败", "error");
+        setStatus(error instanceof Error ? error.message : translate("app.deleteFailed"), "error");
     }
 }
 
@@ -390,18 +415,18 @@ async function performDeleteAlert(id: string): Promise<void> {
 function requestDeleteItem(id: string): void {
     pendingDelete.kind = "item";
     pendingDelete.id = id;
-    confirmTitle.value = "删除标的";
-    confirmMessage.value = "删除该标的会一并删除相关提醒，是否继续？";
-    confirmLabel.value = "删除标的";
+    confirmTitle.value = translate("dialogs.confirm.deleteItemTitle");
+    confirmMessage.value = translate("dialogs.confirm.deleteItemMessage");
+    confirmLabel.value = translate("dialogs.confirm.deleteItemLabel");
     confirmDialogVisible.value = true;
 }
 
 function requestDeleteAlert(id: string): void {
     pendingDelete.kind = "alert";
     pendingDelete.id = id;
-    confirmTitle.value = "删除提醒规则";
-    confirmMessage.value = "这条提醒规则删除后将无法恢复，是否继续？";
-    confirmLabel.value = "删除提醒";
+    confirmTitle.value = translate("dialogs.confirm.deleteAlertTitle");
+    confirmMessage.value = translate("dialogs.confirm.deleteAlertMessage");
+    confirmLabel.value = translate("dialogs.confirm.deleteAlertLabel");
     confirmDialogVisible.value = true;
 }
 
