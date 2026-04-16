@@ -4,6 +4,7 @@ import Button from "primevue/button";
 import Dialog from "primevue/dialog";
 
 import { formatMoney, formatNumber, formatPercent, formatUnitPrice, resolvedLocale } from "../../format";
+import { useI18n } from "../../i18n";
 import type { WatchlistItem } from "../../types";
 
 const props = defineProps<{
@@ -21,10 +22,12 @@ const visibleProxy = computed({
     set: (v: boolean) => emit("update:visible", v),
 });
 
+const { t } = useI18n();
+
 const dialogHeader = computed(() => {
-    if (!props.item) return "定投明细";
+    if (!props.item) return t("dialogs.dcaDetail.title");
     const name = props.item.name || props.item.symbol;
-    return `${name} · 定投明细`;
+    return t("dialogs.dcaDetail.titleWithName", { name });
 });
 
 // 过滤出有效的定投条目（amount 和 shares 都必须 > 0）
@@ -101,32 +104,32 @@ function pnlTone(v: number | null): string {
         <!-- ── 汇总栏 ─────────────────────────────────────────────────────── -->
         <div v-if="summary.count > 0" class="dca-summary-bar" style="margin-bottom: 20px">
             <div class="dca-summary-cell">
-                <span class="dca-summary-label">定投期数</span>
-                <span class="dca-summary-value">{{ summary.count }} 笔</span>
+                <span class="dca-summary-label">{{ t("dialogs.dcaDetail.summary.count") }}</span>
+                <span class="dca-summary-value">{{ t("dialogs.dcaDetail.summary.countValue", { count: summary.count }) }}</span>
             </div>
             <div class="dca-summary-cell">
-                <span class="dca-summary-label">总投入</span>
+                <span class="dca-summary-label">{{ t("dialogs.dcaDetail.summary.totalInvested") }}</span>
                 <span class="dca-summary-value">{{ formatUnitPrice(summary.totalAmount, item?.currency ?? "") }}</span>
             </div>
             <div v-if="summary.totalFees > 0" class="dca-summary-cell">
-                <span class="dca-summary-label">总手续费/佣金</span>
+                <span class="dca-summary-label">{{ t("dialogs.dcaDetail.summary.totalFees") }}</span>
                 <span class="dca-summary-value">{{ formatUnitPrice(summary.totalFees, item?.currency ?? "") }}</span>
             </div>
             <div class="dca-summary-cell">
-                <span class="dca-summary-label">累计份额</span>
+                <span class="dca-summary-label">{{ t("dialogs.dcaDetail.summary.totalShares") }}</span>
                 <span class="dca-summary-value">{{ formatNumber(summary.totalShares, 4) }}</span>
             </div>
             <div class="dca-summary-cell">
-                <span class="dca-summary-label">加权均价</span>
+                <span class="dca-summary-label">{{ t("dialogs.dcaDetail.summary.weightedAvgPrice") }}</span>
                 <span class="dca-summary-value">{{ formatUnitPrice(summary.avgCost, item?.currency ?? "") }}</span>
             </div>
             <template v-if="summary.hasCurPrice">
                 <div class="dca-summary-cell">
-                    <span class="dca-summary-label">当前资产</span>
+                    <span class="dca-summary-label">{{ t("dialogs.dcaDetail.summary.currentValue") }}</span>
                     <span class="dca-summary-value">{{ formatUnitPrice(summary.currentValue, item?.currency ?? "") }}</span>
                 </div>
                 <div class="dca-summary-cell">
-                    <span class="dca-summary-label">浮动盈亏</span>
+                    <span class="dca-summary-label">{{ t("dialogs.dcaDetail.summary.unrealizedPnL") }}</span>
                     <span class="dca-summary-value" :class="pnlTone(summary.pnl)">
                         {{ formatMoney(summary.pnl ?? 0, true) }}
                         <span style="font-weight: 400; font-size: 11px; margin-left: 4px">
@@ -142,12 +145,12 @@ function pnlTone(v: number | null): string {
             <!-- 表头 -->
             <div class="dca-detail-head">
                 <span class="dca-col-label dca-seq-col">#</span>
-                <span class="dca-col-label">日期</span>
-                <span class="dca-col-label dca-num-col">投入金额</span>
-                <span class="dca-col-label dca-num-col">买入股/份</span>
-                <span class="dca-col-label dca-num-col">买入价</span>
-                <span class="dca-col-label dca-num-col">手续费/佣金</span>
-                <span class="dca-col-label">备注</span>
+                <span class="dca-col-label">{{ t("dialogs.dcaDetail.table.date") }}</span>
+                <span class="dca-col-label dca-num-col">{{ t("dialogs.dcaDetail.table.investedAmount") }}</span>
+                <span class="dca-col-label dca-num-col">{{ t("dialogs.dcaDetail.table.boughtShares") }}</span>
+                <span class="dca-col-label dca-num-col">{{ t("dialogs.dcaDetail.table.buyPrice") }}</span>
+                <span class="dca-col-label dca-num-col">{{ t("dialogs.dcaDetail.table.fee") }}</span>
+                <span class="dca-col-label">{{ t("dialogs.dcaDetail.table.note") }}</span>
             </div>
 
             <!-- 数据行 -->
@@ -163,12 +166,12 @@ function pnlTone(v: number | null): string {
         </div>
 
         <!-- 空状态 -->
-        <div v-else class="dca-empty-hint">暂无有效的定投记录。</div>
+        <div v-else class="dca-empty-hint">{{ t("dialogs.dcaDetail.validEmpty") }}</div>
 
         <!-- ── 底部操作 ─────────────────────────────────────────────────────── -->
         <template #footer>
-            <Button text label="关闭" @click="visibleProxy = false" />
-            <Button icon="pi pi-pencil" label="编辑记录" @click="$emit('edit')" />
+            <Button size="small" text :label="t('common.close')" @click="visibleProxy = false" />
+            <Button size="small" icon="pi pi-pencil" :label="t('dialogs.dcaDetail.editRecords')" @click="$emit('edit')" />
         </template>
     </Dialog>
 </template>

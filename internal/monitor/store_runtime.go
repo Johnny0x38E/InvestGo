@@ -88,7 +88,7 @@ func (s *Store) Refresh(ctx context.Context) (StateSnapshot, error) {
 		} else {
 			s.runtime.LastFxError = ""
 			s.runtime.LastFxRefreshAt = ptrTime(s.fxRates.ValidAt())
-			s.logInfo("fx-rates", fmt.Sprintf("汇率已刷新，共 %d 个币种", s.fxRates.CurrencyCount()))
+			s.logInfo("fx-rates", fmt.Sprintf("FX rates refreshed for %d currencies", s.fxRates.CurrencyCount()))
 		}
 	}
 
@@ -108,14 +108,14 @@ func (s *Store) ItemHistory(ctx context.Context, itemID string, interval History
 	index := s.findItemIndexLocked(itemID)
 	if index == -1 {
 		s.mu.RUnlock()
-		return HistorySeries{}, fmt.Errorf("标的不存在: %s", itemID)
+		return HistorySeries{}, fmt.Errorf("Item not found: %s", itemID)
 	}
 	item := s.state.Items[index]
 	providers := s.historyProviderCandidatesLocked(item.Market)
 	s.mu.RUnlock()
 
 	if len(providers) == 0 {
-		return HistorySeries{}, errors.New("历史行情 provider 未配置")
+		return HistorySeries{}, errors.New("History provider is not configured")
 	}
 
 	var problems []string
@@ -149,7 +149,7 @@ func joinProblems(problems []string) error {
 	if len(unique) == 0 {
 		return nil
 	}
-	return errors.New(strings.Join(unique, "；"))
+	return errors.New(strings.Join(unique, "; "))
 }
 
 // applyQuoteToItem 把最新行情字段回填到标的对象上。

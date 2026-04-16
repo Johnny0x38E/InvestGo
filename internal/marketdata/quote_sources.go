@@ -53,14 +53,14 @@ func DefaultQuoteSourceRegistry(client *http.Client) (map[string]monitor.QuotePr
 	options := []monitor.QuoteSourceOption{
 		{
 			ID:               "eastmoney",
-			Name:             "东方财富",
-			Description:      "覆盖沪深港美，字段完整，热门榜单与图表兼容性最好。",
+			Name:             "EastMoney",
+			Description:      "Best overall coverage for China, Hong Kong, and US markets with the most complete fields.",
 			SupportedMarkets: []string{"CN-A", "CN-GEM", "CN-STAR", "CN-ETF", "HK-MAIN", "HK-GEM", "HK-ETF", "US-STOCK", "US-ETF"},
 		},
 		{
 			ID:               "yahoo",
 			Name:             "Yahoo Finance",
-			Description:      "港股和美股覆盖稳定，适合以境外市场为主的组合。",
+			Description:      "Stable coverage for Hong Kong and US markets, especially for overseas-focused portfolios.",
 			SupportedMarkets: []string{"CN-A", "CN-GEM", "CN-STAR", "CN-ETF", "HK-MAIN", "HK-GEM", "HK-ETF", "US-STOCK", "US-ETF"},
 		},
 	}
@@ -100,7 +100,7 @@ func (p *YahooQuoteProvider) Fetch(ctx context.Context, items []monitor.Watchlis
 
 		yahooSymbol, err := resolveYahooSymbol(item)
 		if err != nil {
-			problems = append(problems, fmt.Sprintf("Yahoo 不支持该标的: %s", target.DisplaySymbol))
+			problems = append(problems, fmt.Sprintf("Yahoo does not support item: %s", target.DisplaySymbol))
 			continue
 		}
 
@@ -129,16 +129,16 @@ func (p *YahooQuoteProvider) fetchChartSnapshot(ctx context.Context, item monito
 
 	parsed, err := fetchYahooChart(ctx, p.client, yahooSymbol, params)
 	if err != nil {
-		return monitor.Quote{}, fmt.Errorf("Yahoo 行情请求失败: %w", err)
+		return monitor.Quote{}, fmt.Errorf("Yahoo quote request failed: %w", err)
 	}
 	if len(parsed.Chart.Result) == 0 || len(parsed.Chart.Result[0].Indicators.Quote) == 0 {
-		return monitor.Quote{}, errors.New("Yahoo 行情为空")
+		return monitor.Quote{}, errors.New("Yahoo quote response is empty")
 	}
 
 	result := parsed.Chart.Result[0]
 	points := buildHistoryPoints(result.Timestamp, result.Indicators.Quote[0])
 	if len(points) == 0 {
-		return monitor.Quote{}, errors.New("Yahoo 行情缺少有效价格点")
+		return monitor.Quote{}, errors.New("Yahoo quote response contains no valid price points")
 	}
 
 	latest := points[len(points)-1]
@@ -175,7 +175,7 @@ func NewEastMoneyQuoteProvider(client *http.Client) *EastMoneyQuoteProvider {
 
 // Name 返回东方财富报价源的显示名称。
 func (p *EastMoneyQuoteProvider) Name() string {
-	return "东方财富"
+	return "EastMoney"
 }
 
 // Fetch 批量请求东方财富实时行情，并映射回标准 Quote 结构。
@@ -227,7 +227,7 @@ func (p *EastMoneyQuoteProvider) Fetch(ctx context.Context, items []monitor.Watc
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusOK {
-		return quotes, fmt.Errorf("东方财富行情请求失败: status %d", response.StatusCode)
+		return quotes, fmt.Errorf("EastMoney quote request failed: status %d", response.StatusCode)
 	}
 
 	payload, err := io.ReadAll(response.Body)
@@ -240,7 +240,7 @@ func (p *EastMoneyQuoteProvider) Fetch(ctx context.Context, items []monitor.Watc
 		return quotes, err
 	}
 	if parsed.RC != 0 {
-		return quotes, fmt.Errorf("东方财富行情返回 rc=%d", parsed.RC)
+		return quotes, fmt.Errorf("EastMoney quote response returned rc=%d", parsed.RC)
 	}
 
 	for _, item := range parsed.Data.Diff {
@@ -276,7 +276,7 @@ func (p *EastMoneyQuoteProvider) Fetch(ctx context.Context, items []monitor.Watc
 		if _, ok := quotes[target.Key]; ok {
 			continue
 		}
-		problems = append(problems, fmt.Sprintf("未收到 %s 的东方财富行情 (%s)", target.DisplaySymbol, secid))
+		problems = append(problems, fmt.Sprintf("Did not receive EastMoney quote for %s (%s)", target.DisplaySymbol, secid))
 	}
 
 	return quotes, collapseProblems(problems)
@@ -308,14 +308,14 @@ func resolveAllEastMoneySecIDs(target monitor.QuoteTarget) ([]string, error) {
 		if strings.HasSuffix(symbol, ".SZ") {
 			return []string{"0." + strings.TrimSuffix(symbol, ".SZ")}, nil
 		}
-		return nil, fmt.Errorf("A股/ETF代码格式错误: %s", symbol)
+		return nil, fmt.Errorf("A-share / ETF symbol format is invalid: %s", symbol)
 	case "CN-BJ":
-		return nil, fmt.Errorf("东方财富暂不支持北交所实时行情: %s", symbol)
+		return nil, fmt.Errorf("Realtime quotes are not supported for Beijing Exchange symbols in EastMoney: %s", symbol)
 	case "HK-MAIN", "HK-GEM", "HK-ETF":
 		if strings.HasSuffix(symbol, ".HK") {
 			return []string{"116." + strings.TrimSuffix(symbol, ".HK")}, nil
 		}
-		return nil, fmt.Errorf("港股代码格式错误: %s", symbol)
+		return nil, fmt.Errorf("Hong Kong symbol format is invalid: %s", symbol)
 	case "US-STOCK", "US-ETF":
 		var ticker string
 		if isLetters(symbol) {
@@ -323,11 +323,11 @@ func resolveAllEastMoneySecIDs(target monitor.QuoteTarget) ([]string, error) {
 		} else if strings.Contains(symbol, "-") {
 			ticker = strings.ReplaceAll(symbol, "-", ".")
 		} else {
-			return nil, fmt.Errorf("美股代码格式错误: %s", symbol)
+			return nil, fmt.Errorf("US symbol format is invalid: %s", symbol)
 		}
 		// 105=NASDAQ, 106=NYSE, 107=NYSE Arca — 三个都请求以覆盖所有交易所
 		return []string{"105." + ticker, "106." + ticker, "107." + ticker}, nil
 	default:
-		return nil, fmt.Errorf("不支持的市场类型: %s", market)
+		return nil, fmt.Errorf("Market type is unsupported: %s", market)
 	}
 }

@@ -42,7 +42,7 @@ func NewStore(path string, quoteProviders map[string]QuoteProvider, quoteSourceO
 	return store, nil
 }
 
-// Save 把当前内存状态持久化到磁盘。
+// Save 把当前内存状态持久化到磁盘
 func (s *Store) Save() error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -54,15 +54,14 @@ func (s *Store) Save() error {
 	return err
 }
 
-// Snapshot 返回前端启动和交互依赖的完整状态快照。
+// Snapshot 返回前端启动和交互依赖的完整状态快照
 func (s *Store) Snapshot() StateSnapshot {
-	// 汇率刷新不参与 Store 锁生命周期，避免慢网络放大临界区。
 	if s.fxRates.IsStale() {
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		s.fxRates.Fetch(ctx)
 
-		// 将汇率获取结果写入运行时状态并记录日志。
+		// 将汇率获取结果写入运行时状态并记录日志
 		if fxErr := s.fxRates.LastError(); fxErr != "" {
 			s.mu.Lock()
 			s.runtime.LastFxError = fxErr
@@ -73,7 +72,7 @@ func (s *Store) Snapshot() StateSnapshot {
 			s.mu.Lock()
 			s.runtime.LastFxError = ""
 			s.runtime.LastFxRefreshAt = ptrTime(validAt)
-			s.logInfo("fx-rates", fmt.Sprintf("汇率已刷新，共 %d 个币种", s.fxRates.CurrencyCount()))
+			s.logInfo("fx-rates", fmt.Sprintf("FX rates refreshed for %d currencies", s.fxRates.CurrencyCount()))
 			s.mu.Unlock()
 		}
 	}
@@ -84,7 +83,7 @@ func (s *Store) Snapshot() StateSnapshot {
 	return s.snapshotLocked()
 }
 
-// CurrentSettings 返回当前持久化设置的只读副本，供热门榜单等内部消费者使用。
+// CurrentSettings 返回当前持久化设置的只读副本，供热门榜单等使用。
 func (s *Store) CurrentSettings() AppSettings {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

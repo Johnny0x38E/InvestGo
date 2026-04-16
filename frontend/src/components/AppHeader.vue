@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { reactive } from "vue";
+import Button from "primevue/button";
 
 import { formatDateTime } from "../format";
+import { useI18n } from "../i18n";
 import { isWindowMaximised, maximiseWindow, restoreWindow, startWindowDrag } from "../wails-runtime";
 import type { StatusTone } from "../types";
 
@@ -14,6 +16,8 @@ defineProps<{
 defineEmits<{
     (event: "open-settings"): void;
 }>();
+
+const { t } = useI18n();
 
 const dragState = reactive({
     active: false,
@@ -107,11 +111,9 @@ async function handleBarDoubleClick(event: MouseEvent): Promise<void> {
         <div class="window-tools">
             <div class="window-status" :data-tone="statusTone">
                 <span class="window-status-text">{{ statusText }}</span>
-                <span class="window-status-time">最近刷新 {{ formatDateTime(generatedAt) }}</span>
+                <span class="window-status-time">{{ t("app.recentRefresh", { time: formatDateTime(generatedAt) }) }}</span>
             </div>
-            <button type="button" class="window-settings-button" aria-label="设置" @click="$emit('open-settings')">
-                <span class="pi pi-cog" aria-hidden="true"></span>
-            </button>
+            <Button text rounded icon="pi pi-cog" size="small" :aria-label="t('settings.title')" class="window-settings-button" @click="$emit('open-settings')" />
         </div>
     </header>
 </template>

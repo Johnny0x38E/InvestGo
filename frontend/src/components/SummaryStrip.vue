@@ -2,6 +2,7 @@
 import { computed } from "vue";
 
 import { formatMoney, formatPercent } from "../format";
+import { useI18n } from "../i18n";
 import type { DashboardSummary, SummaryCard } from "../types";
 
 const props = defineProps<{
@@ -9,6 +10,8 @@ const props = defineProps<{
     itemCount: number;
     livePriceCount: number;
 }>();
+
+const { t } = useI18n();
 
 const cards = computed<SummaryCard[]>(() => {
     const value = props.dashboard;
@@ -27,30 +30,30 @@ const cards = computed<SummaryCard[]>(() => {
     const currency = currencySymbol(value?.displayCurrency || "");
     return [
         {
-            label: "组合成本",
+            label: t("summary.totalCost"),
             value: formatMoney(value?.totalCost ?? 0),
-            sub: `${value?.itemCount ?? 0} 个标的`,
+            sub: t("summary.itemsSub", { count: value?.itemCount ?? 0 }),
             tone: "neutral",
             currency,
         },
         {
-            label: "当前资产",
+            label: t("summary.currentValue"),
             value: formatMoney(value?.totalValue ?? 0),
-            sub: `${props.livePriceCount}/${props.itemCount} 个已同步`,
+            sub: t("summary.syncedSub", { live: props.livePriceCount, total: props.itemCount }),
             tone: "neutral",
             currency,
         },
         {
-            label: "未实现盈亏",
+            label: t("summary.unrealizedPnL"),
             value: formatMoney(value?.totalPnL ?? 0, true),
             sub: formatPercent(value?.totalPnLPct ?? 0),
             tone: (value?.totalPnL ?? 0) >= 0 ? "rise" : "fall",
             currency,
         },
         {
-            label: "触发提醒",
+            label: t("summary.triggeredAlerts"),
             value: String(value?.triggeredAlerts ?? 0),
-            sub: `盈利 ${value?.winCount ?? 0} / 亏损 ${value?.lossCount ?? 0}`,
+            sub: t("summary.winLossSub", { win: value?.winCount ?? 0, loss: value?.lossCount ?? 0 }),
             tone: (value?.triggeredAlerts ?? 0) > 0 ? "warn" : "neutral",
         },
     ];

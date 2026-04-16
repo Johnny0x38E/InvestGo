@@ -65,7 +65,7 @@ func ResolveQuoteTarget(item WatchlistItem) (QuoteTarget, error) {
 func resolveQuoteTarget(symbol, market, currency string) (QuoteTarget, error) {
 	rawSymbol := strings.ToUpper(strings.TrimSpace(symbol))
 	if rawSymbol == "" {
-		return QuoteTarget{}, errors.New("股票代码不能为空")
+		return QuoteTarget{}, errors.New("Symbol is required")
 	}
 
 	market = normaliseMarketLabel(market)
@@ -103,7 +103,7 @@ func resolveQuoteTarget(symbol, market, currency string) (QuoteTarget, error) {
 	case strings.HasPrefix(rawSymbol, "US") && isUSSymbol(rawSymbol[2:]):
 		return buildUSTarget(rawSymbol[2:], market, currency)
 	default:
-		return QuoteTarget{}, fmt.Errorf("无法识别股票代码: %s", rawSymbol)
+		return QuoteTarget{}, fmt.Errorf("Unrecognized symbol: %s", rawSymbol)
 	}
 }
 
@@ -123,7 +123,7 @@ func buildNumericTarget(rawSymbol, market, currency string) (QuoteTarget, error)
 	}
 
 	if len(rawSymbol) != 6 {
-		return QuoteTarget{}, fmt.Errorf("无法识别数字代码归属市场: %s", rawSymbol)
+		return QuoteTarget{}, fmt.Errorf("Cannot infer market for numeric symbol: %s", rawSymbol)
 	}
 
 	// 6 位数字代码可能是 A 股、ETF 或北交所，需要结合前缀规则推断。
@@ -145,7 +145,7 @@ func buildNumericTarget(rawSymbol, market, currency string) (QuoteTarget, error)
 // buildCNTarget 构造沪深市场标的的标准目标。
 func buildCNTarget(rawSymbol, exchange, market, currency string) (QuoteTarget, error) {
 	if len(rawSymbol) != 6 {
-		return QuoteTarget{}, fmt.Errorf("A 股代码应为 6 位: %s", rawSymbol)
+		return QuoteTarget{}, fmt.Errorf("A-share symbol must be 6 digits: %s", rawSymbol)
 	}
 
 	exchange = strings.ToUpper(exchange)
@@ -163,7 +163,7 @@ func buildCNTarget(rawSymbol, exchange, market, currency string) (QuoteTarget, e
 // buildBJTarget 构造北交所标的的标准目标。
 func buildBJTarget(rawSymbol, currency string) (QuoteTarget, error) {
 	if len(rawSymbol) != 6 {
-		return QuoteTarget{}, fmt.Errorf("北交所代码应为 6 位: %s", rawSymbol)
+		return QuoteTarget{}, fmt.Errorf("Beijing Exchange symbol must be 6 digits: %s", rawSymbol)
 	}
 
 	return QuoteTarget{
@@ -177,10 +177,10 @@ func buildBJTarget(rawSymbol, currency string) (QuoteTarget, error) {
 // buildHKTarget 构造港股标的的标准目标。
 func buildHKTarget(rawSymbol, market, currency string) (QuoteTarget, error) {
 	if !isDigits(rawSymbol) {
-		return QuoteTarget{}, fmt.Errorf("港股代码必须为数字: %s", rawSymbol)
+		return QuoteTarget{}, fmt.Errorf("Hong Kong symbol must be numeric: %s", rawSymbol)
 	}
 	if len(rawSymbol) > 5 {
-		return QuoteTarget{}, fmt.Errorf("港股代码长度异常: %s", rawSymbol)
+		return QuoteTarget{}, fmt.Errorf("Hong Kong symbol length is invalid: %s", rawSymbol)
 	}
 
 	// 港股接口要求 5 位代码，不足时统一左侧补零。
@@ -202,7 +202,7 @@ func buildHKTarget(rawSymbol, market, currency string) (QuoteTarget, error) {
 // buildUSTarget 构造美股或美股 ETF 的标准目标。
 func buildUSTarget(rawSymbol, market, currency string) (QuoteTarget, error) {
 	if !isUSSymbol(rawSymbol) {
-		return QuoteTarget{}, fmt.Errorf("美股代码格式无效: %s", rawSymbol)
+		return QuoteTarget{}, fmt.Errorf("US symbol is invalid: %s", rawSymbol)
 	}
 
 	label := "US-STOCK"
@@ -250,7 +250,7 @@ func normaliseMarketLabel(market string) string {
 // inferCNMarketAndExchange 根据 6 位数字代码推断 A 股市场和交易所。
 func inferCNMarketAndExchange(rawSymbol string) (market, exchange string, err error) {
 	if len(rawSymbol) != 6 {
-		return "", "", fmt.Errorf("A股/基金代码应为 6 位: %s", rawSymbol)
+		return "", "", fmt.Errorf("A-share / fund symbol must be 6 digits: %s", rawSymbol)
 	}
 	if strings.HasPrefix(rawSymbol, "688") || strings.HasPrefix(rawSymbol, "689") {
 		return "CN-STAR", "SH", nil
@@ -273,7 +273,7 @@ func inferCNMarketAndExchange(rawSymbol string) (market, exchange string, err er
 	if rawSymbol[0] == '4' || rawSymbol[0] == '8' {
 		return "CN-BJ", "BJ", nil
 	}
-	return "", "", fmt.Errorf("无法识别A股/ETF代码: %s", rawSymbol)
+	return "", "", fmt.Errorf("Cannot recognize A-share / ETF symbol: %s", rawSymbol)
 }
 
 // resolveCNMarket 在已有存储值和代码推断结果之间确定最终的 A 股市场类型。

@@ -2,6 +2,7 @@ import { computed, ref } from "vue";
 
 import { api } from "../api";
 import { appendClientLog, clearClientLogs, clientLogs } from "../devlog";
+import { translate } from "../i18n";
 import type { DeveloperLogEntry, DeveloperLogSnapshot, StatusTone } from "../types";
 
 type StatusReporter = (message: string, tone: StatusTone) => void;
@@ -30,7 +31,7 @@ export function useDeveloperLogs(setStatus: StatusReporter) {
             logFilePath.value = snapshot.logFilePath;
         } catch (error) {
             if (!silent) {
-                setStatus(error instanceof Error ? error.message : "日志加载失败", "error");
+                setStatus(error instanceof Error ? error.message : translate("developerLogs.loadFailed"), "error");
             }
         } finally {
             loadingLogs.value = false;
@@ -42,15 +43,15 @@ export function useDeveloperLogs(setStatus: StatusReporter) {
             await api<{ ok: boolean }>("/api/logs", { method: "DELETE" });
             backendLogs.value = [];
             clearClientLogs();
-            setStatus("开发日志已清空。", "success");
+            setStatus(translate("developerLogs.cleared"), "success");
         } catch (error) {
-            setStatus(error instanceof Error ? error.message : "日志清空失败", "error");
+            setStatus(error instanceof Error ? error.message : translate("developerLogs.clearFailed"), "error");
         }
     }
 
     async function copyDeveloperLogs(): Promise<void> {
         if (!developerLogs.value.length) {
-            setStatus("当前没有可复制的日志。", "warn");
+            setStatus(translate("developerLogs.nothingToCopy"), "warn");
             return;
         }
 
@@ -59,10 +60,10 @@ export function useDeveloperLogs(setStatus: StatusReporter) {
 
         try {
             await navigator.clipboard.writeText(payload);
-            setStatus("开发日志已复制到剪贴板。", "success");
+            setStatus(translate("developerLogs.copied"), "success");
         } catch (error) {
-            appendClientLog("error", "clipboard", error instanceof Error ? error.message : "复制日志失败");
-            setStatus("复制日志失败。", "error");
+            appendClientLog("error", "clipboard", error instanceof Error ? error.message : "Failed to copy logs.");
+            setStatus(translate("developerLogs.copyFailed"), "error");
         }
     }
 

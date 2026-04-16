@@ -1,6 +1,7 @@
 import { computed, onBeforeUnmount, ref, watch, type ComputedRef, type Ref } from "vue";
 
 import { ApiAbortError, api } from "../api";
+import { translate } from "../i18n";
 import type { HistoryInterval, HistorySeries, ModuleKey, OptionItem, StatusTone, WatchlistItem } from "../types";
 
 type StatusReporter = (message: string, tone: StatusTone) => void;
@@ -58,7 +59,7 @@ export function useHistorySeries(items: Ref<WatchlistItem[]>, selectedItem: Comp
         }
         historyError.value = "";
         if (!silent) {
-            setStatus("正在加载市场走势…", "success");
+            setStatus(translate("history.loading"), "success");
         }
 
         try {
@@ -74,7 +75,7 @@ export function useHistorySeries(items: Ref<WatchlistItem[]>, selectedItem: Comp
             historySeries.value = series;
             historyError.value = "";
             if (!silent) {
-                setStatus("市场走势已更新。", "success");
+                setStatus(translate("history.updated"), "success");
             }
         } catch (error) {
             if (error instanceof ApiAbortError) {
@@ -83,7 +84,7 @@ export function useHistorySeries(items: Ref<WatchlistItem[]>, selectedItem: Comp
             if (keepCurrentSeries) {
                 return;
             }
-            historyError.value = error instanceof Error ? error.message : "走势加载失败";
+            historyError.value = error instanceof Error ? error.message : translate("history.loadFailed");
             historySeries.value = null;
             setStatus(historyError.value, "error");
         } finally {

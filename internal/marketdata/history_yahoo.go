@@ -54,18 +54,18 @@ func (p *YahooChartProvider) Fetch(ctx context.Context, item monitor.WatchlistIt
 
 	parsed, err := fetchYahooChart(ctx, p.client, yahooSymbol, params)
 	if err != nil {
-		return monitor.HistorySeries{}, fmt.Errorf("历史行情请求失败: %w", err)
+		return monitor.HistorySeries{}, fmt.Errorf("History request failed: %w", err)
 	}
 
 	result := parsed.Chart.Result[0]
 	if len(result.Indicators.Quote) == 0 {
-		return monitor.HistorySeries{}, errors.New("历史行情缺少价格数据")
+		return monitor.HistorySeries{}, errors.New("History response is missing price data")
 	}
 
 	points := buildHistoryPoints(result.Timestamp, result.Indicators.Quote[0])
 	points = trimHistoryPoints(points, spec.trimWindow)
 	if len(points) == 0 {
-		return monitor.HistorySeries{}, errors.New("历史行情缺少有效价格点")
+		return monitor.HistorySeries{}, errors.New("History response contains no valid price points")
 	}
 
 	series := monitor.HistorySeries{
@@ -109,7 +109,7 @@ func resolveYahooSymbol(item monitor.WatchlistItem) (string, error) {
 		return target.DisplaySymbol, nil
 	}
 
-	return "", fmt.Errorf("Yahoo 不支持该市场: %s", target.DisplaySymbol)
+	return "", fmt.Errorf("Yahoo does not support market: %s", target.DisplaySymbol)
 }
 
 // historyQuerySpecFor 根据用户选择的历史范围返回适合 Yahoo Finance API 的查询参数和数据修剪窗口。
@@ -130,7 +130,7 @@ func historyQuerySpecFor(interval monitor.HistoryInterval) (historyQuerySpec, er
 	case monitor.HistoryRangeAll:
 		return historyQuerySpec{requestRange: "max", requestInterval: "1mo", trimWindow: 0}, nil
 	default:
-		return historyQuerySpec{}, errors.New("图表范围仅支持 1h / 1d / 1w / 1mo / 1y / 3y / all")
+		return historyQuerySpec{}, errors.New("History interval must be one of: 1h / 1d / 1w / 1mo / 1y / 3y / all")
 	}
 }
 

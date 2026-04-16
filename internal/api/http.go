@@ -18,6 +18,8 @@ type Handler struct {
 	routes []route
 }
 
+const localeHeader = "X-InvestGo-Locale"
+
 // clientLogRequest 定义了前端发送日志请求的 JSON 结构。
 type clientLogRequest struct {
 	Source  string                    `json:"source"`
@@ -55,7 +57,7 @@ func (h *Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	writeError(writer, http.StatusNotFound, errNotFound(path))
+	writeError(writer, request, http.StatusNotFound, errNotFound(path))
 }
 
 // trimAPIPath 把 Wails 注册的 `/api` 前缀裁剪成内部路由使用的相对路径。
@@ -70,7 +72,10 @@ func trimAPIPath(path string) string {
 // decodeJSON 把请求体反序列化到目标对象，并负责关闭请求体。
 func decodeJSON(request *http.Request, target any) error {
 	defer request.Body.Close()
-	return json.NewDecoder(request.Body).Decode(target)
+	if err := json.NewDecoder(request.Body).Decode(target); err != nil {
+		return &apiError{message: "Invalid JSON request body"}
+	}
+	return nil
 }
 
 // writeJSON 按指定状态码输出 JSON 响应。
@@ -79,16 +84,24 @@ func writeJSON(writer http.ResponseWriter, status int, payload any) {
 	_ = json.NewEncoder(writer).Encode(payload)
 }
 
-// writeError 把错误统一编码成 `{error: ...}` 结构输出。
-func writeError(writer http.ResponseWriter, status int, err error) {
-	writeJSON(writer, status, map[string]string{
-		"error": err.Error(),
-	})
+// writeError encodes errors into a consistent JSON shape with a localized user message.
+func writeError(writer http.ResponseWriter, request *http.Request, status int, err error) {
+	debugMessage := strings.TrimSpace(err.Error())
+	localizedMessage := monitor.LocalizeErrorMessage(requestLocale(request), debugMessage)
+
+	payload := map[string]string{
+		"error": localizedMessage,
+	}
+	if debugMessage != "" && debugMessage != localizedMessage {
+		payload["debugError"] = debugMessage
+	}
+
+	writeJSON(writer, status, payload)
 }
 
 // errNotFound 返回接口不存在时使用的错误对象。
 func errNotFound(path string) error {
-	return &apiError{message: "接口不存在: " + path}
+	return &apiError{message: "API route not found: " + path}
 }
 
 // sanitiseDeveloperLogLevel 把未知日志级别回落为 info。
@@ -105,21 +118,41 @@ func sanitiseDeveloperLogLevel(level monitor.DeveloperLogLevel) monitor.Develope
 func sanitiseExternalURL(raw string) (string, error) {
 	value := strings.TrimSpace(raw)
 	if value == "" {
-		return "", &apiError{message: "链接不能为空"}
+		return "", &apiError{message: "URL must not be empty"}
 	}
 
 	parsed, err := url.Parse(value)
 	if err != nil {
-		return "", &apiError{message: "链接格式无效"}
+		return "", &apiError{message: "URL is invalid"}
 	}
 	if parsed.Scheme != "https" && parsed.Scheme != "http" {
-		return "", &apiError{message: "仅支持 http/https 链接"}
+		return "", &apiError{message: "Only http/https URLs are supported"}
 	}
 	if parsed.Host == "" {
-		return "", &apiError{message: "链接缺少主机名"}
+		return "", &apiError{message: "URL is missing a host name"}
 	}
 
 	return parsed.String(), nil
+}
+
+func requestLocale(request *http.Request) string {
+	if request == nil {
+		return "en-US"
+	}
+
+	if locale := strings.TrimSpace(request.Header.Get(localeHeader)); locale != "" {
+		return locale
+	}
+	if locale := strings.TrimSpace(request.Header.Get("Accept-Language")); locale != "" {
+		return locale
+	}
+	return "en-US"
+}
+
+func localizeSnapshot(snapshot monitor.StateSnapshot, locale string) monitor.StateSnapshot {
+	snapshot.Runtime.LastQuoteError = monitor.LocalizeErrorMessage(locale, snapshot.Runtime.LastQuoteError)
+	snapshot.Runtime.LastFxError = monitor.LocalizeErrorMessage(locale, snapshot.Runtime.LastFxError)
+	return snapshot
 }
 
 // apiError 表示 API 层内部构造的响应错误。

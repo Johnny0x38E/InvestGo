@@ -1,47 +1,54 @@
+import { translate } from "./i18n";
 import type { AlertCondition, AppSettings, HotCategory, HotMarketGroup, HotSort, HistoryInterval, MarketType, ModuleTab, OptionItem, SettingsTab } from "./types";
 
 export const projectMeta = {
     repositoryUrl: "https://github.com/Johnny0x38E/InvestGo",
 } as const;
 
-export const moduleTabs: ModuleTab[] = [
-    { key: "market", label: "市场行情", icon: "pi pi-chart-line" },
-    { key: "hot", label: "热门榜单", icon: "pi pi-bolt" },
-    { key: "watchlist", label: "自选列表", icon: "pi pi-table" },
-    { key: "alerts", label: "提醒规则", icon: "pi pi-bell" },
-];
+export function getModuleTabs(): ModuleTab[] {
+    return [
+        { key: "market", label: translate("modules.market"), icon: "pi pi-chart-line" },
+        { key: "hot", label: translate("modules.hot"), icon: "pi pi-bolt" },
+        { key: "watchlist", label: translate("modules.watchlist"), icon: "pi pi-table" },
+        { key: "alerts", label: translate("modules.alerts"), icon: "pi pi-bell" },
+    ];
+}
 
-export const settingsTabs: SettingsTab[] = [
-    { key: "general", label: "常规" },
-    { key: "display", label: "显示" },
-    { key: "region", label: "区域" },
-    { key: "developer", label: "开发" },
-    { key: "about", label: "关于" },
-];
+export function getSettingsTabs(): SettingsTab[] {
+    return [
+        { key: "general", label: translate("settings.tabs.general") },
+        { key: "display", label: translate("settings.tabs.display") },
+        { key: "region", label: translate("settings.tabs.region") },
+        { key: "developer", label: translate("settings.tabs.developer") },
+        { key: "about", label: translate("settings.tabs.about") },
+    ];
+}
 
-// 市场模块使用的图表范围选项。
-export const historyRangeOptions: OptionItem<HistoryInterval>[] = [
-    { value: "1h", label: "1小时" },
-    { value: "1d", label: "1天" },
-    { value: "1w", label: "7天" },
-    { value: "1mo", label: "1月" },
-    { value: "1y", label: "1年" },
-    { value: "3y", label: "3年" },
-    { value: "all", label: "全部" },
-];
+export function getHistoryRangeOptions(): OptionItem<HistoryInterval>[] {
+    return [
+        { value: "1h", label: translate("options.historyRange.1h") },
+        { value: "1d", label: translate("options.historyRange.1d") },
+        { value: "1w", label: translate("options.historyRange.1w") },
+        { value: "1mo", label: translate("options.historyRange.1mo") },
+        { value: "1y", label: translate("options.historyRange.1y") },
+        { value: "3y", label: translate("options.historyRange.3y") },
+        { value: "all", label: translate("options.historyRange.all") },
+    ];
+}
 
-// 统一的市场类型选项
-export const marketOptions: OptionItem<MarketType>[] = [
-    { label: "沪深A股（主板）", value: "CN-A" },
-    { label: "创业板", value: "CN-GEM" },
-    { label: "科创板", value: "CN-STAR" },
-    { label: "境内ETF/LOF", value: "CN-ETF" },
-    { label: "港股主板", value: "HK-MAIN" },
-    { label: "港股创业板", value: "HK-GEM" },
-    { label: "港股ETF", value: "HK-ETF" },
-    { label: "美股", value: "US-STOCK" },
-    { label: "美股ETF", value: "US-ETF" },
-];
+export function getMarketOptions(): OptionItem<MarketType>[] {
+    return [
+        { label: translate("options.market.CN-A"), value: "CN-A" },
+        { label: translate("options.market.CN-GEM"), value: "CN-GEM" },
+        { label: translate("options.market.CN-STAR"), value: "CN-STAR" },
+        { label: translate("options.market.CN-ETF"), value: "CN-ETF" },
+        { label: translate("options.market.HK-MAIN"), value: "HK-MAIN" },
+        { label: translate("options.market.HK-GEM"), value: "HK-GEM" },
+        { label: translate("options.market.HK-ETF"), value: "HK-ETF" },
+        { label: translate("options.market.US-STOCK"), value: "US-STOCK" },
+        { label: translate("options.market.US-ETF"), value: "US-ETF" },
+    ];
+}
 
 export const currencyOptions: OptionItem[] = [
     { label: "CNY", value: "CNY" },
@@ -49,88 +56,108 @@ export const currencyOptions: OptionItem[] = [
     { label: "USD", value: "USD" },
 ];
 
-export const fontPresetOptions: OptionItem<AppSettings["fontPreset"]>[] = [
-    { label: "系统默认", value: "system" },
-    { label: "桌面无衬线", value: "compact" },
-    { label: "阅读衬线", value: "reading" },
-];
+export function getFontPresetOptions(): OptionItem<AppSettings["fontPreset"]>[] {
+    return [
+        { label: translate("options.fontPreset.system"), value: "system" },
+        { label: translate("options.fontPreset.compact"), value: "compact" },
+        { label: translate("options.fontPreset.reading"), value: "reading" },
+    ];
+}
 
-export const themeModeOptions: OptionItem<AppSettings["themeMode"]>[] = [
-    { label: "跟随系统", value: "system" },
-    { label: "始终亮色", value: "light" },
-    { label: "始终暗色", value: "dark" },
-];
+export function getThemeModeOptions(): OptionItem<AppSettings["themeMode"]>[] {
+    return [
+        { label: translate("options.themeMode.system"), value: "system" },
+        { label: translate("options.themeMode.light"), value: "light" },
+        { label: translate("options.themeMode.dark"), value: "dark" },
+    ];
+}
 
-export const colorThemeOptions: OptionItem<AppSettings["colorTheme"]>[] = [
-    { label: "系统蓝", value: "blue" },
-    { label: "石墨灰", value: "graphite" },
-    { label: "森林绿", value: "forest" },
-    { label: "日落橙", value: "sunset" },
-];
+export function getColorThemeOptions(): OptionItem<AppSettings["colorTheme"]>[] {
+    return [
+        { label: translate("options.colorTheme.blue"), value: "blue" },
+        { label: translate("options.colorTheme.graphite"), value: "graphite" },
+        { label: translate("options.colorTheme.forest"), value: "forest" },
+        { label: translate("options.colorTheme.sunset"), value: "sunset" },
+    ];
+}
 
-export const amountDisplayOptions: OptionItem<AppSettings["amountDisplay"]>[] = [
-    { label: "完整数值", value: "full" },
-    { label: "紧凑缩写", value: "compact" },
-];
+export function getAmountDisplayOptions(): OptionItem<AppSettings["amountDisplay"]>[] {
+    return [
+        { label: translate("options.amountDisplay.full"), value: "full" },
+        { label: translate("options.amountDisplay.compact"), value: "compact" },
+    ];
+}
 
-export const currencyDisplayOptions: OptionItem<AppSettings["currencyDisplay"]>[] = [
-    { label: "货币符号", value: "symbol" },
-    { label: "货币代码", value: "code" },
-];
+export function getCurrencyDisplayOptions(): OptionItem<AppSettings["currencyDisplay"]>[] {
+    return [
+        { label: translate("options.currencyDisplay.symbol"), value: "symbol" },
+        { label: translate("options.currencyDisplay.code"), value: "code" },
+    ];
+}
 
-export const priceColorOptions: OptionItem<AppSettings["priceColorScheme"]>[] = [
-    { label: "红涨绿跌", value: "cn" },
-    { label: "绿涨红跌", value: "intl" },
-];
+export function getPriceColorOptions(): OptionItem<AppSettings["priceColorScheme"]>[] {
+    return [
+        { label: translate("options.priceColorScheme.cn"), value: "cn" },
+        { label: translate("options.priceColorScheme.intl"), value: "intl" },
+    ];
+}
 
-export const localeOptions: OptionItem<AppSettings["locale"]>[] = [
-    { label: "跟随系统", value: "system" },
-    { label: "简体中文", value: "zh-CN" },
-    { label: "English (US)", value: "en-US" },
-];
+export function getLocaleOptions(): OptionItem<AppSettings["locale"]>[] {
+    return [
+        { label: translate("options.locale.system"), value: "system" },
+        { label: translate("options.locale.zh-CN"), value: "zh-CN" },
+        { label: translate("options.locale.en-US"), value: "en-US" },
+    ];
+}
 
-export const alertConditionOptions: OptionItem<AlertCondition>[] = [
-    { label: "价格高于阈值", value: "above" },
-    { label: "价格低于阈值", value: "below" },
-];
+export function getAlertConditionOptions(): OptionItem<AlertCondition>[] {
+    return [
+        { label: translate("options.alertCondition.above"), value: "above" },
+        { label: translate("options.alertCondition.below"), value: "below" },
+    ];
+}
 
-// 热门榜单市场分组
-export const hotMarketOptions: OptionItem<HotMarketGroup>[] = [
-    { label: "A股", value: "cn" },
-    { label: "港股", value: "hk" },
-    { label: "美股", value: "us" },
-];
+export function getHotMarketOptions(): OptionItem<HotMarketGroup>[] {
+    return [
+        { label: translate("options.hotMarket.cn"), value: "cn" },
+        { label: translate("options.hotMarket.hk"), value: "hk" },
+        { label: translate("options.hotMarket.us"), value: "us" },
+    ];
+}
 
-// 热门榜单详细分类
-export const hotCategoryOptions: Record<HotMarketGroup, OptionItem<HotCategory>[]> = {
-    cn: [
-        { label: "沪深A股", value: "cn-a" },
-        { label: "ETF", value: "cn-etf" },
-    ],
-    hk: [
-        { label: "港股", value: "hk" },
-        { label: "港股ETF", value: "hk-etf" },
-    ],
-    us: [
-        { label: "标普500", value: "us-sp500" },
-        { label: "纳斯达克", value: "us-nasdaq" },
-        { label: "道琼斯", value: "us-dow" },
-        { label: "ETF", value: "us-etf" },
-    ],
-};
+export function getHotCategoryOptions(): Record<HotMarketGroup, OptionItem<HotCategory>[]> {
+    return {
+        cn: [
+            { label: translate("options.hotCategory.cn-a"), value: "cn-a" },
+            { label: translate("options.hotCategory.cn-etf"), value: "cn-etf" },
+        ],
+        hk: [
+            { label: translate("options.hotCategory.hk"), value: "hk" },
+            { label: translate("options.hotCategory.hk-etf"), value: "hk-etf" },
+        ],
+        us: [
+            { label: translate("options.hotCategory.us-sp500"), value: "us-sp500" },
+            { label: translate("options.hotCategory.us-nasdaq"), value: "us-nasdaq" },
+            { label: translate("options.hotCategory.us-dow"), value: "us-dow" },
+            { label: translate("options.hotCategory.us-etf"), value: "us-etf" },
+        ],
+    };
+}
 
-export const hotSortOptions: OptionItem<HotSort>[] = [
-    { label: "交易量", value: "volume" },
-    { label: "涨幅", value: "gainers" },
-    { label: "跌幅", value: "losers" },
-    { label: "市值", value: "market-cap" },
-    { label: "股价", value: "price" },
-];
+export function getHotSortOptions(): OptionItem<HotSort>[] {
+    return [
+        { label: translate("options.hotSort.volume"), value: "volume" },
+        { label: translate("options.hotSort.gainers"), value: "gainers" },
+        { label: translate("options.hotSort.losers"), value: "losers" },
+        { label: translate("options.hotSort.market-cap"), value: "market-cap" },
+        { label: translate("options.hotSort.price"), value: "price" },
+    ];
+}
 
-export const dashboardCurrencyOptions: OptionItem[] = [
-    { label: "人民币 (CNY)", value: "CNY" },
-    { label: "港元 (HKD)", value: "HKD" },
-    { label: "美元 (USD)", value: "USD" },
-];
-
-// hotUSSourceOptions removed - US hot lists now always use constituent pools
+export function getDashboardCurrencyOptions(): OptionItem[] {
+    return [
+        { label: translate("options.dashboardCurrency.CNY"), value: "CNY" },
+        { label: translate("options.dashboardCurrency.HKD"), value: "HKD" },
+        { label: translate("options.dashboardCurrency.USD"), value: "USD" },
+    ];
+}

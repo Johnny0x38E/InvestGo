@@ -109,7 +109,7 @@ func (s *HotService) List(ctx context.Context, category monitor.HotCategory, sor
 		// ETF 和美股分类 直接使用数据池 + 实时行情
 		return s.listFromPool(ctx, category, sortBy, page, pageSize)
 	default:
-		return monitor.HotListResponse{}, fmt.Errorf("不支持的热门分类: %s", category)
+		return monitor.HotListResponse{}, fmt.Errorf("Hot category is unsupported: %s", category)
 	}
 }
 
@@ -194,7 +194,7 @@ func (s *HotService) listAllSearchableItems(ctx context.Context, category monito
 	case category == monitor.HotCategoryCNETF || category == monitor.HotCategoryHKETF || isUSHotCategory(category):
 		items, err = s.loadPoolItems(ctx, category, sortBy)
 	default:
-		err = fmt.Errorf("不支持的热门分类: %s", category)
+		err = fmt.Errorf("Hot category is unsupported: %s", category)
 	}
 
 	if err != nil {
@@ -247,7 +247,7 @@ func (s *HotService) storeCachedItems(key string, items []monitor.HotItem) {
 func (s *HotService) listEastMoney(ctx context.Context, category monitor.HotCategory, sortBy monitor.HotSort, page, pageSize int) (monitor.HotListResponse, error) {
 	fs, market, currency := resolveEastMoneyHotFilter(category)
 	if fs == "" {
-		return monitor.HotListResponse{}, fmt.Errorf("不支持的东方财富热门分类: %s", category)
+		return monitor.HotListResponse{}, fmt.Errorf("EastMoney hot category is unsupported: %s", category)
 	}
 
 	fid, po := resolveEastMoneySort(sortBy)
@@ -278,7 +278,7 @@ func (s *HotService) listEastMoney(ctx context.Context, category monitor.HotCate
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return monitor.HotListResponse{}, fmt.Errorf("东方财富热门请求失败: status %d", resp.StatusCode)
+		return monitor.HotListResponse{}, fmt.Errorf("EastMoney hot request failed: status %d", resp.StatusCode)
 	}
 
 	payload, err := io.ReadAll(resp.Body)
@@ -291,7 +291,7 @@ func (s *HotService) listEastMoney(ctx context.Context, category monitor.HotCate
 		return monitor.HotListResponse{}, err
 	}
 	if parsed.RC != 0 {
-		return monitor.HotListResponse{}, fmt.Errorf("东方财富热门返回 rc=%d", parsed.RC)
+		return monitor.HotListResponse{}, fmt.Errorf("EastMoney hot response returned rc=%d", parsed.RC)
 	}
 
 	items := make([]monitor.HotItem, 0, len(parsed.Data.Diff))
@@ -310,7 +310,7 @@ func (s *HotService) listEastMoney(ctx context.Context, category monitor.HotCate
 			ChangePercent: float64(item.ChangePercent),
 			Volume:        float64(item.Volume),
 			MarketCap:     float64(item.MarketCap),
-			QuoteSource:   "东方财富",
+			QuoteSource:   "EastMoney",
 			UpdatedAt:     time.Now(),
 		})
 	}
@@ -351,10 +351,10 @@ func (s *HotService) listFromPool(ctx context.Context, category monitor.HotCateg
 func (s *HotService) loadPoolItems(ctx context.Context, category monitor.HotCategory, sortBy monitor.HotSort) ([]monitor.HotItem, error) {
 	pool := hotConstituents[category]
 	if len(pool) == 0 {
-		return nil, fmt.Errorf("热门分类暂无可用数据池: %s", category)
+		return nil, fmt.Errorf("No available hot pool for category: %s", category)
 	}
 
-	items, err := s.loadHotItemsForSeeds(ctx, pool, "预置数据池")
+	items, err := s.loadHotItemsForSeeds(ctx, pool, "Preset Pool")
 	if err != nil {
 		return nil, err
 	}

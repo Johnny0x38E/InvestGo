@@ -114,19 +114,19 @@ func NewEastMoneyChartProvider(client *http.Client) *EastMoneyChartProvider {
 
 // Name 返回东方财富历史源的显示名称。
 func (p *EastMoneyChartProvider) Name() string {
-	return "东方财富"
+	return "EastMoney"
 }
 
 // Fetch 通过东方财富 K 线接口抓取历史行情数据。
 func (p *EastMoneyChartProvider) Fetch(ctx context.Context, item monitor.WatchlistItem, interval monitor.HistoryInterval) (monitor.HistorySeries, error) {
 	target, err := monitor.ResolveQuoteTarget(item)
 	if err != nil {
-		return monitor.HistorySeries{}, fmt.Errorf("东方财富历史行情: 无法解析标的 %s: %w", item.Symbol, err)
+		return monitor.HistorySeries{}, fmt.Errorf("EastMoney history failed to resolve item %s: %w", item.Symbol, err)
 	}
 
 	secid, err := resolveEastMoneySecID(target)
 	if err != nil {
-		return monitor.HistorySeries{}, fmt.Errorf("东方财富历史行情: 无法解析 secid: %w", err)
+		return monitor.HistorySeries{}, fmt.Errorf("EastMoney history failed to resolve secid: %w", err)
 	}
 
 	// 东方财富不同周期依赖不同的 klt、日期窗口和裁剪策略。
@@ -158,12 +158,12 @@ func (p *EastMoneyChartProvider) Fetch(ctx context.Context, item monitor.Watchli
 
 	resp, err := p.client.Do(req)
 	if err != nil {
-		return monitor.HistorySeries{}, fmt.Errorf("东方财富历史行情请求失败: %w", err)
+		return monitor.HistorySeries{}, fmt.Errorf("EastMoney history request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return monitor.HistorySeries{}, fmt.Errorf("东方财富历史行情请求失败: status %d", resp.StatusCode)
+		return monitor.HistorySeries{}, fmt.Errorf("EastMoney history request failed: status %d", resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -173,25 +173,25 @@ func (p *EastMoneyChartProvider) Fetch(ctx context.Context, item monitor.Watchli
 
 	var parsed eastMoneyKlineResponse
 	if err := json.Unmarshal(body, &parsed); err != nil {
-		return monitor.HistorySeries{}, fmt.Errorf("东方财富历史行情解析失败: %w", err)
+		return monitor.HistorySeries{}, fmt.Errorf("EastMoney history decode failed: %w", err)
 	}
 	if parsed.RC != 0 {
-		return monitor.HistorySeries{}, fmt.Errorf("东方财富历史行情返回 rc=%d", parsed.RC)
+		return monitor.HistorySeries{}, fmt.Errorf("EastMoney history response returned rc=%d", parsed.RC)
 	}
 	if parsed.Data == nil || len(parsed.Data.KLines) == 0 {
-		return monitor.HistorySeries{}, errors.New("东方财富历史行情无数据")
+		return monitor.HistorySeries{}, errors.New("EastMoney history response is empty")
 	}
 
 	points := parseEastMoneyKlines(parsed.Data.KLines, spec.intraday)
 	if len(points) == 0 {
-		return monitor.HistorySeries{}, errors.New("东方财富历史行情无有效价格点")
+		return monitor.HistorySeries{}, errors.New("EastMoney history contains no valid price points")
 	}
 
 	if spec.trimWindow > 0 {
 		points = trimHistoryPoints(points, spec.trimWindow)
 	}
 	if len(points) == 0 {
-		return monitor.HistorySeries{}, errors.New("东方财富历史行情裁剪后无有效价格点")
+		return monitor.HistorySeries{}, errors.New("EastMoney history contains no valid price points after trimming")
 	}
 
 	series := monitor.HistorySeries{
@@ -229,7 +229,7 @@ func eastMoneyHistorySpecFor(interval monitor.HistoryInterval) (eastMoneyHistory
 	case monitor.HistoryRangeAll:
 		return eastMoneyHistorySpec{klt: 103, beg: "0", end: "20500101", lmt: 999}, nil
 	default:
-		return eastMoneyHistorySpec{}, fmt.Errorf("东方财富不支持该历史范围: %s", interval)
+		return eastMoneyHistorySpec{}, fmt.Errorf("EastMoney does not support history interval: %s", interval)
 	}
 }
 

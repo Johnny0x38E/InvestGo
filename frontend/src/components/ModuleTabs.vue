@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import { computed } from "vue";
+
 import { appendClientLog } from "../devlog";
-import { moduleTabs } from "../constants";
+import { getModuleTabs } from "../constants";
 import type { ModuleKey } from "../types";
 
 defineProps<{
@@ -10,6 +12,8 @@ defineProps<{
 const emit = defineEmits<{
     (event: "switch", value: ModuleKey): void;
 }>();
+
+const moduleTabs = computed(() => getModuleTabs());
 
 function switchTab(next: ModuleKey): void {
     appendClientLog("info", "tabs", `tab click -> ${next}`);

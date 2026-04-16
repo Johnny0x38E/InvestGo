@@ -254,9 +254,9 @@ func (s *Store) quoteProviderNameLocked(market string) string {
 // quoteProviderSummaryLocked 返回当前各市场行情源的简要描述，用于界面展示。
 func (s *Store) quoteProviderSummaryLocked() string {
 	parts := []string{
-		"A股 " + s.quoteProviderNameLocked("CN-A"),
-		"港股 " + s.quoteProviderNameLocked("HK-MAIN"),
-		"美股 " + s.quoteProviderNameLocked("US-STOCK"),
+		"CN " + s.quoteProviderNameLocked("CN-A"),
+		"HK " + s.quoteProviderNameLocked("HK-MAIN"),
+		"US " + s.quoteProviderNameLocked("US-STOCK"),
 	}
 	return strings.Join(parts, " / ")
 }

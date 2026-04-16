@@ -2,6 +2,7 @@
 import { computed, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref } from "vue";
 
 import { formatHistoryTick, formatNumber } from "../format";
+import { useI18n } from "../i18n";
 import type { HistorySeries } from "../types";
 
 const props = defineProps<{
@@ -19,6 +20,7 @@ const height = ref(420);
 const padding = { top: 28, right: 32, bottom: 44, left: 28 };
 const gradientID = `market-area-${Math.random().toString(36).slice(2, 10)}`;
 let resizeObserver: ResizeObserver | null = null;
+const { t } = useI18n();
 
 const points = computed(() => props.series?.points ?? []);
 const enrichedPoints = computed(() => {
@@ -261,19 +263,19 @@ onBeforeUnmount(() => {
 
 <template>
     <div class="chart-card-shell">
-        <div v-if="loading" class="chart-empty">正在加载走势…</div>
+        <div v-if="loading" class="chart-empty">{{ t("chart.loading") }}</div>
         <div v-else-if="error" class="chart-empty chart-error">{{ error }}</div>
-        <div v-else-if="!series || !enrichedPoints.length" class="chart-empty">暂无走势数据</div>
+        <div v-else-if="!series || !enrichedPoints.length" class="chart-empty">{{ t("chart.empty") }}</div>
         <div v-else ref="frameRef" class="chart-frame" :class="series.change >= 0 ? 'is-rise' : 'is-fall'">
             <div v-if="hoverPoint" class="chart-tooltip" :style="tooltipStyle">
                 <strong>{{ formatNumber(hoverPoint.close, 2) }}</strong>
                 <span>{{ formatHistoryTick(hoverPoint.timestamp, series.interval) }}</span>
-                <span>开 {{ formatNumber(hoverPoint.open, 2) }} · 收 {{ formatNumber(hoverPoint.close, 2) }}</span>
-                <span>高 {{ formatNumber(hoverPoint.high, 2) }} · 低 {{ formatNumber(hoverPoint.low, 2) }}</span>
+                <span>{{ t("chart.openClose", { open: formatNumber(hoverPoint.open, 2), close: formatNumber(hoverPoint.close, 2) }) }}</span>
+                <span>{{ t("chart.highLow", { high: formatNumber(hoverPoint.high, 2), low: formatNumber(hoverPoint.low, 2) }) }}</span>
             </div>
 
             <div ref="plotRef" class="chart-plot">
-                <svg class="chart-svg" :viewBox="`0 0 ${width} ${height}`" aria-label="市场价格走势">
+                <svg class="chart-svg" :viewBox="`0 0 ${width} ${height}`" :aria-label="t('chart.aria')">
                     <defs>
                         <linearGradient :id="gradientID" x1="0" y1="0" x2="0" y2="1">
                             <stop class="chart-area-stop-top" offset="0%" />
@@ -289,16 +291,16 @@ onBeforeUnmount(() => {
 
                     <template v-if="stats">
                         <line class="chart-marker chart-marker-accent" :x1="padding.left" :y1="stats.high.highY" :x2="width - padding.right" :y2="stats.high.highY" />
-                        <text class="chart-marker-label chart-marker-label-accent" :x="width - padding.right - 4" :y="stats.high.highY - 5">高 {{ formatNumber(stats.high.high, 2) }}</text>
+                        <text class="chart-marker-label chart-marker-label-accent" :x="width - padding.right - 4" :y="stats.high.highY - 5">{{ t("chart.highMarker", { value: formatNumber(stats.high.high, 2) }) }}</text>
 
                         <line class="chart-marker chart-marker-accent" :x1="padding.left" :y1="stats.low.lowY" :x2="width - padding.right" :y2="stats.low.lowY" />
-                        <text class="chart-marker-label chart-marker-label-accent" :x="width - padding.right - 4" :y="stats.low.lowY - 5">低 {{ formatNumber(stats.low.low, 2) }}</text>
+                        <text class="chart-marker-label chart-marker-label-accent" :x="width - padding.right - 4" :y="stats.low.lowY - 5">{{ t("chart.lowMarker", { value: formatNumber(stats.low.low, 2) }) }}</text>
 
                         <line class="chart-marker" :x1="padding.left" :y1="stats.open.openY" :x2="width - padding.right" :y2="stats.open.openY" />
-                        <text class="chart-marker-label" :x="width - padding.right - 4" :y="stats.open.openY - 5">开 {{ formatNumber(stats.open.open || stats.open.close, 2) }}</text>
+                        <text class="chart-marker-label" :x="width - padding.right - 4" :y="stats.open.openY - 5">{{ t("chart.openMarker", { value: formatNumber(stats.open.open || stats.open.close, 2) }) }}</text>
 
                         <line class="chart-marker" :x1="padding.left" :y1="stats.close.y" :x2="width - padding.right" :y2="stats.close.y" />
-                        <text class="chart-marker-label" :x="width - padding.right - 4" :y="stats.close.y - 5">收 {{ formatNumber(stats.close.close, 2) }}</text>
+                        <text class="chart-marker-label" :x="width - padding.right - 4" :y="stats.close.y - 5">{{ t("chart.closeMarker", { value: formatNumber(stats.close.close, 2) }) }}</text>
                     </template>
 
                     <path class="chart-area" :d="areaPath" :style="{ fill: `url(#${gradientID})` }" />
@@ -321,7 +323,7 @@ onBeforeUnmount(() => {
             </div>
 
             <div class="chart-source-tag">
-                <span>来源 @</span>
+                <span>{{ t("chart.source") }}</span>
                 <strong>{{ series.source }}</strong>
             </div>
         </div>
