@@ -10,25 +10,25 @@ import (
 	"investgo/internal/monitor"
 )
 
-// route 定义了一个 API 路由，包括 HTTP 方法、路径模板和处理函数。
+// route defines an API route including HTTP method, path template and handler.
 type route struct {
 	method  string
 	pattern string
 	handler routeHandler
 }
 
-// routeHandler 定义了带路径参数的路由处理函数签名。
+// routeHandler defines the route handler signature with path parameters.
 type routeHandler func(http.ResponseWriter, *http.Request, routeParams)
 
-// routeParams 保存从路由模板中提取出来的路径参数。
+// routeParams stores path parameters extracted from the route template.
 type routeParams map[string]string
 
-// Value 返回指定名称的路径参数值。
+// Value returns the path parameter value for the given name.
 func (params routeParams) Value(name string) string {
 	return params[name]
 }
 
-// registerRoutes 统一注册 API 路由。
+// registerRoutes registers all API routes in one place.
 func (h *Handler) registerRoutes() []route {
 	return []route{
 		{method: http.MethodGet, pattern: "/state", handler: h.handleState},
@@ -42,6 +42,7 @@ func (h *Handler) registerRoutes() []route {
 		{method: http.MethodPut, pattern: "/settings", handler: h.handleUpdateSettings},
 		{method: http.MethodPost, pattern: "/items", handler: h.handleCreateItem},
 		{method: http.MethodPut, pattern: "/items/{id}", handler: h.handleUpdateItem},
+		{method: http.MethodPut, pattern: "/items/{id}/pin", handler: h.handlePinItem},
 		{method: http.MethodDelete, pattern: "/items/{id}", handler: h.handleDeleteItem},
 		{method: http.MethodPost, pattern: "/alerts", handler: h.handleCreateAlert},
 		{method: http.MethodPut, pattern: "/alerts/{id}", handler: h.handleUpdateAlert},
@@ -49,7 +50,7 @@ func (h *Handler) registerRoutes() []route {
 	}
 }
 
-// handleOpenExternal 在 macOS 上使用系统默认浏览器打开一个外部链接。
+// handleOpenExternal opens an external link using the system default browser on macOS.
 func (h *Handler) handleOpenExternal(writer http.ResponseWriter, request *http.Request, _ routeParams) {
 	var payload openExternalRequest
 	if err := decodeJSON(request, &payload); err != nil {
@@ -71,7 +72,7 @@ func (h *Handler) handleOpenExternal(writer http.ResponseWriter, request *http.R
 	writeJSON(writer, http.StatusOK, map[string]bool{"ok": true})
 }
 
-// match 判断当前路由是否匹配给定的请求方法和路径。
+// match checks whether this route matches the given HTTP method and path.
 func (r route) match(method, path string) (routeParams, bool) {
 	if method != r.method {
 		return nil, false
@@ -79,7 +80,7 @@ func (r route) match(method, path string) (routeParams, bool) {
 	return matchRoutePattern(r.pattern, path)
 }
 
-// matchRoutePattern 按简单的 `{name}` 单段参数规则匹配路径模板。
+// matchRoutePattern matches a path against the template using simple `{name}` segment parameters.
 func matchRoutePattern(pattern, path string) (routeParams, bool) {
 	patternSegments := routeSegments(pattern)
 	pathSegments := routeSegments(path)
@@ -101,7 +102,7 @@ func matchRoutePattern(pattern, path string) (routeParams, bool) {
 	return params, true
 }
 
-// routeSegments 把路径按层级拆分成匹配器使用的段列表。
+// routeSegments splits a path into segments for the matcher.
 func routeSegments(path string) []string {
 	trimmed := strings.Trim(path, "/")
 	if trimmed == "" {
@@ -110,12 +111,12 @@ func routeSegments(path string) []string {
 	return strings.Split(trimmed, "/")
 }
 
-// handleState 返回前端当前依赖的完整状态快照。
+// handleState returns the full state snapshot currently required by the frontend.
 func (h *Handler) handleState(writer http.ResponseWriter, request *http.Request, _ routeParams) {
 	writeJSON(writer, http.StatusOK, localizeSnapshot(h.store.Snapshot(), requestLocale(request)))
 }
 
-// handleLogs 返回开发日志快照。
+// handleLogs returns the developer log snapshot.
 func (h *Handler) handleLogs(writer http.ResponseWriter, request *http.Request, _ routeParams) {
 	limit, _ := strconv.Atoi(strings.TrimSpace(request.URL.Query().Get("limit")))
 	if h.logs == nil {
@@ -129,7 +130,7 @@ func (h *Handler) handleLogs(writer http.ResponseWriter, request *http.Request, 
 	writeJSON(writer, http.StatusOK, h.logs.Snapshot(limit))
 }
 
-// handleClearLogs 清空已持久化的开发日志。
+// handleClearLogs clears persisted developer logs.
 func (h *Handler) handleClearLogs(writer http.ResponseWriter, request *http.Request, _ routeParams) {
 	if h.logs != nil {
 		if err := h.logs.Clear(); err != nil {
@@ -141,7 +142,7 @@ func (h *Handler) handleClearLogs(writer http.ResponseWriter, request *http.Requ
 	writeJSON(writer, http.StatusOK, map[string]bool{"ok": true})
 }
 
-// handleClientLogs 接收前端上报的开发日志。
+// handleClientLogs accepts developer logs reported by the frontend.
 func (h *Handler) handleClientLogs(writer http.ResponseWriter, request *http.Request, _ routeParams) {
 	if h.logs == nil {
 		writeJSON(writer, http.StatusOK, map[string]bool{"ok": true})
@@ -158,7 +159,7 @@ func (h *Handler) handleClientLogs(writer http.ResponseWriter, request *http.Req
 	writeJSON(writer, http.StatusOK, map[string]bool{"ok": true})
 }
 
-// handleHot 返回指定分类和排序方式的热门榜单。
+// handleHot returns the hot list for the given category and sort order.
 func (h *Handler) handleHot(writer http.ResponseWriter, request *http.Request, _ routeParams) {
 	if h.hot == nil {
 		writeError(writer, request, http.StatusServiceUnavailable, &apiError{message: "Hot service is unavailable"})
@@ -179,7 +180,7 @@ func (h *Handler) handleHot(writer http.ResponseWriter, request *http.Request, _
 	writeJSON(writer, http.StatusOK, list)
 }
 
-// handleHistory 返回指定标的和时间区间的历史行情。
+// handleHistory returns historical quotes for the given instrument and time range.
 func (h *Handler) handleHistory(writer http.ResponseWriter, request *http.Request, _ routeParams) {
 	itemID := strings.TrimSpace(request.URL.Query().Get("itemId"))
 	interval := monitor.HistoryInterval(strings.TrimSpace(request.URL.Query().Get("interval")))
@@ -196,7 +197,7 @@ func (h *Handler) handleHistory(writer http.ResponseWriter, request *http.Reques
 	writeJSON(writer, http.StatusOK, series)
 }
 
-// handleRefresh 触发一次全量行情刷新。
+// handleRefresh triggers a full quote refresh.
 func (h *Handler) handleRefresh(writer http.ResponseWriter, request *http.Request, _ routeParams) {
 	snapshot, err := h.store.Refresh(request.Context())
 	if err != nil {
@@ -207,7 +208,7 @@ func (h *Handler) handleRefresh(writer http.ResponseWriter, request *http.Reques
 	writeJSON(writer, http.StatusOK, localizeSnapshot(snapshot, requestLocale(request)))
 }
 
-// handleUpdateSettings 更新应用设置。
+// handleUpdateSettings updates application settings.
 func (h *Handler) handleUpdateSettings(writer http.ResponseWriter, request *http.Request, _ routeParams) {
 	var settings monitor.AppSettings
 	if err := decodeJSON(request, &settings); err != nil {
@@ -224,7 +225,7 @@ func (h *Handler) handleUpdateSettings(writer http.ResponseWriter, request *http
 	writeJSON(writer, http.StatusOK, localizeSnapshot(snapshot, requestLocale(request)))
 }
 
-// handleCreateItem 新增一个自选标的。
+// handleCreateItem creates a new watchlist item.
 func (h *Handler) handleCreateItem(writer http.ResponseWriter, request *http.Request, _ routeParams) {
 	var item monitor.WatchlistItem
 	if err := decodeJSON(request, &item); err != nil {
@@ -241,7 +242,7 @@ func (h *Handler) handleCreateItem(writer http.ResponseWriter, request *http.Req
 	writeJSON(writer, http.StatusOK, localizeSnapshot(snapshot, requestLocale(request)))
 }
 
-// handleUpdateItem 更新指定 ID 的自选标的。
+// handleUpdateItem updates the watchlist item with the given ID.
 func (h *Handler) handleUpdateItem(writer http.ResponseWriter, request *http.Request, params routeParams) {
 	var item monitor.WatchlistItem
 	if err := decodeJSON(request, &item); err != nil {
@@ -259,7 +260,7 @@ func (h *Handler) handleUpdateItem(writer http.ResponseWriter, request *http.Req
 	writeJSON(writer, http.StatusOK, localizeSnapshot(snapshot, requestLocale(request)))
 }
 
-// handleDeleteItem 删除指定 ID 的自选标的。
+// handleDeleteItem deletes the watchlist item with the given ID.
 func (h *Handler) handleDeleteItem(writer http.ResponseWriter, request *http.Request, params routeParams) {
 	snapshot, err := h.store.DeleteItem(params.Value("id"))
 	if err != nil {
@@ -270,7 +271,24 @@ func (h *Handler) handleDeleteItem(writer http.ResponseWriter, request *http.Req
 	writeJSON(writer, http.StatusOK, localizeSnapshot(snapshot, requestLocale(request)))
 }
 
-// handleCreateAlert 新增一个价格提醒。
+// handlePinItem updates the pinned state of the watchlist item with the given ID.
+func (h *Handler) handlePinItem(writer http.ResponseWriter, request *http.Request, params routeParams) {
+	var payload pinItemRequest
+	if err := decodeJSON(request, &payload); err != nil {
+		writeError(writer, request, http.StatusBadRequest, err)
+		return
+	}
+
+	snapshot, err := h.store.SetItemPinned(params.Value("id"), payload.Pinned)
+	if err != nil {
+		writeError(writer, request, http.StatusBadRequest, err)
+		return
+	}
+
+	writeJSON(writer, http.StatusOK, localizeSnapshot(snapshot, requestLocale(request)))
+}
+
+// handleCreateAlert creates a new price alert.
 func (h *Handler) handleCreateAlert(writer http.ResponseWriter, request *http.Request, _ routeParams) {
 	var alert monitor.AlertRule
 	if err := decodeJSON(request, &alert); err != nil {
@@ -287,7 +305,7 @@ func (h *Handler) handleCreateAlert(writer http.ResponseWriter, request *http.Re
 	writeJSON(writer, http.StatusOK, localizeSnapshot(snapshot, requestLocale(request)))
 }
 
-// handleUpdateAlert 更新指定 ID 的价格提醒。
+// handleUpdateAlert updates the price alert with the given ID.
 func (h *Handler) handleUpdateAlert(writer http.ResponseWriter, request *http.Request, params routeParams) {
 	var alert monitor.AlertRule
 	if err := decodeJSON(request, &alert); err != nil {
@@ -305,7 +323,7 @@ func (h *Handler) handleUpdateAlert(writer http.ResponseWriter, request *http.Re
 	writeJSON(writer, http.StatusOK, localizeSnapshot(snapshot, requestLocale(request)))
 }
 
-// handleDeleteAlert 删除指定 ID 的价格提醒。
+// handleDeleteAlert deletes the price alert with the given ID.
 func (h *Handler) handleDeleteAlert(writer http.ResponseWriter, request *http.Request, params routeParams) {
 	snapshot, err := h.store.DeleteAlert(params.Value("id"))
 	if err != nil {

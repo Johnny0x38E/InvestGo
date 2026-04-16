@@ -12,6 +12,6 @@ export default defineConfig({
         outDir: "dist",
         emptyOutDir: true,
         assetsDir: "assets",
-        chunkSizeWarningLimit: 1000, // 提高到 1MB
+        chunkSizeWarningLimit: 1000, // Raised to 1MB
     },
 });

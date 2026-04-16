@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-// load 从磁盘加载状态文件；若文件不存在则写入一份种子状态。
+// load loads state file from disk; if file does not exist, write a seed state.
 func (s *Store) load() error {
 	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
 		return err
@@ -42,7 +42,7 @@ func (s *Store) load() error {
 	return nil
 }
 
-// normaliseLocked 兼容旧状态文件，并把缺省字段回落到安全默认值。
+// normaliseLocked is compatible with old state files and falls back missing fields to safe default values.
 func (s *Store) normaliseLocked() {
 	if s.state.Items == nil {
 		s.state.Items = []WatchlistItem{}
@@ -51,7 +51,7 @@ func (s *Store) normaliseLocked() {
 		s.state.Alerts = []AlertRule{}
 	}
 
-	// 旧版本状态可能缺少新增字段，这里统一补齐默认设置。
+	// Old version states may be missing new fields; here we uniformly populate default settings.
 	if s.state.Settings.RefreshIntervalSeconds <= 0 {
 		s.state.Settings.RefreshIntervalSeconds = 60
 	}
@@ -104,7 +104,7 @@ func (s *Store) normaliseLocked() {
 		s.state.Settings.HotUSSource = "eastmoney"
 	}
 
-	// 历史状态里的条目可能缺少 ID、名称或更新时间，这里顺手补全。
+	// Items in historical states may be missing ID, name, or update time; here we complete them.
 	for idx := range s.state.Items {
 		item, err := sanitiseItem(s.state.Items[idx])
 		if err != nil {
@@ -139,7 +139,7 @@ func (s *Store) normaliseLocked() {
 	s.evaluateAlertsLocked()
 }
 
-// saveLocked 使用临时文件加原子替换的方式持久化状态。
+// saveLocked persists state using a temporary file with atomic replacement.
 func (s *Store) saveLocked() error {
 	payload, err := json.MarshalIndent(s.state, "", "  ")
 	if err != nil {
@@ -154,7 +154,7 @@ func (s *Store) saveLocked() error {
 	return os.Rename(tempPath, s.path)
 }
 
-// snapshotLocked 返回用于前端消费的只读快照副本。
+// snapshotLocked returns a read-only snapshot copy for frontend consumption.
 func (s *Store) snapshotLocked() StateSnapshot {
 	items := append([]WatchlistItem{}, s.state.Items...)
 	alerts := append([]AlertRule{}, s.state.Alerts...)
@@ -163,8 +163,19 @@ func (s *Store) snapshotLocked() StateSnapshot {
 	runtime.QuoteSource = s.quoteProviderSummaryLocked()
 	runtime.LivePriceCount = countLiveQuotes(items)
 
-	// 快照排序只影响输出顺序，不反向修改内部持久化切片顺序。
+	// Snapshot sorting only affects output order, not internal persisted slice order.
 	sort.Slice(items, func(i, j int) bool {
+		if items[i].PinnedAt != nil || items[j].PinnedAt != nil {
+			if items[i].PinnedAt == nil {
+				return false
+			}
+			if items[j].PinnedAt == nil {
+				return true
+			}
+			if !items[i].PinnedAt.Equal(*items[j].PinnedAt) {
+				return items[i].PinnedAt.After(*items[j].PinnedAt)
+			}
+		}
 		return items[i].UpdatedAt.After(items[j].UpdatedAt)
 	})
 	sort.Slice(alerts, func(i, j int) bool {
@@ -186,9 +197,9 @@ func (s *Store) snapshotLocked() StateSnapshot {
 	}
 }
 
-// evaluateAlertsLocked 根据当前价格重新计算所有提醒的触发状态。
+// evaluateAlertsLocked recalculates trigger status of all alerts based on current prices.
 func (s *Store) evaluateAlertsLocked() {
-	// 先建索引，避免在提醒循环里重复扫描全部标的。
+	// First build index to avoid repeatedly scanning all items in the alert loop.
 	priceByItem := make(map[string]float64, len(s.state.Items))
 	for _, item := range s.state.Items {
 		priceByItem[item.ID] = item.CurrentPrice
@@ -222,7 +233,7 @@ func (s *Store) evaluateAlertsLocked() {
 	}
 }
 
-// findItemIndexLocked 返回指定标的在状态切片中的下标，不存在时返回 -1。
+// findItemIndexLocked returns the index of the specified item in the state slice; returns -1 if not found.
 func (s *Store) findItemIndexLocked(id string) int {
 	for idx := range s.state.Items {
 		if s.state.Items[idx].ID == id {
@@ -232,7 +243,7 @@ func (s *Store) findItemIndexLocked(id string) int {
 	return -1
 }
 
-// findAlertIndexLocked 返回指定提醒在状态切片中的下标，不存在时返回 -1。
+// findAlertIndexLocked returns the index of the specified alert in the state slice; returns -1 if not found.
 func (s *Store) findAlertIndexLocked(id string) int {
 	for idx := range s.state.Alerts {
 		if s.state.Alerts[idx].ID == id {
@@ -242,7 +253,7 @@ func (s *Store) findAlertIndexLocked(id string) int {
 	return -1
 }
 
-// quoteProviderNameLocked 返回当前激活行情源的显示名称。
+// quoteProviderNameLocked returns the display name of the currently active quote source.
 func (s *Store) quoteProviderNameLocked(market string) string {
 	if provider := s.activeQuoteProviderLocked(market); provider != nil {
 		return provider.Name()
@@ -251,7 +262,7 @@ func (s *Store) quoteProviderNameLocked(market string) string {
 	return "Manual"
 }
 
-// quoteProviderSummaryLocked 返回当前各市场行情源的简要描述，用于界面展示。
+// quoteProviderSummaryLocked returns a brief description of current quote sources for each market for UI display.
 func (s *Store) quoteProviderSummaryLocked() string {
 	parts := []string{
 		"CN " + s.quoteProviderNameLocked("CN-A"),
@@ -261,7 +272,7 @@ func (s *Store) quoteProviderSummaryLocked() string {
 	return strings.Join(parts, " / ")
 }
 
-// defaultQuoteSourceIDForMarket 返回给定市场的默认行情源 ID。
+// defaultQuoteSourceIDForMarket returns the default quote source ID for the given market.
 func defaultQuoteSourceIDForMarket(market string) string {
 	switch marketGroupForMarket(market) {
 	case "cn":
@@ -275,7 +286,7 @@ func defaultQuoteSourceIDForMarket(market string) string {
 	}
 }
 
-// marketGroupForMarket 把具体市场归类到更宽泛的市场组，以便复用设置和逻辑。
+// marketGroupForMarket groups specific markets into broader market groups for settings and logic reuse.
 func marketGroupForMarket(market string) string {
 	switch market {
 	case "CN-A", "CN-GEM", "CN-STAR", "CN-ETF", "CN-BJ":
@@ -289,13 +300,13 @@ func marketGroupForMarket(market string) string {
 	}
 }
 
-// quoteSourceIDForMarketLocked 返回给定市场当前应生效的行情源 ID，优先级为：
-// 1. 市场专属设置（HKQuoteSource、USQuoteSource、CNQuoteSource）
-// 2. 通用设置（QuoteSource）
-// 3. 各市场默认值（defaultQuoteSourceIDForMarket）
-// 4. 可用行情源列表中的第一个支持该市场的选项
-// 5. 可用行情源列表中的第一个选项
-// 6. 内置默认值 DefaultQuoteSourceID
+// quoteSourceIDForMarketLocked returns the quote source ID that should be effective for the given market, with priority:
+// 1. Market-specific settings (HKQuoteSource, USQuoteSource, CNQuoteSource)
+// 2. General settings (QuoteSource)
+// 3. Market-specific defaults (defaultQuoteSourceIDForMarket)
+// 4. First available option in quote source list that supports this market
+// 5. First available option in quote source list
+// 6. Built-in default DefaultQuoteSourceID
 func (s *Store) quoteSourceIDForMarketLocked(market string) string {
 	settings := s.state.Settings
 	switch marketGroupForMarket(market) {
@@ -308,7 +319,9 @@ func (s *Store) quoteSourceIDForMarketLocked(market string) string {
 	}
 }
 
-// normaliseQuoteSourceIDLocked 验证并规范化用户输入的行情源 ID，确保其在可用选项中有效且支持指定市场；否则回落到合理的默认值。
+// normaliseQuoteSourceIDLocked validates and normalizes user-provided quote source ID,
+// ensuring it is valid in available options and supports the specified market;
+// otherwise falls back to reasonable defaults.
 func (s *Store) normaliseQuoteSourceIDLocked(sourceID, market string) string {
 	sourceID = strings.ToLower(strings.TrimSpace(sourceID))
 	if sourceID != "" {
@@ -335,7 +348,7 @@ func (s *Store) normaliseQuoteSourceIDLocked(sourceID, market string) string {
 	return DefaultQuoteSourceID
 }
 
-// quoteSourceSupportsMarketLocked 检查指定的行情源 ID 是否在可用选项中，并且支持给定市场。
+// quoteSourceSupportsMarketLocked checks whether the specified quote source ID is in available options and supports the given market.
 func (s *Store) quoteSourceSupportsMarketLocked(sourceID, market string) bool {
 	for _, option := range s.quoteSourceOptions {
 		if option.ID == sourceID {
@@ -345,7 +358,8 @@ func (s *Store) quoteSourceSupportsMarketLocked(sourceID, market string) bool {
 	return false
 }
 
-// quoteSourceSupportsMarketOption 检查行情源选项是否支持给定市场；如果 SupportedMarkets 为空，则表示支持所有市场。
+// quoteSourceSupportsMarketOption checks whether the quote source option supports the given market;
+// if SupportedMarkets is empty, it means all markets are supported.
 func (s *Store) quoteSourceSupportsMarketOption(option QuoteSourceOption, market string) bool {
 	if len(option.SupportedMarkets) == 0 {
 		return true
@@ -358,7 +372,7 @@ func (s *Store) quoteSourceSupportsMarketOption(option QuoteSourceOption, market
 	return false
 }
 
-// activeQuoteProviderLocked 返回给定市场当前应生效的行情 provider。
+// activeQuoteProviderLocked returns the quote provider that should be effective for the given market.
 func (s *Store) activeQuoteProviderLocked(market string) QuoteProvider {
 	if len(s.quoteProviders) == 0 {
 		return nil
@@ -376,19 +390,19 @@ func (s *Store) activeQuoteProviderLocked(market string) QuoteProvider {
 	return nil
 }
 
-// activeQuoteSourceIDLocked 返回当前有效的行情源 ID。
+// activeQuoteSourceIDLocked returns the currently effective quote source ID.
 func (s *Store) activeQuoteSourceIDLocked(market string) string {
 	return s.quoteSourceIDForMarketLocked(market)
 }
 
-// historyProviderCandidatesLocked 返回给定市场的历史数据 provider 候选列表，优先级为：
-// 1. 当前行情源（如果也提供历史数据）
-// 2. 同市场组的其他默认行情源（如用户设置的行情源不支持历史数据，则回落到同市场组的默认值）
-// 3. 同市场组的其他可用行情源（如同市场组默认值不支持历史数据，则回落到同市场组的其他选项）
-// 4. 其他市场组的默认行情源（如同市场组没有任何选项支持历史数据，则回落到其他市场组的默认值）
-// 5. 其他市场组的可用行情源（如其他市场组默认值不支持历史数据，则回落到其他市场组的其他选项）
-// 6. 可用行情源列表中的第一个提供历史数据的选项
-// 7. 内置默认值 DefaultQuoteSourceID（如果提供历史数据）
+// historyProviderCandidatesLocked returns a list of historical data provider candidates for the given market, with priority:
+// 1. Current quote source (if it also provides historical data)
+// 2. Other default quote sources in the same market group (if user-set quote source does not support historical data, fall back to same market group default)
+// 3. Other available quote sources in the same market group (if same market group default does not support historical data, fall back to other options in same market group)
+// 4. Default quote sources in other market groups (if no options in same market group support historical data, fall back to other market group defaults)
+// 5. Available quote sources in other market groups (if other market group default does not support historical data, fall back to other options in other market groups)
+// 6. First available option in quote source list that provides historical data
+// 7. Built-in default DefaultQuoteSourceID (if it provides historical data)
 func (s *Store) historyProviderCandidatesLocked(market string) []HistoryProvider {
 	if len(s.historyProviders) == 0 {
 		return nil
@@ -425,7 +439,7 @@ func (s *Store) historyProviderCandidatesLocked(market string) []HistoryProvider
 	return candidates
 }
 
-// buildDashboard 基于标的、提醒和汇率信息构建仪表盘汇总数据。
+// buildDashboard builds dashboard summary data based on items, alerts, and FX rate information.
 func buildDashboard(items []WatchlistItem, alerts []AlertRule, fx *FxRates, displayCurrency string) DashboardSummary {
 	var summary DashboardSummary
 	summary.ItemCount = len(items)
@@ -435,7 +449,7 @@ func buildDashboard(items []WatchlistItem, alerts []AlertRule, fx *FxRates, disp
 	}
 	summary.DisplayCurrency = displayCurrency
 
-	// 先把各标的成本和市值折算到统一展示货币，再做组合聚合。
+	// First convert each item's cost and market value to unified display currency, then perform portfolio aggregation.
 	for _, item := range items {
 		costBasis := item.CostBasis()
 		marketValue := item.MarketValue()
@@ -448,8 +462,8 @@ func buildDashboard(items []WatchlistItem, alerts []AlertRule, fx *FxRates, disp
 
 		summary.TotalCost += costBasis
 		summary.TotalValue += marketValue
-		// 只有有实际持仓（Quantity > 0）且录入了成本价的标的才参与盈亏计数。
-		// 纯观察标的（Quantity=0，CostPrice=0）以及定投后成本归零的边缘情况均排除在外。
+		// Only items with actual holdings (Quantity > 0) and recorded cost price participate in PnL (Profit and Loss) counting.
+		// Pure observation items (Quantity=0, CostPrice=0) and edge cases where cost becomes zero after DCA (Dollar-Cost Averaging) are excluded.
 		if item.Quantity > 0 && item.CostPrice > 0 {
 			if item.CurrentPrice > item.CostPrice {
 				summary.WinCount++
@@ -473,7 +487,7 @@ func buildDashboard(items []WatchlistItem, alerts []AlertRule, fx *FxRates, disp
 	return summary
 }
 
-// seedState 返回首次启动时使用的示例状态。
+// seedState returns sample state used on first startup.
 func seedState() persistedState {
 	now := time.Now()
 	items := []WatchlistItem{
@@ -555,7 +569,7 @@ func seedState() persistedState {
 	return store.state
 }
 
-// newID 生成带前缀的随机 ID；随机数不可用时退回时间戳方案。
+// newID generates a prefixed random ID; falls back to timestamp scheme when random numbers are unavailable.
 func newID(prefix string) string {
 	buffer := make([]byte, 6)
 	if _, err := rand.Read(buffer); err != nil {
@@ -564,13 +578,13 @@ func newID(prefix string) string {
 	return prefix + "-" + hex.EncodeToString(buffer)
 }
 
-// ptrTime 返回给定时间值的独立指针副本。
+// ptrTime returns an independent pointer copy of the given time value.
 func ptrTime(value time.Time) *time.Time {
 	copy := value
 	return &copy
 }
 
-// nonZeroTime 把零值时间回落为当前时间。
+// nonZeroTime falls back zero-value time to current time.
 func nonZeroTime(value time.Time) time.Time {
 	if value.IsZero() {
 		return time.Now()

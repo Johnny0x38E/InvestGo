@@ -12,7 +12,7 @@ function isApiErrorPayload(payload: unknown): payload is ApiErrorPayload {
     return typeof payload === "object" && payload !== null && ("error" in payload || "debugError" in payload);
 }
 
-// 用统一错误类型区分“超时”与“主动取消”，方便上层决定是否静默处理。
+// Use a unified error type to distinguish “timeout” from “manual abort”, allowing callers to decide whether to suppress the error.
 export class ApiAbortError extends Error {
     readonly reason: "timeout" | "aborted";
 
@@ -27,7 +27,7 @@ export type ApiRequestInit = RequestInit & {
     timeoutMs?: number;
 };
 
-// 统一封装前端 API 请求，补上超时、取消和错误日志能力。
+// Unified frontend API request wrapper with timeout, cancellation, and error logging capabilities.
 export async function api<T>(path: string, init?: ApiRequestInit): Promise<T> {
     const { timeoutMs = defaultTimeoutMs, signal: externalSignal, ...requestInit } = init ?? {};
     const controller = new AbortController();
@@ -38,7 +38,7 @@ export async function api<T>(path: string, init?: ApiRequestInit): Promise<T> {
     headers.set("X-InvestGo-Locale", getI18nLocale());
 
     if (externalSignal) {
-        // 把调用方传入的 signal 桥接到内部 controller，这样两边都能触发中断。
+        // Bridge the caller-provided signal to the internal controller so either side can trigger abort.
         if (externalSignal.aborted) {
             abortFromExternalSignal();
         } else {
@@ -71,7 +71,7 @@ export async function api<T>(path: string, init?: ApiRequestInit): Promise<T> {
             throw error;
         }
         if (error instanceof DOMException && error.name === "AbortError") {
-            // fetch 原生只抛 AbortError，这里恢复成应用内部可区分的中断类型。
+            // fetch natively only throws AbortError; restore it to the application's internally distinguishable abort type.
             throw externalSignal?.aborted ? new ApiAbortError("aborted") : new ApiAbortError("timeout");
         }
         if (error instanceof Error) {

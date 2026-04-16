@@ -45,7 +45,7 @@ type EastMoneyQuoteDataDiff struct {
 	PreviousClose emFloat `json:"f18"`
 }
 
-// DefaultQuoteSourceRegistry 返回默认行情源注册表及其前端展示配置。
+// DefaultQuoteSourceRegistry returns the default quote source registry and its frontend display options.
 func DefaultQuoteSourceRegistry(client *http.Client) (map[string]monitor.QuoteProvider, []monitor.QuoteSourceOption) {
 	eastMoney := NewEastMoneyQuoteProvider(client)
 	yahoo := NewYahooQuoteProvider(client)
@@ -71,7 +71,7 @@ func DefaultQuoteSourceRegistry(client *http.Client) (map[string]monitor.QuotePr
 	}, options
 }
 
-// NewYahooQuoteProvider 创建 Yahoo 实时报价 provider。
+// NewYahooQuoteProvider creates a Yahoo real-time quote provider.
 func NewYahooQuoteProvider(client *http.Client) *YahooQuoteProvider {
 	if client == nil {
 		client = &http.Client{Timeout: 8 * time.Second}
@@ -84,7 +84,7 @@ func (p *YahooQuoteProvider) Name() string {
 	return "Yahoo Finance"
 }
 
-// Fetch 批量请求 Yahoo Finance 实时行情，并映射回标准 Quote 结构。
+// Fetch requests Yahoo Finance real-time quotes in batch and maps them to the standard Quote structure.
 func (p *YahooQuoteProvider) Fetch(ctx context.Context, items []monitor.WatchlistItem) (map[string]monitor.Quote, error) {
 	targets, problems := collectQuoteTargets(items)
 	quotes := make(map[string]monitor.Quote, len(targets))
@@ -119,7 +119,8 @@ func (p *YahooQuoteProvider) Fetch(ctx context.Context, items []monitor.Watchlis
 	return quotes, collapseProblems(problems)
 }
 
-// fetchChartSnapshot 请求 Yahoo Finance 的图表数据接口，解析最近 5 天的日线数据，并从中提取最新价格点构建 Quote 对象。
+// fetchChartSnapshot calls the Yahoo Finance chart API, parses the last 5 days of daily data,
+// and builds a Quote from the latest price point.
 func (p *YahooQuoteProvider) fetchChartSnapshot(ctx context.Context, item monitor.WatchlistItem, yahooSymbol string) (monitor.Quote, error) {
 	params := url.Values{}
 	params.Set("range", "5d")
@@ -164,7 +165,7 @@ func (p *YahooQuoteProvider) fetchChartSnapshot(ctx context.Context, item monito
 	return quote, nil
 }
 
-// NewEastMoneyQuoteProvider 创建东方财富实时报价 provider。
+// NewEastMoneyQuoteProvider creates an EastMoney real-time quote provider.
 func NewEastMoneyQuoteProvider(client *http.Client) *EastMoneyQuoteProvider {
 	if client == nil {
 		client = &http.Client{Timeout: 8 * time.Second}
@@ -173,12 +174,12 @@ func NewEastMoneyQuoteProvider(client *http.Client) *EastMoneyQuoteProvider {
 	return &EastMoneyQuoteProvider{client: client}
 }
 
-// Name 返回东方财富报价源的显示名称。
+// Name returns the display name of the EastMoney quote source.
 func (p *EastMoneyQuoteProvider) Name() string {
 	return "EastMoney"
 }
 
-// Fetch 批量请求东方财富实时行情，并映射回标准 Quote 结构。
+// Fetch requests EastMoney real-time quotes in batch and maps them to the standard Quote structure.
 func (p *EastMoneyQuoteProvider) Fetch(ctx context.Context, items []monitor.WatchlistItem) (map[string]monitor.Quote, error) {
 	targets, problems := collectQuoteTargets(items)
 	quotes := make(map[string]monitor.Quote, len(targets))
@@ -186,7 +187,7 @@ func (p *EastMoneyQuoteProvider) Fetch(ctx context.Context, items []monitor.Watc
 		return quotes, collapseProblems(problems)
 	}
 
-	// 东方财富按 secid 批量查询，因此先把标准目标映射为 secid。
+	// EastMoney queries by secid in batch, so map standard targets to secids first.
 	secids := make([]string, 0, len(targets)*2)
 	indexBySecID := make(map[string]monitor.QuoteTarget, len(targets)*2)
 	for _, target := range targets {
@@ -282,9 +283,9 @@ func (p *EastMoneyQuoteProvider) Fetch(ctx context.Context, items []monitor.Watc
 	return quotes, collapseProblems(problems)
 }
 
-// resolveEastMoneySecID 把标准目标转换为东方财富接口需要的 secid（返回第一个匹配）。
-// 注意：美股会返回 105（NASDAQ）作为默认值，但实际可能在 106（NYSE）或 107（NYSE Arca）上。
-// 批量行情请求应优先使用 resolveAllEastMoneySecIDs 以覆盖所有美股交易所。
+// resolveEastMoneySecID converts a standard target to the secid required by the EastMoney API (returns the first match).
+// Note: US stocks default to 105 (NASDAQ), but may actually be on 106 (NYSE) or 107 (NYSE Arca).
+// For batch quote requests, prefer resolveAllEastMoneySecIDs to cover all US exchanges.
 func resolveEastMoneySecID(target monitor.QuoteTarget) (string, error) {
 	ids, err := resolveAllEastMoneySecIDs(target)
 	if err != nil {
@@ -293,9 +294,9 @@ func resolveEastMoneySecID(target monitor.QuoteTarget) (string, error) {
 	return ids[0], nil
 }
 
-// resolveAllEastMoneySecIDs 把标准目标转换为东方财富接口可能需要的所有 secid。
-// 对于美股，由于同一 ticker 可能在 NASDAQ(105)、NYSE(106) 或 NYSE Arca(107) 上市，
-// 返回所有三个变体以确保能命中正确的交易所。
+// resolveAllEastMoneySecIDs converts a standard target to all possible secids required by the EastMoney API.
+// For US stocks, since the same ticker may list on NASDAQ (105), NYSE (106), or NYSE Arca (107),
+// all three variants are returned to ensure the correct exchange is hit.
 func resolveAllEastMoneySecIDs(target monitor.QuoteTarget) ([]string, error) {
 	symbol := target.DisplaySymbol
 	market := target.Market
@@ -325,7 +326,7 @@ func resolveAllEastMoneySecIDs(target monitor.QuoteTarget) ([]string, error) {
 		} else {
 			return nil, fmt.Errorf("US symbol format is invalid: %s", symbol)
 		}
-		// 105=NASDAQ, 106=NYSE, 107=NYSE Arca — 三个都请求以覆盖所有交易所
+		// 105=NASDAQ, 106=NYSE, 107=NYSE Arca — request all three to cover every exchange
 		return []string{"105." + ticker, "106." + ticker, "107." + ticker}, nil
 	default:
 		return nil, fmt.Errorf("Market type is unsupported: %s", market)

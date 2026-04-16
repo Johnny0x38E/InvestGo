@@ -7,11 +7,13 @@ import (
 	"time"
 )
 
-// Store 是监控模块的核心状态管理器，负责维护和协调所有与前端交互相关的状态数据，提供线程安全的访问接口。它的职责包括：
-// 1. 持久化管理：负责将用户设置和监控数据持久化到磁盘，并在应用启动时装载这些数据，确保用户配置的连续性。
-// 2. 运行时状态维护：维护当前的监控状态、历史数据和汇率信息，供前端仪表盘展示和交互使用。
-// 3. 依赖协调：协调行情提供者、历史数据提供者和日志系统等多个组件，确保它们的数据能够正确地反映在前端。
-// 4. 锁管理：通过读写锁机制确保在多线程环境下对状态的安全访问，避免数据竞争和不一致。
+// Store is the core state manager for the monitoring module,
+// responsible for maintaining and coordinating all state data related to frontend interaction,
+// providing thread-safe access interfaces. Its responsibilities include:
+// 1. Persistence management: Responsible for persisting user settings and monitoring data to disk, and loading this data on application startup to ensure continuity of user configuration.
+// 2. Runtime state maintenance: Maintains current monitoring status, historical data, and FX (Foreign Exchange) rate information for frontend dashboard display and interaction.
+// 3. Dependency coordination: Coordinates multiple components including quote providers, historical data providers, and logging systems to ensure their data is correctly reflected on the frontend.
+// 4. Lock management: Ensures safe access to state in multi-threaded environments through read-write lock mechanisms, avoiding data races and inconsistencies.
 type Store struct {
 	mu                 sync.RWMutex
 	path               string
@@ -24,7 +26,7 @@ type Store struct {
 	fxRates            *FxRates
 }
 
-// NewStore 创建 Store，并完成状态装载与运行时依赖注入。
+// NewStore creates a Store and completes state loading and runtime dependency injection.
 func NewStore(path string, quoteProviders map[string]QuoteProvider, quoteSourceOptions []QuoteSourceOption, historyProviders map[string]HistoryProvider, logs *LogBook, appVersion string) (*Store, error) {
 	store := &Store{
 		path:               path,
@@ -42,7 +44,7 @@ func NewStore(path string, quoteProviders map[string]QuoteProvider, quoteSourceO
 	return store, nil
 }
 
-// Save 把当前内存状态持久化到磁盘
+// Save persists current in-memory state to disk.
 func (s *Store) Save() error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -54,14 +56,14 @@ func (s *Store) Save() error {
 	return err
 }
 
-// Snapshot 返回前端启动和交互依赖的完整状态快照
+// Snapshot returns a complete state snapshot required for frontend startup and interaction.
 func (s *Store) Snapshot() StateSnapshot {
 	if s.fxRates.IsStale() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		s.fxRates.Fetch(ctx)
 
-		// 将汇率获取结果写入运行时状态并记录日志
+		// Write FX rate fetch result to runtime status and log it
 		if fxErr := s.fxRates.LastError(); fxErr != "" {
 			s.mu.Lock()
 			s.runtime.LastFxError = fxErr
@@ -83,7 +85,7 @@ func (s *Store) Snapshot() StateSnapshot {
 	return s.snapshotLocked()
 }
 
-// CurrentSettings 返回当前持久化设置的只读副本，供热门榜单等使用。
+// CurrentSettings returns a read-only copy of current persisted settings for use by hot lists and other components.
 func (s *Store) CurrentSettings() AppSettings {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

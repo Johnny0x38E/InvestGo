@@ -8,14 +8,14 @@ import (
 	"time"
 )
 
-// UpsertItem 新增或更新自选标的，并在实时模式下尽量补齐最新行情。
+// UpsertItem adds or updates a watchlist item, and tries to fetch the latest quote in real-time mode.
 func (s *Store) UpsertItem(input WatchlistItem) (StateSnapshot, error) {
 	item, err := sanitiseItem(input)
 	if err != nil {
 		return StateSnapshot{}, err
 	}
 
-	// 先在读锁内取出运行时依赖和旧值，避免后续网络请求占用写锁。
+	// First extract runtime dependencies and old values within read lock to avoid holding write lock during subsequent network requests.
 	s.mu.RLock()
 	provider := s.activeQuoteProviderLocked(item.Market)
 	var existing *WatchlistItem
@@ -29,10 +29,15 @@ func (s *Store) UpsertItem(input WatchlistItem) (StateSnapshot, error) {
 
 	if existing != nil {
 		item = inheritLiveFields(item, *existing)
+		if existing.PinnedAt != nil {
+			item.PinnedAt = ptrTime(*existing.PinnedAt)
+		} else {
+			item.PinnedAt = nil
+		}
 	}
 
 	if provider != nil {
-		// 标的保存后立即补一跳行情，确保当前价始终来自统一行情源。
+		// Fetch one quote immediately after saving the item to ensure current price always comes from a unified quote source.
 		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 		quotes, quoteErr := provider.Fetch(ctx, []WatchlistItem{item})
 		cancel()
@@ -83,7 +88,41 @@ func (s *Store) UpsertItem(input WatchlistItem) (StateSnapshot, error) {
 	return s.snapshotLocked(), nil
 }
 
-// DeleteItem 删除指定标的，并同步删除其关联的提醒规则。
+// SetItemPinned updates whether the specified item is pinned to the top of watchlist-oriented views.
+func (s *Store) SetItemPinned(id string, pinned bool) (StateSnapshot, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	index := s.findItemIndexLocked(id)
+	if index == -1 {
+		return StateSnapshot{}, fmt.Errorf("Item not found: %s", id)
+	}
+
+	now := time.Now()
+	item := s.state.Items[index]
+	if pinned {
+		item.PinnedAt = &now
+	} else {
+		item.PinnedAt = nil
+	}
+	s.state.Items[index] = item
+	s.state.UpdatedAt = now
+
+	if err := s.saveLocked(); err != nil {
+		s.logError("storage", fmt.Sprintf("save state failed after pin update: %v", err))
+		return StateSnapshot{}, err
+	}
+
+	action := "unpinned"
+	if pinned {
+		action = "pinned"
+	}
+	s.logInfo("watchlist", fmt.Sprintf("%s item %s", action, item.Symbol))
+
+	return s.snapshotLocked(), nil
+}
+
+// DeleteItem deletes the specified item and synchronously deletes its associated alert rules.
 func (s *Store) DeleteItem(id string) (StateSnapshot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -95,7 +134,7 @@ func (s *Store) DeleteItem(id string) (StateSnapshot, error) {
 
 	itemSymbol := s.state.Items[index].Symbol
 	s.state.Items = append(s.state.Items[:index], s.state.Items[index+1:]...)
-	// 删除标的后，挂在该标的上的提醒也必须一起清掉，避免留下悬空引用。
+	// After deleting the item, alerts attached to it must also be cleared to avoid dangling references.
 	filteredAlerts := s.state.Alerts[:0]
 	for _, alert := range s.state.Alerts {
 		if alert.ItemID != id {
@@ -115,7 +154,7 @@ func (s *Store) DeleteItem(id string) (StateSnapshot, error) {
 	return s.snapshotLocked(), nil
 }
 
-// UpsertAlert 新增或更新价格提醒规则。
+// UpsertAlert adds or updates a price alert rule.
 func (s *Store) UpsertAlert(input AlertRule) (StateSnapshot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -153,7 +192,7 @@ func (s *Store) UpsertAlert(input AlertRule) (StateSnapshot, error) {
 	return s.snapshotLocked(), nil
 }
 
-// DeleteAlert 删除指定提醒规则。
+// DeleteAlert deletes the specified alert rule.
 func (s *Store) DeleteAlert(id string) (StateSnapshot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -177,7 +216,7 @@ func (s *Store) DeleteAlert(id string) (StateSnapshot, error) {
 	return s.snapshotLocked(), nil
 }
 
-// UpdateSettings 更新应用设置并立即持久化。
+// UpdateSettings updates application settings and immediately persists them.
 func (s *Store) UpdateSettings(input AppSettings) (StateSnapshot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -212,7 +251,7 @@ func (s *Store) UpdateSettings(input AppSettings) (StateSnapshot, error) {
 	return s.snapshotLocked(), nil
 }
 
-// sanitiseItem 规范化标的信息并执行基础合法性校验。
+// sanitiseItem normalizes item information and performs basic validation.
 func sanitiseItem(input WatchlistItem) (WatchlistItem, error) {
 	item := input
 	item.Name = strings.TrimSpace(item.Name)
@@ -229,11 +268,11 @@ func sanitiseItem(input WatchlistItem) (WatchlistItem, error) {
 	item.Currency = target.Currency
 	item.QuoteSource = strings.TrimSpace(item.QuoteSource)
 
-	// 若有定投记录，先过滤并规范化条目，再自动推算累计份额和加权均价。
-	// 推算规则：
-	//   1. 优先使用手动录入的买入价（Price > 0）：effectiveCost = Price × Shares
-	//   2. 无买入价时，从总投入中扣除手续费：effectiveCost = max(Amount - Fee, 0)
-	// 加权均价 = Σ effectiveCost_i / Σ Shares_i
+	// If there are DCA (Dollar-Cost Averaging) records, first filter and normalize entries, then automatically calculate accumulated shares and weighted average price.
+	// Calculation rules:
+	//   1. Prefer manually entered buy price (Price > 0): effectiveCost = Price × Shares
+	//   2. When no buy price, deduct fee from total investment: effectiveCost = max(Amount - Fee, 0)
+	// Weighted average price = Σ effectiveCost_i / Σ Shares_i
 	if len(item.DCAEntries) > 0 {
 		valid := make([]DCAEntry, 0, len(item.DCAEntries))
 		for _, e := range item.DCAEntries {
@@ -281,7 +320,7 @@ func sanitiseItem(input WatchlistItem) (WatchlistItem, error) {
 	return item, nil
 }
 
-// sanitiseAlert 规范化提醒规则并执行基础合法性校验。
+// sanitiseAlert normalizes alert rules and performs basic validation.
 func sanitiseAlert(input AlertRule) (AlertRule, error) {
 	alert := input
 	alert.Name = strings.TrimSpace(alert.Name)
@@ -303,7 +342,7 @@ func sanitiseAlert(input AlertRule) (AlertRule, error) {
 	return alert, nil
 }
 
-// sanitiseSettings 把用户输入与当前配置合并，并执行统一的合法性校验。
+// sanitiseSettings merges user input with current configuration and performs unified validation.
 func sanitiseSettings(input AppSettings, current AppSettings, quoteProviders map[string]QuoteProvider) (AppSettings, error) {
 	settings := current
 	if input.RefreshIntervalSeconds > 0 {
@@ -348,7 +387,7 @@ func sanitiseSettings(input AppSettings, current AppSettings, quoteProviders map
 	if strings.TrimSpace(input.DashboardCurrency) != "" {
 		settings.DashboardCurrency = strings.ToUpper(strings.TrimSpace(input.DashboardCurrency))
 	}
-	// 布尔值无法通过"空字符串"区分是否传入，这里显式采用输入值覆盖。
+	// Boolean values cannot distinguish whether they were passed via "empty string", so here we explicitly use input values to override.
 	settings.DeveloperMode = input.DeveloperMode
 	settings.UseNativeTitleBar = input.UseNativeTitleBar
 
@@ -438,7 +477,7 @@ func sanitiseSettings(input AppSettings, current AppSettings, quoteProviders map
 	return settings, nil
 }
 
-// normaliseQuoteSourceIDForSettings 根据用户输入、市场类型和可用行情源列表，确定最终使用的行情源 ID。
+// normaliseQuoteSourceIDForSettings determines the final quote source ID to use based on user input, market type, and available quote source list.
 func normaliseQuoteSourceIDForSettings(sourceID, legacySource, market string, providers map[string]QuoteProvider) string {
 	sourceID = strings.ToLower(strings.TrimSpace(sourceID))
 	if sourceID == "" {
@@ -481,7 +520,7 @@ func quoteSourceSupportsMarketForSettings(sourceID, market string) bool {
 	}
 }
 
-// normaliseTags 去除空标签并保持标签集合唯一。
+// normaliseTags removes empty tags and keeps the tag set unique.
 func normaliseTags(tags []string) []string {
 	seen := make(map[string]struct{}, len(tags))
 	result := make([]string, 0, len(tags))
@@ -499,21 +538,21 @@ func normaliseTags(tags []string) []string {
 	return result
 }
 
-// logInfo 在日志簿可用时写入 info 级别日志。
+// logInfo writes info level logs when logbook is available.
 func (s *Store) logInfo(scope, message string) {
 	if s.logs != nil {
 		s.logs.Info("backend", scope, message)
 	}
 }
 
-// logWarn 在日志簿可用时写入 warn 级别日志。
+// logWarn writes warn level logs when logbook is available.
 func (s *Store) logWarn(scope, message string) {
 	if s.logs != nil {
 		s.logs.Warn("backend", scope, message)
 	}
 }
 
-// logError 在日志簿可用时写入 error 级别日志。
+// logError writes error level logs when logbook is available.
 func (s *Store) logError(scope, message string) {
 	if s.logs != nil {
 		s.logs.Error("backend", scope, message)

@@ -37,7 +37,7 @@ type yahooChartResponse struct {
 	} `json:"chart"`
 }
 
-// fetchYahooChart 轮询 Yahoo Finance 的多个主机以获取行情数据，返回第一个成功响应或汇总错误信息。
+// fetchYahooChart polls multiple Yahoo Finance hosts for quote data, returning the first successful response or a combined error message.
 func fetchYahooChart(ctx context.Context, client *http.Client, symbol string, params url.Values) (yahooChartResponse, error) {
 	if client == nil {
 		client = &http.Client{}
@@ -55,7 +55,7 @@ func fetchYahooChart(ctx context.Context, client *http.Client, symbol string, pa
 	return yahooChartResponse{}, collapseProblems(problems)
 }
 
-// fetchYahooChartFromHost 向指定的 Yahoo Finance 主机发送请求，解析响应并处理可能的错误。
+// fetchYahooChartFromHost sends a request to the specified Yahoo Finance host, parses the response and handles possible errors.
 func fetchYahooChartFromHost(ctx context.Context, client *http.Client, host, symbol string, params url.Values) (yahooChartResponse, error) {
 	query := make(url.Values, len(params))
 	for key, values := range params {

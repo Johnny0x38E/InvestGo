@@ -90,7 +90,7 @@ const trackedHotKeys = computed(() => items.value.map((item) => `${item.market}:
 watch(
     settings,
     (value) => {
-        // 数值格式等真正生效的业务设置仍以已保存值为准，避免草稿影响数据展示。
+        // Persisted settings remain the source of truth for active formatting and other business-facing behavior so drafts do not affect displayed data.
         setFormatterSettings(value);
         setI18nLocale(value.locale);
         document.documentElement.lang = value.locale === "system" ? navigator.language || "zh-CN" : value.locale;
@@ -112,7 +112,7 @@ watch(
             settingsDraft.themeMode,
         ] as const,
     () => {
-        // 设置弹窗打开时，允许在当前界面先预览外观草稿；关闭后自动回到已保存状态。
+        // While the settings dialog is open, allow the current view to preview appearance drafts and automatically revert to saved values when it closes.
         const appearance = settingsVisible.value ? settingsDraft : settings.value;
         document.documentElement.dataset.fontPreset = appearance.fontPreset;
         document.documentElement.dataset.colorTheme = appearance.colorTheme;
@@ -147,7 +147,7 @@ watch(
             return;
         }
 
-        // 只在开发者页签可见时轮询日志，避免无意义的后台请求。
+        // Poll logs only while the developer tab is visible to avoid unnecessary background requests.
         void loadBackendLogs(true);
         developerLogTimer = window.setInterval(() => {
             void loadBackendLogs(true);
@@ -168,7 +168,7 @@ onBeforeUnmount(() => {
     matchMediaList.removeEventListener("change", syncThemeMode);
 });
 
-// 同步系统主题到页面根节点，保持桌面应用的明暗跟随。
+// Sync the system theme to the document root so the desktop shell continues to follow light and dark mode changes.
 function syncThemeMode(): void {
     applyResolvedTheme(settings.value.themeMode);
 }
@@ -186,7 +186,7 @@ function applyResolvedTheme(themeMode: AppSettings["themeMode"]): void {
     document.documentElement.classList.toggle("app-dark", nextTheme === "dark");
 }
 
-// 从后端拉取完整快照，供首次加载和手动刷新使用。
+// Fetch the full backend snapshot for initial load and manual refresh flows.
 async function loadState(silent = false): Promise<void> {
     if (!silent) {
         setStatus(translate("app.loadingDashboard"), "success");
@@ -203,7 +203,7 @@ async function loadState(silent = false): Promise<void> {
     }
 }
 
-// 把后端快照灌回前端状态，并重置当前选中标的。
+// Hydrate frontend state from the backend snapshot and reset the current selection when needed.
 function applySnapshot(snapshot: StateSnapshot): void {
     dashboard.value = snapshot.dashboard;
     items.value = snapshot.items ?? [];
@@ -222,7 +222,7 @@ function applySnapshot(snapshot: StateSnapshot): void {
     scheduleAutoRefresh();
 }
 
-// 刷新实时行情，并按需要同步刷新当前图表范围。
+// Refresh live quotes and optionally reload the currently selected chart range.
 async function refreshQuotes(silent = false, refreshHistory = true): Promise<void> {
     try {
         if (!silent) {
@@ -247,7 +247,7 @@ async function refreshQuotes(silent = false, refreshHistory = true): Promise<voi
     }
 }
 
-// 自动刷新按配置间隔继续下一次同步，用于所有区间图表的实时更新。
+// Schedule the next automatic sync using the configured interval so every chart range stays up to date.
 function scheduleAutoRefresh(): void {
     window.clearTimeout(refreshTimer);
     const intervalMs = Math.max(settings.value.refreshIntervalSeconds || 60, 10) * 1000;
@@ -257,19 +257,19 @@ function scheduleAutoRefresh(): void {
     }, intervalMs);
 }
 
-// 更新顶部状态栏文案和色调。
+// Update the top status bar message and tone.
 function setStatus(message: string, tone: StatusTone): void {
     statusText.value = message;
     statusTone.value = tone;
 }
 
-// 打开设置弹窗，并把当前设置复制到草稿对象。
+// Open the settings dialog and copy the current settings into the draft model.
 function openSettings(): void {
     Object.assign(settingsDraft, settings.value);
     settingsVisible.value = true;
 }
 
-// 保存用户设置，并让后端返回新的完整快照。
+// Persist user settings and let the backend return a refreshed full snapshot.
 async function saveSettings(): Promise<void> {
     savingSettings.value = true;
     try {
@@ -280,7 +280,7 @@ async function saveSettings(): Promise<void> {
         applySnapshot(snapshot);
         settingsVisible.value = false;
         setStatus(translate("app.settingsSaved"), "success");
-        // 设置保存后，如果当前在市场模块，刷新图表以确保使用新设置
+        // After saving settings, refresh the chart if the market module is active so the new settings take effect immediately.
         if (activeModule.value === "market" && selectedItem.value) {
             void loadHistory(true, true);
         }
@@ -291,27 +291,27 @@ async function saveSettings(): Promise<void> {
     }
 }
 
-// 打开标的编辑弹窗。
+// Open the item editor dialog.
 function openItemDialog(item?: WatchlistItem, initialTab: "basic" | "dca" = "basic"): void {
     Object.assign(itemForm, item ? mapItemToForm(item) : emptyItemForm());
     itemDialogInitialTab.value = initialTab;
     itemDialogVisible.value = true;
 }
 
-// 打开定投明细弹窗。
+// Open the DCA detail dialog.
 function showDCADetail(item: WatchlistItem): void {
     dcaDetailItem.value = item;
     dcaDetailVisible.value = true;
 }
 
-// 从定投明细弹窗切换到编辑弹窗的定投标签页。
+// Jump from the DCA detail dialog back into the item editor with the DCA tab selected.
 function editFromDCADetail(): void {
     if (!dcaDetailItem.value) return;
     dcaDetailVisible.value = false;
     openItemDialog(dcaDetailItem.value, "dca");
 }
 
-// 保存标的并刷新缓存，确保当前图表继续对齐最新数据。
+// Save the item and refresh cached data so the active chart stays aligned with the latest state.
 async function saveItem(): Promise<void> {
     savingItem.value = true;
     try {
@@ -331,7 +331,7 @@ async function saveItem(): Promise<void> {
     }
 }
 
-// 将热门榜单中的标的快速加入观察列表。
+// Quickly add an instrument from the hot list into the watchlist.
 async function quickAddHotItem(item: HotItem): Promise<void> {
     const key = `${item.market}:${item.symbol}`;
     if (trackedHotKeys.value.includes(key)) {
@@ -340,7 +340,7 @@ async function quickAddHotItem(item: HotItem): Promise<void> {
     }
 
     try {
-        // 快速加入只写入持仓基础信息，当前价仍由统一行情源回填。
+        // Quick add only writes the baseline holding fields; the current price is still backfilled by the unified quote source.
         const snapshot = await api<StateSnapshot>("/api/items", {
             method: "POST",
             body: JSON.stringify({
@@ -361,7 +361,20 @@ async function quickAddHotItem(item: HotItem): Promise<void> {
     }
 }
 
-// 删除标的时同步清空相关历史缓存。
+async function toggleItemPinned(item: WatchlistItem): Promise<void> {
+    try {
+        const snapshot = await api<StateSnapshot>(`/api/items/${item.id}/pin`, {
+            method: "PUT",
+            body: JSON.stringify({ pinned: !item.pinnedAt }),
+        });
+        applySnapshot(snapshot);
+        setStatus(item.pinnedAt ? translate("app.itemUnpinned") : translate("app.itemPinned"), "success");
+    } catch (error) {
+        setStatus(error instanceof Error ? error.message : translate("app.pinFailed"), "error");
+    }
+}
+
+// Clear related history cache entries when an item is deleted.
 async function performDeleteItem(id: string): Promise<void> {
     try {
         const snapshot = await api<StateSnapshot>(`/api/items/${id}`, { method: "DELETE" });
@@ -373,13 +386,13 @@ async function performDeleteItem(id: string): Promise<void> {
     }
 }
 
-// 打开提醒编辑弹窗。
+// Open the alert editor dialog.
 function openAlertDialog(alert?: AlertRule): void {
     Object.assign(alertForm, alert ? mapAlertToForm(alert) : emptyAlertForm(items.value[0]?.id));
     alertDialogVisible.value = true;
 }
 
-// 保存提醒规则，并把列表切换到提醒模块。
+// Save the alert rule and switch the UI to the alerts module.
 async function saveAlert(): Promise<void> {
     savingAlert.value = true;
     try {
@@ -400,7 +413,7 @@ async function saveAlert(): Promise<void> {
     }
 }
 
-// 删除提醒规则。
+// Delete an alert rule.
 async function performDeleteAlert(id: string): Promise<void> {
     try {
         const snapshot = await api<StateSnapshot>(`/api/alerts/${id}`, { method: "DELETE" });
@@ -411,7 +424,7 @@ async function performDeleteAlert(id: string): Promise<void> {
     }
 }
 
-// 记录待删除对象，并弹出二次确认。
+// Record the pending delete target and open the confirmation dialog.
 function requestDeleteItem(id: string): void {
     pendingDelete.kind = "item";
     pendingDelete.id = id;
@@ -430,7 +443,7 @@ function requestDeleteAlert(id: string): void {
     confirmDialogVisible.value = true;
 }
 
-// 执行确认删除。
+// Execute the confirmed delete action.
 async function confirmDelete(): Promise<void> {
     if (!pendingDelete.kind || !pendingDelete.id) {
         confirmDialogVisible.value = false;
@@ -439,7 +452,7 @@ async function confirmDelete(): Promise<void> {
 
     deleting.value = true;
     try {
-        // 删除类型在确认前已经固化到 pendingDelete，这里只负责执行对应动作。
+        // The delete target has already been frozen into pendingDelete before confirmation, so this branch only performs the matching action.
         if (pendingDelete.kind === "item") {
             await performDeleteItem(pendingDelete.id);
         } else {
@@ -453,7 +466,7 @@ async function confirmDelete(): Promise<void> {
     }
 }
 
-// 切换主模块，进入市场模块时补拉当前图表。
+// Switch the active module and eagerly load the current chart when entering the market module.
 function switchModule(next: ModuleKey): void {
     appendClientLog("info", "tabs", `switch module ${activeModule.value} -> ${next}`);
     activeModule.value = next;
@@ -498,6 +511,7 @@ function switchModule(next: ModuleKey): void {
                     @add-item="openItemDialog()"
                     @edit-item="openItemDialog"
                     @delete-item="requestDeleteItem"
+                    @toggle-pin="toggleItemPinned"
                     @select-item="selectedItemId = $event"
                     @show-dca="showDCADetail"
                 />

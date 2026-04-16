@@ -26,12 +26,12 @@ var defaultTerminalLogging = "0"
 var defaultDevToolsBuild = "0"
 var appVersion = "dev"
 
-// 嵌入前端构建产物，供 Wails 在运行时直接提供静态资源。
+// Embed frontend build assets for Wails to serve as static resources at runtime.
 //
 //go:embed frontend/dist
 var frontendAssets embed.FS
 
-// 嵌入应用图标
+// Embed application icon
 //
 //go:embed build/appicon.png
 var appIcon []byte
@@ -76,7 +76,7 @@ func main() {
 
 	app := application.New(application.Options{
 		Name:        "InvestGo",
-		Description: "Go + Wails v3 投资监控桌面应用",
+		Description: "Go + Wails v3 Investment Monitor Desktop App",
 		Icon:        appIcon,
 		Logger:      logs.NewSlogLogger("system", slog.LevelInfo),
 		Assets: application.AssetOptions{
@@ -97,7 +97,7 @@ func main() {
 		},
 	})
 
-	// 首先获取快照以读取设置
+	// First fetch a snapshot to read settings
 	snapshot := store.Snapshot()
 	useNativeTitleBar := snapshot.Settings.UseNativeTitleBar
 
@@ -133,7 +133,7 @@ func main() {
 		},
 	}
 
-	// 根据设置决定是否使用自定义标题栏
+	// Determine whether to use custom title bar based on settings
 	if !useNativeTitleBar {
 		windowOptions.Mac.TitleBar = application.MacTitleBarHiddenInsetUnified
 	}
@@ -146,7 +146,7 @@ func main() {
 	}
 }
 
-// defaultStatePath 返回状态文件的默认存储路径。
+// defaultStatePath returns the default storage path for the state file.
 func defaultStatePath() string {
 	if configDir, err := os.UserConfigDir(); err == nil {
 		return filepath.Join(configDir, "investgo", "state.json")
@@ -155,8 +155,8 @@ func defaultStatePath() string {
 	return filepath.Join(".", "data", "state.json")
 }
 
-// defaultLogPath 返回日志文件的默认存储路径。
-// 日志文件和 state.json 都在 $HOME/Library/Application Support/investgo/ 路径下。
+// defaultLogPath returns the default storage path for the log file.
+// Log files and state.json are located at $HOME/Library/Application Support/investgo/.
 func defaultLogPath() string {
 	if configDir, err := os.UserConfigDir(); err == nil {
 		return filepath.Join(configDir, "investgo", "logs", "app.log")
@@ -165,7 +165,7 @@ func defaultLogPath() string {
 	return filepath.Join(".", "data", "logs", "app.log")
 }
 
-// terminalLoggingEnabled 返回当前进程是否应把开发日志同步输出到终端。
+// terminalLoggingEnabled returns whether the current process should output development logs to the terminal.
 func terminalLoggingEnabled() bool {
 	if defaultTerminalLogging == "1" {
 		return true
@@ -180,19 +180,19 @@ func terminalLoggingEnabled() bool {
 	return false
 }
 
-// devToolsBuildEnabled 返回当前二进制是否启用了 DevTools 支持。
+// devToolsBuildEnabled returns whether the current binary has DevTools support enabled.
 func devToolsBuildEnabled() bool {
 	return defaultDevToolsBuild == "1"
 }
 
-// applySystemProxy 在 macOS 上读取系统代理设置，并在未手动配置时自动注入到进程环境变量。
-// 后续所有 net/http 客户端都会通过 http.ProxyFromEnvironment 透明地走代理，
-// 无需在工具侧额外配置"增强模式" / TUN 模式。
+// applySystemProxy reads system proxy settings on macOS and automatically injects them into process environment variables when not manually configured.
+// Subsequent net/http clients will transparently use the proxy via http.ProxyFromEnvironment,
+// without requiring additional "enhanced mode" / TUN mode configuration on the tool side.
 func applySystemProxy(logs *monitor.LogBook) {
 	if runtime.GOOS != "darwin" {
 		return
 	}
-	// 用户已手动配置代理时，保留显式配置，避免被系统设置覆盖。
+	// When user has manually configured proxy, preserve explicit configuration to avoid being overridden by system settings.
 	if os.Getenv("HTTPS_PROXY") != "" || os.Getenv("HTTP_PROXY") != "" ||
 		os.Getenv("https_proxy") != "" || os.Getenv("http_proxy") != "" {
 		logs.Info("backend", "proxy", "HTTPS_PROXY already set, skipping system proxy detection")
@@ -206,14 +206,14 @@ func applySystemProxy(logs *monitor.LogBook) {
 
 	settings, exceptions := parseScutilProxy(out)
 
-	// 把排除列表同步到 NO_PROXY，避免局域网和 localhost 流量误走代理。
+	// Synchronize exception list to NO_PROXY to prevent LAN and localhost traffic from erroneously going through proxy.
 	if len(exceptions) > 0 && os.Getenv("NO_PROXY") == "" && os.Getenv("no_proxy") == "" {
 		noProxy := strings.Join(exceptions, ",")
 		_ = os.Setenv("NO_PROXY", noProxy)
 		logs.Info("backend", "proxy", "NO_PROXY set from system exceptions: "+noProxy)
 	}
 
-	// 优先使用 HTTPS 代理，其次回退到 HTTP 代理。
+	// Prefer HTTPS proxy, then fallback to HTTP proxy.
 	applyEntry := func(hostKey, portKey, enableKey, defaultPort string) bool {
 		if settings[enableKey] != "1" {
 			return false
@@ -239,8 +239,8 @@ func applySystemProxy(logs *monitor.LogBook) {
 	applyEntry("HTTPProxy", "HTTPPort", "HTTPEnable", "8080")
 }
 
-// parseScutilProxy 把 scutil --proxy 的输出解析为键值映射以及排除列表。
-// 普通行格式为 "  Key : Value"；ExceptionsList 段的每一个数组项都会被收集到 exceptions。
+// parseScutilProxy parses the output of scutil --proxy into a key-value mapping and an exception list.
+// Normal lines have the format "  Key : Value"; each array item in the ExceptionsList section is collected into exceptions.
 func parseScutilProxy(data []byte) (kvs map[string]string, exceptions []string) {
 	kvs = make(map[string]string)
 	scanner := bufio.NewScanner(bytes.NewReader(data))
@@ -256,7 +256,7 @@ func parseScutilProxy(data []byte) (kvs map[string]string, exceptions []string) 
 		case inExceptions && trimmed == "}":
 			inExceptions = false
 		case inExceptions:
-			// 数组条目格式：  "N : value"（value 可能本身是逗号分隔的多个条目）
+			// Array entry format: "N : value" (value may itself be comma-separated multiple entries)
 			parts := strings.SplitN(trimmed, " : ", 2)
 			if len(parts) == 2 {
 				for _, entry := range strings.Split(parts[1], ",") {

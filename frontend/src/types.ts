@@ -1,4 +1,4 @@
-// 图表范围采用时间窗口语义，不再包含单独的实时标签。
+// History intervals use time-window semantics; there is no separate real-time label.
 export type HistoryInterval = "1h" | "1d" | "1w" | "1mo" | "1y" | "3y" | "all";
 export type AlertCondition = "above" | "below";
 export type ModuleKey = "market" | "hot" | "watchlist" | "alerts";
@@ -10,42 +10,42 @@ export type DeveloperLogSource = "backend" | "frontend" | "system";
 export type ThemeMode = "system" | "light" | "dark";
 export type ColorTheme = "blue" | "graphite" | "forest" | "sunset";
 
-// 统一的市场类型，符合交易所规范
+// Unified market types conforming to exchange conventions
 export type MarketType =
-    | "CN-A" // 沪深A股（主板）
-    | "CN-GEM" // 深交所创业板
-    | "CN-STAR" // 上交所科创板
-    | "CN-ETF" // 境内ETF/LOF
-    | "CN-BJ" // 北交所
-    | "HK-MAIN" // 港股主板
-    | "HK-GEM" // 港股创业板
-    | "HK-ETF" // 港股ETF
-    | "US-STOCK" // 美股（NYSE+NASDAQ）
-    | "US-ETF"; // 美股ETF
+    | "CN-A" // CSI A-shares (Main Board)
+    | "CN-GEM" // SZSE ChiNext
+    | "CN-STAR" // SSE STAR Market
+    | "CN-ETF" // Onshore ETF/LOF
+    | "CN-BJ" // Beijing Stock Exchange
+    | "HK-MAIN" // HK Main Board
+    | "HK-GEM" // HK GEM (Growth Enterprise Market)
+    | "HK-ETF" // HK-listed ETF
+    | "US-STOCK" // US stocks (NYSE + NASDAQ)
+    | "US-ETF"; // US-listed ETF
 
-// 热门榜单市场分组
+// Hot list market groups
 export type HotMarketGroup = "cn" | "hk" | "us";
 
-// 热门榜单详细分类
+// Hot list detailed categories
 export type HotCategory =
-    | "cn-a" // 沪深A股（主板+创业板+科创板）
-    | "cn-etf" // 沪深ETF
-    | "hk" // 港股
-    | "hk-etf" // 港股ETF
-    | "us-sp500" // 标普500
-    | "us-nasdaq" // 纳斯达克100
-    | "us-dow" // 道琼斯30
-    | "us-etf"; // 美股ETF
+    | "cn-a" // CSI A-shares (Main Board + ChiNext + STAR)
+    | "cn-etf" // CSI ETFs
+    | "hk" // Hong Kong stocks
+    | "hk-etf" // HK-listed ETFs
+    | "us-sp500" // S&P 500
+    | "us-nasdaq" // NASDAQ-100
+    | "us-dow" // Dow Jones 30
+    | "us-etf"; // US-listed ETFs
 
 export type HotSort = "volume" | "gainers" | "losers" | "market-cap" | "price";
 
 export interface DCAEntry {
     id: string;
-    date: string; // ISO 8601，如 "2024-01-15T00:00:00Z"
-    amount: number; // 本次投入金额
-    shares: number; // 本次买入份额
-    price?: number; // 手动录入的买入价，0 或缺省表示未填写
-    fee?: number; // 手续费/佣金
+    date: string; // ISO 8601, e.g. "2024-01-15T00:00:00Z"
+    amount: number; // Investment amount for this entry
+    shares: number; // Shares purchased this time
+    price?: number; // Manually entered buy price; 0 or omitted means not filled
+    fee?: number; // Commission / fee
     note?: string;
 }
 
@@ -66,6 +66,7 @@ export interface WatchlistItem {
     changePercent: number;
     quoteSource: string;
     quoteUpdatedAt?: string;
+    pinnedAt?: string;
     thesis: string;
     tags: string[];
     dcaEntries?: DCAEntry[];
@@ -216,8 +217,8 @@ export interface MarketMetricCard {
 }
 
 export interface DCAEntryRow {
-    id: string; // 前端临时 ID（"tmp-xxx"）或后端持久 ID
-    date: string; // YYYY-MM-DD 格式
+    id: string; // Frontend temporary ID ("tmp-xxx") or backend persistent ID
+    date: string; // YYYY-MM-DD format
     amount: number | null;
     shares: number | null;
     price: number | null;
@@ -235,7 +236,7 @@ export interface ItemFormModel {
     costPrice: number;
     tagsText: string;
     thesis: string;
-    currentPrice: number; // 仅用于定投汇总展示，不序列化提交
+    currentPrice: number; // Used only for DCA summary display; not serialized on submit
     dcaEntries: DCAEntryRow[];
 }
 

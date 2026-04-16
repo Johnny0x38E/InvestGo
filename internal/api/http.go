@@ -10,7 +10,7 @@ import (
 	"investgo/internal/monitor"
 )
 
-// Handler 负责承接 `/api/*` 请求并协调各个后端服务。
+// Handler handles `/api/*` requests and coordinates backend services.
 type Handler struct {
 	store  *monitor.Store
 	hot    *marketdata.HotService
@@ -20,7 +20,7 @@ type Handler struct {
 
 const localeHeader = "X-InvestGo-Locale"
 
-// clientLogRequest 定义了前端发送日志请求的 JSON 结构。
+// clientLogRequest defines the JSON structure for log requests sent by the frontend.
 type clientLogRequest struct {
 	Source  string                    `json:"source"`
 	Scope   string                    `json:"scope"`
@@ -32,7 +32,11 @@ type openExternalRequest struct {
 	URL string `json:"url"`
 }
 
-// NewHandler 返回统一的 API 处理器。
+type pinItemRequest struct {
+	Pinned bool `json:"pinned"`
+}
+
+// NewHandler returns the unified API handler.
 func NewHandler(store *monitor.Store, hot *marketdata.HotService, logs *monitor.LogBook) *Handler {
 	handler := &Handler{
 		store: store,
@@ -43,7 +47,7 @@ func NewHandler(store *monitor.Store, hot *marketdata.HotService, logs *monitor.
 	return handler
 }
 
-// ServeHTTP 负责统一裁剪 `/api` 前缀，并按已注册路由分发请求。
+// ServeHTTP strips the `/api` prefix uniformly and dispatches requests to registered routes.
 func (h *Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 
@@ -60,7 +64,7 @@ func (h *Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	writeError(writer, request, http.StatusNotFound, errNotFound(path))
 }
 
-// trimAPIPath 把 Wails 注册的 `/api` 前缀裁剪成内部路由使用的相对路径。
+// trimAPIPath trims the `/api` prefix registered by Wails into a relative path for internal routing.
 func trimAPIPath(path string) string {
 	trimmed := strings.TrimPrefix(path, "/api")
 	if trimmed == "" {
@@ -69,7 +73,7 @@ func trimAPIPath(path string) string {
 	return trimmed
 }
 
-// decodeJSON 把请求体反序列化到目标对象，并负责关闭请求体。
+// decodeJSON deserializes the request body into the target object and closes the body.
 func decodeJSON(request *http.Request, target any) error {
 	defer request.Body.Close()
 	if err := json.NewDecoder(request.Body).Decode(target); err != nil {
@@ -78,7 +82,7 @@ func decodeJSON(request *http.Request, target any) error {
 	return nil
 }
 
-// writeJSON 按指定状态码输出 JSON 响应。
+// writeJSON writes a JSON response with the given status code.
 func writeJSON(writer http.ResponseWriter, status int, payload any) {
 	writer.WriteHeader(status)
 	_ = json.NewEncoder(writer).Encode(payload)
@@ -99,12 +103,12 @@ func writeError(writer http.ResponseWriter, request *http.Request, status int, e
 	writeJSON(writer, status, payload)
 }
 
-// errNotFound 返回接口不存在时使用的错误对象。
+// errNotFound returns the error object used when an API route does not exist.
 func errNotFound(path string) error {
 	return &apiError{message: "API route not found: " + path}
 }
 
-// sanitiseDeveloperLogLevel 把未知日志级别回落为 info。
+// sanitiseDeveloperLogLevel falls back unknown log levels to info.
 func sanitiseDeveloperLogLevel(level monitor.DeveloperLogLevel) monitor.DeveloperLogLevel {
 	switch level {
 	case monitor.DeveloperLogDebug, monitor.DeveloperLogInfo, monitor.DeveloperLogWarn, monitor.DeveloperLogError:
@@ -114,7 +118,7 @@ func sanitiseDeveloperLogLevel(level monitor.DeveloperLogLevel) monitor.Develope
 	}
 }
 
-// sanitiseExternalURL 验证并清理外部链接输入，确保其格式正确且使用安全协议。
+// sanitiseExternalURL validates and sanitizes external URL input, ensuring correct format and safe protocols.
 func sanitiseExternalURL(raw string) (string, error) {
 	value := strings.TrimSpace(raw)
 	if value == "" {
@@ -155,12 +159,12 @@ func localizeSnapshot(snapshot monitor.StateSnapshot, locale string) monitor.Sta
 	return snapshot
 }
 
-// apiError 表示 API 层内部构造的响应错误。
+// apiError represents a response error constructed internally by the API layer.
 type apiError struct {
 	message string
 }
 
-// Error 实现 error 接口。
+// Error implements the error interface.
 func (e *apiError) Error() string {
 	return e.message
 }

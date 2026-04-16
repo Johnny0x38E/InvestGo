@@ -56,7 +56,7 @@
     }
 }
 
-/* 显式外观模式：始终暗色（优先级高于 media query） */
+/* Explicit appearance mode: always dark (takes precedence over media query) */
 html[data-theme="dark"] {
     color-scheme: dark;
     --app-bg: #131922;
@@ -82,7 +82,7 @@ html[data-theme="dark"] {
     --fall: #34d399;
 }
 
-/* 显式外观模式：始终亮色（覆盖 OS 暗色偏好） */
+/* Explicit appearance mode: always light (overrides OS dark preference) */
 html[data-theme="light"] {
     color-scheme: light;
     --app-bg: #e6eaf0;
@@ -165,7 +165,7 @@ html[data-theme="dark"][data-color-theme="sunset"] {
     --selection-bg: rgba(240, 178, 124, 0.18);
 }
 
-/* intl 价格色在显式暗色下的覆盖 */
+/* intl price color override under explicit dark mode */
 html[data-theme="dark"][data-price-color-scheme="intl"] {
     --rise: #34d399;
     --fall: #fb7185;
@@ -1139,6 +1139,10 @@ body {
     gap: 6px;
 }
 
+.table-action-stack .is-pinned-action {
+    color: var(--accent);
+}
+
 .table-action-stack-centered {
     display: inline-flex;
     min-height: 100%;
@@ -1550,13 +1554,13 @@ body {
 
 .settings-about-card {
     display: grid;
-    grid-template-columns: 92px minmax(0, 1fr);
-    gap: 16px;
-    align-items: center;
+    grid-template-columns: 1fr;
+    gap: 14px;
+    justify-items: start;
     border: 1px solid var(--border);
     border-radius: var(--radius-panel);
     background: var(--panel-strong);
-    padding: 16px;
+    padding: 18px;
 }
 
 .settings-about-brand {
@@ -1569,8 +1573,9 @@ body {
 
 .settings-about-brand img {
     display: block;
-    width: 100%;
-    height: 100%;
+    width: 92px;
+    height: 92px;
+    object-fit: contain;
 }
 
 .settings-about-summary {
@@ -1610,18 +1615,12 @@ body {
 }
 
 .settings-about-links {
-    display: grid;
+    display: flex;
     gap: 10px;
 }
 
 .settings-about-action.p-button {
     justify-self: start;
-}
-
-.settings-disclaimer-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
 }
 
 .settings-disclaimer-card {
@@ -2048,7 +2047,6 @@ body {
     .summary-strip,
     .settings-grid,
     .settings-meta-grid,
-    .settings-disclaimer-grid,
     .form-grid {
         grid-template-columns: 1fr;
     }
@@ -2120,7 +2118,7 @@ body {
     }
 }
 
-/* ── DCA 定投模块样式 ───────────────────────────────────────── */
+/* ── DCA (Dollar-Cost Averaging) module styles ───────────────────────────────────────── */
 
 .dca-item-badge {
     display: inline-flex;
@@ -2136,7 +2134,7 @@ body {
     font-weight: 500;
 }
 
-/* 定投弹窗内的 tab 切换栏 */
+/* Tab switch bar inside the DCA dialog */
 .item-dialog-tabs {
     display: flex;
     gap: 4px;
@@ -2182,7 +2180,7 @@ body {
     font: 600 10px/1 var(--font-ui);
 }
 
-/* 定投记录面板容器 */
+/* DCA entries panel container */
 .dca-panel {
     display: flex;
     flex-direction: column;
@@ -2190,7 +2188,7 @@ body {
     min-height: 200px;
 }
 
-/* 定投条目表格 */
+/* DCA entry table */
 .dca-table {
     display: flex;
     flex-direction: column;
@@ -2235,7 +2233,7 @@ body {
     white-space: nowrap;
 }
 
-/* 原生 date input 继承项目样式 */
+/* Native date input inherits project styles */
 input[type="date"].dca-date-input {
     width: 100%;
     height: 32px;
@@ -2254,7 +2252,7 @@ input[type="date"].dca-date-input:focus {
     border-color: var(--accent);
 }
 
-/* 添加记录按钮行 */
+/* Add entry button row */
 .dca-add-row {
     padding: 8px 0 0;
     display: flex;
@@ -2270,7 +2268,7 @@ input[type="date"].dca-date-input:focus {
     line-height: 1.7;
 }
 
-/* 定投汇总栏 */
+/* DCA summary bar */
 .dca-summary-bar {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
@@ -2311,7 +2309,7 @@ input[type="date"].dca-date-input:focus {
     color: var(--fall);
 }
 
-/* 基础信息面板中的定投锁定提示 */
+/* DCA lock hint in the basic info panel */
 .dca-derived-hint {
     font-size: 11px;
     color: var(--accent);
@@ -2341,7 +2339,7 @@ input[type="date"].dca-date-input:focus {
     align-items: center;
 }
 
-/* ── DCA 定投明细弹窗 ─────────────────────────────────────────── */
+/* ── DCA detail dialog ─────────────────────────────────────────── */
 
 .dca-detail-table {
     display: flex;

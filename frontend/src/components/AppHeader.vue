@@ -88,7 +88,7 @@ function handleBarMouseLeave(): void {
     resetDragState();
 }
 
-// 双击标题栏时切换窗口缩放状态，避免依赖 macOS 对自定义拖拽区的默认行为。
+// Toggle window maximize/restore on title bar double-click, avoiding reliance on macOS default behavior for custom drag regions.
 async function handleBarDoubleClick(event: MouseEvent): Promise<void> {
     if (dragState.dragging || isInteractiveTarget(event.target)) {
         return;
