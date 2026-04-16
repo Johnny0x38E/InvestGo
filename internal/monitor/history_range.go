@@ -2,13 +2,13 @@ package monitor
 
 import "context"
 
-// HistoryProvider 定义了获取历史数据的接口，供监控模块调用以展示历史走势图表。
+// HistoryProvider defines the interface for fetching historical data, called by the monitoring module to display historical trend charts.
 type HistoryProvider interface {
 	Fetch(ctx context.Context, item WatchlistItem, interval HistoryInterval) (HistorySeries, error)
 	Name() string
 }
 
-// HistoryInterval 定义了历史数据的时间范围和粒度，供 Fetch 方法使用。
+// HistoryInterval defines the time range and granularity of historical data for use by the Fetch method.
 type HistoryInterval string
 
 const (

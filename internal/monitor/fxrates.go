@@ -13,18 +13,18 @@ import (
 	"investgo/internal/datasource"
 )
 
-// FxRates 缓存各货币对人民币的汇率，用于仪表盘多币种合并计算。
-// 所有汇率以"1单位外币 = X 人民币"为基准存储。
-// 使用 Frankfurter API（欧洲央行数据），缓存至少 2 小时。
+// FxRates caches FX rates of various currencies against CNY for dashboard multi-currency aggregation.
+// All rates are stored with the benchmark "1 unit of foreign currency = X CNY".
+// Uses Frankfurter API (European Central Bank data), cached for at least 2 hours.
 type FxRates struct {
 	mu        sync.RWMutex
-	rates     map[string]float64 // 外币 → 人民币
+	rates     map[string]float64 // foreign currency -> CNY
 	validAt   time.Time
-	lastError string // 最近一次获取失败的错误信息
+	lastError string // error message from the most recent fetch failure
 	client    *http.Client
 }
 
-// NewFxRates 创建汇率服务，初始化时仅包含 CNY=1.0。
+// NewFxRates creates FX rate service, initialized with only CNY=1.0.
 func NewFxRates(client *http.Client) *FxRates {
 	if client == nil {
 		client = &http.Client{Timeout: 10 * time.Second}
@@ -35,44 +35,44 @@ func NewFxRates(client *http.Client) *FxRates {
 	}
 }
 
-// IsStale 返回汇率缓存是否已超过 2 小时。
+// IsStale returns whether FX rate cache has exceeded 2 hours.
 func (f *FxRates) IsStale() bool {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 	return f.validAt.IsZero() || time.Since(f.validAt) > 2*time.Hour
 }
 
-// LastError 返回最近一次获取失败的错误信息，成功时为空。
+// LastError returns the error message from the most recent fetch failure; empty on success.
 func (f *FxRates) LastError() string {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 	return f.lastError
 }
 
-// ValidAt 返回最近一次成功获取汇率的时间。
+// ValidAt returns the time of the most recent successful FX rate fetch.
 func (f *FxRates) ValidAt() time.Time {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 	return f.validAt
 }
 
-// CurrencyCount 返回当前缓存中的币种数量。
+// CurrencyCount returns the number of currencies currently cached.
 func (f *FxRates) CurrencyCount() int {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 	return len(f.rates)
 }
 
-// frankfurterResponse 是 Frankfurter API 响应的结构。
+// frankfurterResponse is the structure of the Frankfurter API response.
 type frankfurterResponse struct {
 	Base  string             `json:"base"`
 	Date  string             `json:"date"`
 	Rates map[string]float64 `json:"rates"`
 }
 
-// Fetch 从 Frankfurter API 拉取各货币对 CNY 的汇率。
-// 以 CNY 为 base 获取各外币汇率，然后取倒数得到"外币→人民币"的映射。
-// 成功时清除 lastError，失败时记录错误信息。
+// Fetch fetches FX rates of various currencies against CNY from the Frankfurter API.
+// Fetches foreign currency rates with CNY as base, then takes reciprocals to get "foreign currency → CNY" mapping.
+// Clears lastError on success, records error message on failure.
 func (f *FxRates) Fetch(ctx context.Context) {
 	url := datasource.FrankfurterAPI + "?from=CNY"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -117,7 +117,7 @@ func (f *FxRates) Fetch(ctx context.Context) {
 	newRates["CNY"] = 1.0
 	for currency, rate := range data.Rates {
 		if rate > 0 {
-			// rate 是 1 CNY = X 外币，取倒数得到 1 外币 = X CNY
+			// rate is 1 CNY = X foreign currency, take reciprocal to get 1 foreign currency = X CNY
 			newRates[currency] = 1.0 / rate
 		}
 	}
@@ -135,8 +135,8 @@ func (f *FxRates) setError(msg string) {
 	f.mu.Unlock()
 }
 
-// Convert 将给定金额从来源货币转换为目标货币，以 CNY 作为中间货币。
-// 若货币相同或无法解析，返回原值。
+// Convert converts a given amount from source currency to target currency, using CNY as the intermediate currency.
+// Returns the original value if currencies are the same or cannot be resolved.
 func (f *FxRates) Convert(value float64, from, to string) float64 {
 	from = strings.ToUpper(strings.TrimSpace(from))
 	to = strings.ToUpper(strings.TrimSpace(to))

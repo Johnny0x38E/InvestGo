@@ -21,7 +21,7 @@ type hotSeed struct {
 	Currency string
 }
 
-// fetchPoolQuotes 根据预定义的热门分类成分股池批量请求实时行情数据，并转换为统一格式返回。
+// fetchPoolQuotes requests real-time quotes in batch for the predefined hot category constituent pool and returns them in a unified format.
 func (s *HotService) fetchPoolQuotes(ctx context.Context, seeds []hotSeed) ([]monitor.HotItem, error) {
 	secids := make([]string, 0, len(seeds)*2)
 	indexBySecID := make(map[string]hotSeed, len(seeds)*2)
@@ -115,7 +115,7 @@ func (s *HotService) fetchPoolQuotes(ctx context.Context, seeds []hotSeed) ([]mo
 	return items, nil
 }
 
-// resolvePoolSecID 返回种子标的对应的一个 secid 以供批量行情接口使用。
+// resolvePoolSecID returns one secid for the seed instrument to be used by the batch quote API.
 func resolvePoolSecID(seed hotSeed) (string, error) {
 	target, err := monitor.ResolveQuoteTarget(monitor.WatchlistItem{
 		Symbol:   seed.Symbol,
@@ -128,8 +128,8 @@ func resolvePoolSecID(seed hotSeed) (string, error) {
 	return resolveEastMoneySecID(target)
 }
 
-// resolveAllPoolSecIDs 返回种子标的对应的所有可能 secid。
-// 对于美股标的，会返回 105/106/107 三个变体以覆盖 NASDAQ、NYSE 和 NYSE Arca。
+// resolveAllPoolSecIDs returns all possible secids for the seed instrument.
+// For US stocks, it returns the 105/106/107 variants to cover NASDAQ, NYSE and NYSE Arca.
 func resolveAllPoolSecIDs(seed hotSeed) ([]string, error) {
 	target, err := monitor.ResolveQuoteTarget(monitor.WatchlistItem{
 		Symbol:   seed.Symbol,
@@ -142,9 +142,10 @@ func resolveAllPoolSecIDs(seed hotSeed) ([]string, error) {
 	return resolveAllEastMoneySecIDs(target)
 }
 
-// hotConstituents 是各热门分类的预定义成分股池，用于通过批量行情接口获取实时数据。
+// hotConstituents is the predefined constituent pool for each hot category,
+// used to fetch real-time data via the batch quote API.
 var hotConstituents = map[monitor.HotCategory][]hotSeed{
-	// ── 沪深A股 ─ top 80 most-watched A-shares ──────────────────────────
+	// ── CSI A-shares ─ top 80 most-watched A-shares ──────────────────────────
 	monitor.HotCategoryCNA: {
 		{Symbol: "600519", Name: "贵州茅台", Market: "CN-A", Currency: "CNY"},
 		{Symbol: "601318", Name: "中国平安", Market: "CN-A", Currency: "CNY"},
@@ -179,7 +180,7 @@ var hotConstituents = map[monitor.HotCategory][]hotSeed{
 		{Symbol: "600015", Name: "华夏银行", Market: "CN-A", Currency: "CNY"},
 		{Symbol: "002142", Name: "宁波银行", Market: "CN-A", Currency: "CNY"},
 		{Symbol: "601009", Name: "南京银行", Market: "CN-A", Currency: "CNY"},
-		// ── 保险/券商 ──
+		// ── Insurance / Brokers ──
 		{Symbol: "601601", Name: "中国太保", Market: "CN-A", Currency: "CNY"},
 		{Symbol: "600030", Name: "中信证券", Market: "CN-A", Currency: "CNY"},
 		{Symbol: "300059", Name: "东方财富", Market: "CN-A", Currency: "CNY"},
@@ -187,7 +188,7 @@ var hotConstituents = map[monitor.HotCategory][]hotSeed{
 		{Symbol: "600999", Name: "招商证券", Market: "CN-A", Currency: "CNY"},
 		{Symbol: "002736", Name: "国信证券", Market: "CN-A", Currency: "CNY"},
 		{Symbol: "601377", Name: "兴业证券", Market: "CN-A", Currency: "CNY"},
-		// ── 新能源/电力 ──
+		// ── New Energy / Power ──
 		{Symbol: "300750", Name: "宁德时代", Market: "CN-A", Currency: "CNY"},
 		{Symbol: "002594", Name: "比亚迪", Market: "CN-A", Currency: "CNY"},
 		{Symbol: "600900", Name: "长江电力", Market: "CN-A", Currency: "CNY"},
@@ -196,43 +197,43 @@ var hotConstituents = map[monitor.HotCategory][]hotSeed{
 		{Symbol: "600089", Name: "特变电工", Market: "CN-A", Currency: "CNY"},
 		{Symbol: "601985", Name: "中国核电", Market: "CN-A", Currency: "CNY"},
 		{Symbol: "601127", Name: "赛力斯", Market: "CN-A", Currency: "CNY"},
-		// ── 科技/半导体 ──
+		// ── Tech / Semiconductors ──
 		{Symbol: "002415", Name: "海康威视", Market: "CN-A", Currency: "CNY"},
 		{Symbol: "688981", Name: "中芯国际", Market: "CN-A", Currency: "CNY"},
 		{Symbol: "688111", Name: "金山办公", Market: "CN-A", Currency: "CNY"},
 
 		{Symbol: "000338", Name: "潍柴动力", Market: "CN-A", Currency: "CNY"},
-		// ── 交运/汽车 ──
+		// ── Transport / Automotives ──
 		{Symbol: "600104", Name: "上汽集团", Market: "CN-A", Currency: "CNY"},
 		{Symbol: "601111", Name: "中国国航", Market: "CN-A", Currency: "CNY"},
-		// ── 电信 ──
+		// ── Telecom ──
 		{Symbol: "601728", Name: "中国电信", Market: "CN-A", Currency: "CNY"},
 		{Symbol: "600050", Name: "中国联通", Market: "CN-A", Currency: "CNY"},
-		// ── 国防军工 ──
+		// ── Defense / Aviation ──
 		{Symbol: "600760", Name: "中航沈飞", Market: "CN-A", Currency: "CNY"},
 		{Symbol: "601989", Name: "中国重工", Market: "CN-A", Currency: "CNY"},
 		{Symbol: "600031", Name: "三一重工", Market: "CN-A", Currency: "CNY"},
 		{Symbol: "000157", Name: "中联重科", Market: "CN-A", Currency: "CNY"},
 		{Symbol: "601893", Name: "航发动力", Market: "CN-A", Currency: "CNY"},
 		{Symbol: "002179", Name: "中航光电", Market: "CN-A", Currency: "CNY"},
-		// ── 基建 ──
+		// ── Infrastructure ──
 		{Symbol: "601668", Name: "中国建筑", Market: "CN-A", Currency: "CNY"},
 		{Symbol: "601390", Name: "中国中铁", Market: "CN-A", Currency: "CNY"},
 		{Symbol: "601669", Name: "中国电建", Market: "CN-A", Currency: "CNY"},
-		// ── 房地产 ──
+		// ── Real Estate ──
 		{Symbol: "000002", Name: "万科A", Market: "CN-A", Currency: "CNY"},
-		// ── 能源/材料 ──
+		// ── Energy / Materials ──
 		{Symbol: "601857", Name: "中国石油", Market: "CN-A", Currency: "CNY"},
 		{Symbol: "600028", Name: "中国石化", Market: "CN-A", Currency: "CNY"},
 		{Symbol: "601088", Name: "中国神华", Market: "CN-A", Currency: "CNY"},
 		{Symbol: "002460", Name: "赣锋锂业", Market: "CN-A", Currency: "CNY"},
 		{Symbol: "600309", Name: "万华化学", Market: "CN-A", Currency: "CNY"},
-		// ── 医药 ──
+		// ── Healthcare / Pharma ──
 		{Symbol: "300015", Name: "爱尔眼科", Market: "CN-A", Currency: "CNY"},
 		{Symbol: "603259", Name: "药明康德", Market: "CN-A", Currency: "CNY"},
 	},
 
-	// ── 沪深ETF ─ top ~40 popular ETFs ──────────────────────────────────
+	// ── CSI ETFs ─ top ~40 popular ETFs ──────────────────────────────────
 	monitor.HotCategoryCNETF: {
 		{Symbol: "510300", Name: "沪深300ETF", Market: "CN-ETF", Currency: "CNY"},
 		{Symbol: "510500", Name: "中证500ETF", Market: "CN-ETF", Currency: "CNY"},
@@ -276,7 +277,7 @@ var hotConstituents = map[monitor.HotCategory][]hotSeed{
 		{Symbol: "159892", Name: "储能ETF", Market: "CN-ETF", Currency: "CNY"},
 	},
 
-	// ── 港股 ─ ~60 most-watched HK stocks ───────────────────────────────
+	// ── Hong Kong stocks ─ ~60 most-watched HK stocks ───────────────────────────────
 	monitor.HotCategoryHK: {
 		{Symbol: "00700", Name: "腾讯控股", Market: "HK-MAIN", Currency: "HKD"},
 		{Symbol: "09988", Name: "阿里巴巴-W", Market: "HK-MAIN", Currency: "HKD"},
@@ -307,7 +308,7 @@ var hotConstituents = map[monitor.HotCategory][]hotSeed{
 		{Symbol: "00669", Name: "创科实业", Market: "HK-MAIN", Currency: "HKD"},
 		{Symbol: "01177", Name: "中国生物制药", Market: "HK-MAIN", Currency: "HKD"},
 		{Symbol: "06098", Name: "碧桂园服务", Market: "HK-MAIN", Currency: "HKD"},
-		// ── 新增 ──
+		// ── Additional ──
 		{Symbol: "02020", Name: "安踏体育", Market: "HK-MAIN", Currency: "HKD"},
 		{Symbol: "00002", Name: "中电控股", Market: "HK-MAIN", Currency: "HKD"},
 		{Symbol: "00003", Name: "香港中华煤气", Market: "HK-MAIN", Currency: "HKD"},
@@ -353,9 +354,9 @@ var hotConstituents = map[monitor.HotCategory][]hotSeed{
 		{Symbol: "09901", Name: "新东方-S", Market: "HK-MAIN", Currency: "HKD"},
 	},
 
-	// ── 标普500 ─ top ~200 most-watched constituents ────────────────────
+	// ── S&P 500 ─ top ~200 most-watched constituents ────────────────────
 	monitor.HotCategoryUSSP500: {
-		// ── 超大型 ──
+		// ── Mega-cap ──
 		{Symbol: "AAPL", Name: "苹果", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "MSFT", Name: "微软", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "NVDA", Name: "英伟达", Market: "US-STOCK", Currency: "USD"},
@@ -376,7 +377,7 @@ var hotConstituents = map[monitor.HotCategory][]hotSeed{
 		{Symbol: "ORCL", Name: "甲骨文", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "COST", Name: "好市多", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "PG", Name: "宝洁", Market: "US-STOCK", Currency: "USD"},
-		// ── 大型（续）──
+		// ── Large-cap (continued) ──
 		{Symbol: "HD", Name: "家得宝", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "JNJ", Name: "强生", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "NFLX", Name: "奈飞", Market: "US-STOCK", Currency: "USD"},
@@ -407,7 +408,7 @@ var hotConstituents = map[monitor.HotCategory][]hotSeed{
 		{Symbol: "TXN", Name: "德州仪器", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "CAT", Name: "卡特彼勒", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "QCOM", Name: "高通", Market: "US-STOCK", Currency: "USD"},
-		// ── 金融 / 工业 / 半导体 ──
+		// ── Financials / Industrials / Semiconductors ──
 		{Symbol: "GS", Name: "高盛", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "MS", Name: "摩根士丹利", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "BKNG", Name: "缤客", Market: "US-STOCK", Currency: "USD"},
@@ -440,7 +441,7 @@ var hotConstituents = map[monitor.HotCategory][]hotSeed{
 		{Symbol: "C", Name: "花旗集团", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "BMY", Name: "百时美施贵宝", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "GILD", Name: "吉利德科学", Market: "US-STOCK", Currency: "USD"},
-		// ── 公用事业 / 保险 / 医疗 ──
+		// ── Utilities / Insurance / Healthcare ──
 		{Symbol: "NEE", Name: "新纪元能源", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "CI", Name: "信诺保险", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "CRWD", Name: "CrowdStrike", Market: "US-STOCK", Currency: "USD"},
@@ -471,7 +472,7 @@ var hotConstituents = map[monitor.HotCategory][]hotSeed{
 		{Symbol: "FTNT", Name: "飞塔网络", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "PLD", Name: "安博", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "AON", Name: "怡安保险", Market: "US-STOCK", Currency: "USD"},
-		// ── 国防 / 物流 / 电信 ──
+		// ── Defense / Logistics / Telecom ──
 		{Symbol: "NOC", Name: "诺斯罗普格鲁曼", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "GD", Name: "通用动力", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "TDG", Name: "TransDigm", Market: "US-STOCK", Currency: "USD"},
@@ -486,7 +487,7 @@ var hotConstituents = map[monitor.HotCategory][]hotSeed{
 		{Symbol: "PYPL", Name: "PayPal", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "SQ", Name: "Block", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "IBM", Name: "IBM", Market: "US-STOCK", Currency: "USD"},
-		// ── 工业装备 / 医疗器械 ──
+		// ── Industrial Equipment / Medical Devices ──
 		{Symbol: "ROP", Name: "罗珀科技", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "EMR", Name: "艾默生电气", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "ITW", Name: "伊利诺伊工具", Market: "US-STOCK", Currency: "USD"},
@@ -495,7 +496,7 @@ var hotConstituents = map[monitor.HotCategory][]hotSeed{
 		{Symbol: "EW", Name: "爱德华生命科学", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "ZTS", Name: "硕腾", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "BDX", Name: "碧迪医疗", Market: "US-STOCK", Currency: "USD"},
-		// ── 消费 / 餐饮 / 酒店 ──
+		// ── Consumer / Restaurants / Hotels ──
 		{Symbol: "CMG", Name: "Chipotle", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "HLT", Name: "希尔顿", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "MAR", Name: "万豪国际", Market: "US-STOCK", Currency: "USD"},
@@ -507,7 +508,7 @@ var hotConstituents = map[monitor.HotCategory][]hotSeed{
 		{Symbol: "DPZ", Name: "达美乐", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "F", Name: "福特汽车", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "GM", Name: "通用汽车", Market: "US-STOCK", Currency: "USD"},
-		// ── 银行 / 保险 ──
+		// ── Banks / Insurance ──
 		{Symbol: "COF", Name: "第一资本", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "USB", Name: "合众银行", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "PNC", Name: "PNC金融", Market: "US-STOCK", Currency: "USD"},
@@ -519,7 +520,7 @@ var hotConstituents = map[monitor.HotCategory][]hotSeed{
 		{Symbol: "MET", Name: "大都会人寿", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "TRV", Name: "旅行者保险", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "HIG", Name: "哈特福德金融", Market: "US-STOCK", Currency: "USD"},
-		// ── 医疗健康 / 医药流通 ──
+		// ── Healthcare / Pharma Distribution ──
 		{Symbol: "HUM", Name: "Humana", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "CVS", Name: "CVS Health", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "MCK", Name: "麦克森", Market: "US-STOCK", Currency: "USD"},
@@ -528,7 +529,7 @@ var hotConstituents = map[monitor.HotCategory][]hotSeed{
 		{Symbol: "IQV", Name: "IQVIA", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "IDXX", Name: "爱德士", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "DXCM", Name: "德康医疗", Market: "US-STOCK", Currency: "USD"},
-		// ── 能源 ──
+		// ── Energy ──
 		{Symbol: "EOG", Name: "EOG能源", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "SLB", Name: "斯伦贝谢", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "MPC", Name: "马拉松原油", Market: "US-STOCK", Currency: "USD"},
@@ -542,7 +543,7 @@ var hotConstituents = map[monitor.HotCategory][]hotSeed{
 		{Symbol: "KMI", Name: "金德摩根", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "OKE", Name: "Oneok", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "TRGP", Name: "Targa Resources", Market: "US-STOCK", Currency: "USD"},
-		// ── 公用事业 / 材料 ──
+		// ── Utilities / Materials ──
 		{Symbol: "D", Name: "道明尼能源", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "AEP", Name: "美国电力", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "SRE", Name: "森普拉能源", Market: "US-STOCK", Currency: "USD"},
@@ -555,7 +556,7 @@ var hotConstituents = map[monitor.HotCategory][]hotSeed{
 		{Symbol: "NEM", Name: "纽蒙特矿业", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "NUE", Name: "纽柯钢铁", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "DOW", Name: "陶氏化学", Market: "US-STOCK", Currency: "USD"},
-		// ── REIT / 房地产 ──
+		// ── REITs / Real Estate ──
 		{Symbol: "AMT", Name: "美国电塔", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "CCI", Name: "冠城国际", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "EQIX", Name: "Equinix", Market: "US-STOCK", Currency: "USD"},
@@ -565,7 +566,7 @@ var hotConstituents = map[monitor.HotCategory][]hotSeed{
 		{Symbol: "DLR", Name: "Digital Realty", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "WELL", Name: "Welltower", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "CBRE", Name: "世邦魏理仕", Market: "US-STOCK", Currency: "USD"},
-		// ── 工业 / 运输 / 废物 ──
+		// ── Industrials / Transport / Waste ──
 		{Symbol: "URI", Name: "联合租赁", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "WM", Name: "废物管理", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "RSG", Name: "共和服务", Market: "US-STOCK", Currency: "USD"},
@@ -579,7 +580,7 @@ var hotConstituents = map[monitor.HotCategory][]hotSeed{
 		{Symbol: "LUV", Name: "西南航空", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "CSX", Name: "CSX运输", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "NSC", Name: "诺福克南方", Market: "US-STOCK", Currency: "USD"},
-		// ── 博彩 / 科技服务 / 其他 ──
+		// ── Gaming / Tech Services / Other ──
 		{Symbol: "LVS", Name: "金沙集团", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "WYNN", Name: "永利度假村", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "IT", Name: "Gartner", Market: "US-STOCK", Currency: "USD"},
@@ -599,7 +600,7 @@ var hotConstituents = map[monitor.HotCategory][]hotSeed{
 		{Symbol: "MMM", Name: "3M", Market: "US-STOCK", Currency: "USD"},
 	},
 
-	// ── 纳斯达克100 ─ all ~100 NASDAQ-100 constituents (2024/2025) ──────
+	// ── NASDAQ-100 ─ all ~100 NASDAQ-100 constituents (2024/2025) ──────
 	monitor.HotCategoryUSNasdaq: {
 		{Symbol: "AAPL", Name: "苹果", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "MSFT", Name: "微软", Market: "US-STOCK", Currency: "USD"},
@@ -705,7 +706,7 @@ var hotConstituents = map[monitor.HotCategory][]hotSeed{
 		{Symbol: "ENPH", Name: "Enphase能源", Market: "US-STOCK", Currency: "USD"},
 	},
 
-	// ── 道琼斯30 ─ all 30 Dow constituents (+ recent additions) ────────
+	// ── Dow Jones 30 ─ all 30 Dow constituents (+ recent additions) ────────
 	monitor.HotCategoryUSDow: {
 		{Symbol: "AAPL", Name: "苹果", Market: "US-STOCK", Currency: "USD"},
 		{Symbol: "MSFT", Name: "微软", Market: "US-STOCK", Currency: "USD"},
@@ -741,7 +742,7 @@ var hotConstituents = map[monitor.HotCategory][]hotSeed{
 		{Symbol: "INTC", Name: "英特尔", Market: "US-STOCK", Currency: "USD"},
 	},
 
-	// ── 港股ETF ─ top 20 popular HK-listed ETFs ────────────────────────
+	// ── HK-listed ETFs ─ top 20 popular HK-listed ETFs ────────────────────────
 	monitor.HotCategoryHKETF: {
 		{Symbol: "02800", Name: "盈富基金", Market: "HK-ETF", Currency: "HKD"},
 		{Symbol: "02828", Name: "恒生中国企业", Market: "HK-ETF", Currency: "HKD"},
@@ -765,9 +766,9 @@ var hotConstituents = map[monitor.HotCategory][]hotSeed{
 		{Symbol: "03147", Name: "南方恒生红利", Market: "HK-ETF", Currency: "HKD"},
 	},
 
-	// ── 美股ETF ─ ~80 popular US-listed ETFs ───────────────────────────
+	// ── US-listed ETFs ─ ~80 popular US-listed ETFs ───────────────────────────
 	monitor.HotCategoryUSETF: {
-		// ── 宽基指数 ──
+		// ── Broad-market Indices ──
 		{Symbol: "SPY", Name: "SPDR标普500ETF", Market: "US-ETF", Currency: "USD"},
 		{Symbol: "QQQ", Name: "纳指100ETF", Market: "US-ETF", Currency: "USD"},
 		{Symbol: "IVV", Name: "iShares标普500", Market: "US-ETF", Currency: "USD"},
@@ -782,7 +783,7 @@ var hotConstituents = map[monitor.HotCategory][]hotSeed{
 		{Symbol: "IJH", Name: "iShares中盘核心", Market: "US-ETF", Currency: "USD"},
 		{Symbol: "IJR", Name: "iShares小盘核心", Market: "US-ETF", Currency: "USD"},
 		{Symbol: "RSP", Name: "标普500等权重", Market: "US-ETF", Currency: "USD"},
-		// ── 行业板块 ──
+		// ── Sector SPDRs ──
 		{Symbol: "XLF", Name: "金融精选SPDR", Market: "US-ETF", Currency: "USD"},
 		{Symbol: "XLK", Name: "科技精选SPDR", Market: "US-ETF", Currency: "USD"},
 		{Symbol: "XLE", Name: "能源精选SPDR", Market: "US-ETF", Currency: "USD"},
@@ -796,7 +797,7 @@ var hotConstituents = map[monitor.HotCategory][]hotSeed{
 		{Symbol: "XLRE", Name: "房地产SPDR", Market: "US-ETF", Currency: "USD"},
 		{Symbol: "VGT", Name: "Vanguard信息科技", Market: "US-ETF", Currency: "USD"},
 		{Symbol: "VNQ", Name: "Vanguard房地产", Market: "US-ETF", Currency: "USD"},
-		// ── 主题/行业 ──
+		// ── Thematic / Sector ──
 		{Symbol: "ARKK", Name: "ARK创新ETF", Market: "US-ETF", Currency: "USD"},
 		{Symbol: "SOXX", Name: "iShares半导体", Market: "US-ETF", Currency: "USD"},
 		{Symbol: "SMH", Name: "VanEck半导体", Market: "US-ETF", Currency: "USD"},
@@ -807,7 +808,7 @@ var hotConstituents = map[monitor.HotCategory][]hotSeed{
 		{Symbol: "TAN", Name: "太阳能ETF", Market: "US-ETF", Currency: "USD"},
 		{Symbol: "ICLN", Name: "iShares清洁能源", Market: "US-ETF", Currency: "USD"},
 		{Symbol: "BITO", Name: "ProShares比特币期货", Market: "US-ETF", Currency: "USD"},
-		// ── 固定收益 ──
+		// ── Fixed Income ──
 		{Symbol: "TLT", Name: "20年+美国国债", Market: "US-ETF", Currency: "USD"},
 		{Symbol: "IEF", Name: "7-10年美国国债", Market: "US-ETF", Currency: "USD"},
 		{Symbol: "SHY", Name: "1-3年美国国债", Market: "US-ETF", Currency: "USD"},
@@ -818,7 +819,7 @@ var hotConstituents = map[monitor.HotCategory][]hotSeed{
 		{Symbol: "JNK", Name: "SPDR高收益债", Market: "US-ETF", Currency: "USD"},
 		{Symbol: "TIP", Name: "通胀保值债券", Market: "US-ETF", Currency: "USD"},
 		{Symbol: "EMB", Name: "新兴市场美元债", Market: "US-ETF", Currency: "USD"},
-		// ── 商品 ──
+		// ── Commodities ──
 		{Symbol: "GLD", Name: "SPDR黄金ETF", Market: "US-ETF", Currency: "USD"},
 		{Symbol: "IAU", Name: "iShares黄金信托", Market: "US-ETF", Currency: "USD"},
 		{Symbol: "SLV", Name: "iShares白银", Market: "US-ETF", Currency: "USD"},
@@ -826,7 +827,7 @@ var hotConstituents = map[monitor.HotCategory][]hotSeed{
 		{Symbol: "GDXJ", Name: "小型金矿股ETF", Market: "US-ETF", Currency: "USD"},
 		{Symbol: "USO", Name: "美国原油ETF", Market: "US-ETF", Currency: "USD"},
 		{Symbol: "UNG", Name: "美国天然气ETF", Market: "US-ETF", Currency: "USD"},
-		// ── 国际/地区 ──
+		// ── International / Regional ──
 		{Symbol: "EEM", Name: "iShares新兴市场", Market: "US-ETF", Currency: "USD"},
 		{Symbol: "EMXC", Name: "iShares MSCI新兴市场除中国", Market: "US-ETF", Currency: "USD"},
 		{Symbol: "VEA", Name: "Vanguard发达市场", Market: "US-ETF", Currency: "USD"},
@@ -836,7 +837,7 @@ var hotConstituents = map[monitor.HotCategory][]hotSeed{
 		{Symbol: "INDA", Name: "iShares印度", Market: "US-ETF", Currency: "USD"},
 		{Symbol: "EWJ", Name: "iShares日本", Market: "US-ETF", Currency: "USD"},
 		{Symbol: "EWZ", Name: "iShares巴西", Market: "US-ETF", Currency: "USD"},
-		// ── 杠杆/反向 ──
+		// ── Leveraged / Inverse ──
 		{Symbol: "TQQQ", Name: "纳指3倍做多", Market: "US-ETF", Currency: "USD"},
 		{Symbol: "SQQQ", Name: "纳指3倍做空", Market: "US-ETF", Currency: "USD"},
 		{Symbol: "SPXL", Name: "标普500三倍做多", Market: "US-ETF", Currency: "USD"},
@@ -845,7 +846,7 @@ var hotConstituents = map[monitor.HotCategory][]hotSeed{
 		{Symbol: "UVXY", Name: "1.5倍做多波动率", Market: "US-ETF", Currency: "USD"},
 		{Symbol: "SH", Name: "标普500反向", Market: "US-ETF", Currency: "USD"},
 		{Symbol: "SDS", Name: "标普500两倍做空", Market: "US-ETF", Currency: "USD"},
-		// ── 红利/收益 ──
+		// ── Dividends / Income ──
 		{Symbol: "VYM", Name: "Vanguard高股息", Market: "US-ETF", Currency: "USD"},
 		{Symbol: "SCHD", Name: "Schwab美国股息", Market: "US-ETF", Currency: "USD"},
 		{Symbol: "DVY", Name: "iShares精选股息", Market: "US-ETF", Currency: "USD"},
@@ -853,7 +854,7 @@ var hotConstituents = map[monitor.HotCategory][]hotSeed{
 		{Symbol: "DGRO", Name: "iShares股息增长", Market: "US-ETF", Currency: "USD"},
 		{Symbol: "JEPI", Name: "摩根股票溢价收益", Market: "US-ETF", Currency: "USD"},
 		{Symbol: "JEPQ", Name: "摩根纳指溢价收益", Market: "US-ETF", Currency: "USD"},
-		// ── 因子/Smart Beta ──
+		// ── Factor / Smart Beta ──
 		{Symbol: "MTUM", Name: "iShares动量因子", Market: "US-ETF", Currency: "USD"},
 		{Symbol: "QUAL", Name: "iShares质量因子", Market: "US-ETF", Currency: "USD"},
 		{Symbol: "MOAT", Name: "VanEck宽护城河", Market: "US-ETF", Currency: "USD"},

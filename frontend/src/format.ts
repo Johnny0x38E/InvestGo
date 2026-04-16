@@ -25,7 +25,7 @@ const currencySymbolMap: Record<string, string> = {
     USD: "$",
 };
 
-// 更新格式化函数读取的全局设置快照。
+// Update the global settings snapshot read by formatting functions.
 export function setFormatterSettings(next: AppSettings): void {
     settings = next;
 }
@@ -104,12 +104,12 @@ export function formatShortTime(value?: string): string {
     }).format(new Date(value));
 }
 
-// 判断某个图表范围是否应该显示为日内时间刻度。
+// Determine whether a chart interval should display intraday time ticks.
 function isIntradayHistoryRange(interval: HistoryInterval): boolean {
     return interval === "1h" || interval === "1d";
 }
 
-// 将图表点位格式化为适合当前范围的时间轴文本。
+// Format a chart data point into a time-axis label suitable for the given interval.
 export function formatHistoryTick(value: string, interval: HistoryInterval): string {
     let options: Intl.DateTimeFormatOptions;
     if (isIntradayHistoryRange(interval)) {
@@ -129,7 +129,7 @@ export function resolvedLocale(): string {
     return settings.locale === "system" ? navigator.language || "zh-CN" : settings.locale;
 }
 
-// 返回图表范围在摘要区使用的简短中文标签。
+// Return a short localized label for the chart interval used in the summary area.
 export function historyRangeLabel(interval: HistoryInterval): string {
     switch (interval) {
         case "1h":

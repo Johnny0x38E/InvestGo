@@ -1,6 +1,6 @@
 import type { AlertFormModel, AlertRule, AppSettings, DCAEntry, DCAEntryRow, ItemFormModel, WatchlistItem } from "./types";
 
-// 前端初始化时使用的默认设置，需与后端默认值保持一致。
+// Default settings used during frontend initialization; must stay in sync with backend defaults.
 export const defaultSettings: AppSettings = {
     refreshIntervalSeconds: 60,
     cnQuoteSource: "tencent",
@@ -19,7 +19,7 @@ export const defaultSettings: AppSettings = {
     useNativeTitleBar: false,
 };
 
-// 返回新增标的时使用的空表单模型。
+// Return an empty form model for creating a new watchlist item.
 export function emptyItemForm(): ItemFormModel {
     return {
         id: "",
@@ -56,7 +56,7 @@ function isoDateToInputValue(value: string): string {
     return `${year}-${month}-${day}`;
 }
 
-// 把后端标的对象映射为编辑弹窗使用的表单模型。
+// Map a backend item object to the form model used in the edit dialog.
 export function mapItemToForm(item: WatchlistItem): ItemFormModel {
     return {
         id: item.id,
@@ -83,10 +83,10 @@ export function mapItemToForm(item: WatchlistItem): ItemFormModel {
     };
 }
 
-// 把表单模型序列化为后端可接受的标的载荷。
+// Serialize the form model into a backend-compatible item payload.
 export function serialiseItemForm(form: ItemFormModel): Omit<
     WatchlistItem,
-    "currentPrice" | "previousClose" | "openPrice" | "dayHigh" | "dayLow" | "change" | "changePercent" | "quoteSource" | "quoteUpdatedAt" | "updatedAt" | "tags"
+    "currentPrice" | "previousClose" | "openPrice" | "dayHigh" | "dayLow" | "change" | "changePercent" | "quoteSource" | "quoteUpdatedAt" | "pinnedAt" | "updatedAt" | "tags"
 > & {
     tags: string[];
     dcaEntries: DCAEntry[];
@@ -120,7 +120,7 @@ export function serialiseItemForm(form: ItemFormModel): Omit<
     };
 }
 
-// 返回新增提醒时使用的空表单模型。
+// Return an empty form model for creating a new alert.
 export function emptyAlertForm(itemId = ""): AlertFormModel {
     return {
         id: "",
@@ -132,7 +132,7 @@ export function emptyAlertForm(itemId = ""): AlertFormModel {
     };
 }
 
-// 把后端提醒对象映射为编辑弹窗使用的表单模型。
+// Map a backend alert object to the form model used in the edit dialog.
 export function mapAlertToForm(alert: AlertRule): AlertFormModel {
     return {
         id: alert.id,

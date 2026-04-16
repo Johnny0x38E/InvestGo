@@ -23,8 +23,9 @@ const (
 	hotSearchCacheTTL  = 45 * time.Second
 )
 
-// HotService 负责热门榜单的实时数据抓取与分页。
-// CN-A/HK 市场使用东方财富 clist 接口并回退到数据池；ETF 和 US 分类始终使用数据池 + 实时行情。
+// HotService handles real-time data fetching and pagination for hot lists.
+// CN-A/HK markets use the EastMoney clist API and fall back to the data pool;
+// ETF and US categories always use the data pool + real-time quotes.
 type HotService struct {
 	client *http.Client
 	mu     sync.RWMutex
@@ -66,7 +67,7 @@ type yahooSearchResponse struct {
 	} `json:"quotes"`
 }
 
-// NewHotService 创建热门榜单服务。
+// NewHotService creates a hot list service.
 func NewHotService(client *http.Client) *HotService {
 	if client == nil {
 		client = &http.Client{Timeout: 12 * time.Second}
@@ -77,7 +78,7 @@ func NewHotService(client *http.Client) *HotService {
 	}
 }
 
-// List 返回指定分类和排序条件下的热门榜单。
+// List returns the hot list for the given category and sort order.
 func (s *HotService) List(ctx context.Context, category monitor.HotCategory, sortBy monitor.HotSort, keyword string, page, pageSize int) (monitor.HotListResponse, error) {
 	category = normaliseHotCategory(category)
 	sortBy = normaliseHotSort(sortBy)
@@ -92,29 +93,30 @@ func (s *HotService) List(ctx context.Context, category monitor.HotCategory, sor
 
 	switch {
 	case category == monitor.HotCategoryCNA:
-		// 沪深A股 优先使用东方财富 clist 接口，失败后回退到数据池
+		// CN-A: prefer EastMoney clist API, fallback to data pool on failure
 		list, err := s.listEastMoney(ctx, category, sortBy, page, pageSize)
 		if err == nil {
 			return list, nil
 		}
 		return s.listFromPool(ctx, category, sortBy, page, pageSize)
 	case category == monitor.HotCategoryHK:
-		// 港股 优先使用东方财富 clist 接口，失败后回退到数据池
+		// HK: prefer EastMoney clist API, fallback to data pool on failure
 		list, err := s.listEastMoney(ctx, category, sortBy, page, pageSize)
 		if err == nil {
 			return list, nil
 		}
 		return s.listFromPool(ctx, category, sortBy, page, pageSize)
 	case category == monitor.HotCategoryCNETF || category == monitor.HotCategoryHKETF || isUSHotCategory(category):
-		// ETF 和美股分类 直接使用数据池 + 实时行情
+		// ETF and US categories use data pool + real-time quotes directly
 		return s.listFromPool(ctx, category, sortBy, page, pageSize)
 	default:
 		return monitor.HotListResponse{}, fmt.Errorf("Hot category is unsupported: %s", category)
 	}
 }
 
-// search 在数据池基础上进行关键词过滤，并对美股 ETF 分类进行特殊处理
-// 先从数据池筛选，再调用 Yahoo Finance 搜索接口获取更多匹配项，最后合并去重并获取实时行情。
+// search filters the data pool by keyword and handles the US ETF category specially:
+// filter from the pool first, then call the Yahoo Finance search API for more matches,
+// merge and deduplicate, and fetch real-time quotes.
 func (s *HotService) search(ctx context.Context, category monitor.HotCategory, sortBy monitor.HotSort, keyword string, page, pageSize int) (monitor.HotListResponse, error) {
 	if category == monitor.HotCategoryUSETF {
 		return s.searchUSETFs(ctx, sortBy, keyword, page, pageSize)
@@ -141,8 +143,9 @@ func (s *HotService) search(ctx context.Context, category monitor.HotCategory, s
 	}, nil
 }
 
-// searchUSETFs 对美股 ETF 分类的搜索进行特殊处理
-// 先从数据池筛选，再调用 Yahoo Finance 搜索接口获取更多匹配项，最后合并去重并获取实时行情。
+// searchUSETFs handles US ETF search specially:
+// filter from the pool first, then call the Yahoo Finance search API for more matches,
+// merge and deduplicate, and fetch real-time quotes.
 func (s *HotService) searchUSETFs(ctx context.Context, sortBy monitor.HotSort, keyword string, page, pageSize int) (monitor.HotListResponse, error) {
 	seeds := filterHotSeeds(hotConstituents[monitor.HotCategoryUSETF], keyword)
 
@@ -170,8 +173,9 @@ func (s *HotService) searchUSETFs(ctx context.Context, sortBy monitor.HotSort, k
 	}, nil
 }
 
-// listAllSearchableItems 列出指定分类下所有可搜索的标的，用于搜索接口的全量匹配。
-// 对于东方财富支持的分类，优先调用 clist 接口获取完整列表并缓存；对于其他分类，直接使用数据池。
+// listAllSearchableItems lists all searchable instruments for the given category, used for full-match search.
+// For categories supported by EastMoney, prefer the clist API to fetch the full list and cache it;
+// for others, use the data pool directly.
 func (s *HotService) listAllSearchableItems(ctx context.Context, category monitor.HotCategory, sortBy monitor.HotSort) ([]monitor.HotItem, error) {
 	cacheKey := hotSearchCacheKey(category, sortBy)
 	if items, ok := s.loadCachedItems(cacheKey); ok {
@@ -206,7 +210,7 @@ func (s *HotService) listAllSearchableItems(ctx context.Context, category monito
 	return cloneHotItems(items), nil
 }
 
-// fetchAllHotPages 通过翻页函数获取指定分类和排序的所有热门标的，直到没有更多页面为止。
+// fetchAllHotPages fetches all hot instruments for the given category and sort order via the page loader until no more pages remain.
 func (s *HotService) fetchAllHotPages(ctx context.Context, loadPage func(context.Context, int, int) (monitor.HotListResponse, error)) ([]monitor.HotItem, error) {
 	all := make([]monitor.HotItem, 0, hotSearchFetchSize)
 	for page := 1; ; page++ {
@@ -221,7 +225,8 @@ func (s *HotService) fetchAllHotPages(ctx context.Context, loadPage func(context
 	}
 }
 
-// loadCachedItems 从缓存中加载热门标的列表，如果缓存不存在或已过期则返回 false。
+// loadCachedItems loads the hot instrument list from cache;
+// returns false if cache is missing or expired.
 func (s *HotService) loadCachedItems(key string) ([]monitor.HotItem, bool) {
 	s.mu.RLock()
 	cached, ok := s.cache[key]
@@ -232,7 +237,7 @@ func (s *HotService) loadCachedItems(key string) ([]monitor.HotItem, bool) {
 	return cloneHotItems(cached.items), true
 }
 
-// storeCachedItems 将热门标的列表存入缓存，并设置过期时间。
+// storeCachedItems stores the hot instrument list into cache and sets an expiration time.
 func (s *HotService) storeCachedItems(key string, items []monitor.HotItem) {
 	s.mu.Lock()
 	s.cache[key] = cachedHotPage{
@@ -243,7 +248,7 @@ func (s *HotService) storeCachedItems(key string, items []monitor.HotItem) {
 	s.mu.Unlock()
 }
 
-// listEastMoney 调用东方财富 clist 接口，适用于 CN-A、HK 分类。
+// listEastMoney calls the EastMoney clist API, applicable to CN-A and HK categories.
 func (s *HotService) listEastMoney(ctx context.Context, category monitor.HotCategory, sortBy monitor.HotSort, page, pageSize int) (monitor.HotListResponse, error) {
 	fs, market, currency := resolveEastMoneyHotFilter(category)
 	if fs == "" {
@@ -327,7 +332,7 @@ func (s *HotService) listEastMoney(ctx context.Context, category monitor.HotCate
 	}, nil
 }
 
-// listFromPool 使用预定义数据池 + 实时行情返回热门榜单分页结果。
+// listFromPool returns paginated hot list results using the predefined data pool + real-time quotes.
 func (s *HotService) listFromPool(ctx context.Context, category monitor.HotCategory, sortBy monitor.HotSort, page, pageSize int) (monitor.HotListResponse, error) {
 	items, err := s.loadPoolItems(ctx, category, sortBy)
 	if err != nil {
@@ -347,7 +352,7 @@ func (s *HotService) listFromPool(ctx context.Context, category monitor.HotCateg
 	}, nil
 }
 
-// loadPoolItems 从预定义数据池加载标的并获取实时行情。
+// loadPoolItems loads instruments from the predefined data pool and fetches real-time quotes.
 func (s *HotService) loadPoolItems(ctx context.Context, category monitor.HotCategory, sortBy monitor.HotSort) ([]monitor.HotItem, error) {
 	pool := hotConstituents[category]
 	if len(pool) == 0 {
@@ -363,7 +368,7 @@ func (s *HotService) loadPoolItems(ctx context.Context, category monitor.HotCate
 	return items, nil
 }
 
-// loadHotItemsForSeeds 根据给定的 hotSeed 列表获取实时行情数据，构建 HotItem 列表。
+// loadHotItemsForSeeds fetches real-time quotes for the given hotSeed list and builds a HotItem list.
 func (s *HotService) loadHotItemsForSeeds(ctx context.Context, seeds []hotSeed, fallbackSource string) ([]monitor.HotItem, error) {
 	if len(seeds) == 0 {
 		return []monitor.HotItem{}, nil
@@ -377,7 +382,7 @@ func (s *HotService) loadHotItemsForSeeds(ctx context.Context, seeds []hotSeed, 
 	return mergeHotItemsWithSeeds(items, seeds, fallbackSource), nil
 }
 
-// resolveEastMoneyHotFilter 将 HotCategory 映射为东方财富 clist 的 fs 参数、市场标签和货币。
+// resolveEastMoneyHotFilter maps HotCategory to EastMoney clist fs parameter, market label and currency.
 func resolveEastMoneyHotFilter(category monitor.HotCategory) (fs, market, currency string) {
 	switch category {
 	case monitor.HotCategoryCNA:
@@ -389,7 +394,7 @@ func resolveEastMoneyHotFilter(category monitor.HotCategory) (fs, market, curren
 	}
 }
 
-// resolveEastMoneyHotSymbol 根据东方财富返回的代码和市场 ID 生成标准股票代码。
+// resolveEastMoneyHotSymbol generates a standard stock symbol from the EastMoney returned code and market ID.
 func resolveEastMoneyHotSymbol(code string, marketID int, category monitor.HotCategory) string {
 	code = normaliseEastMoneyCode(code, marketID)
 	switch category {
@@ -406,17 +411,17 @@ func resolveEastMoneyHotSymbol(code string, marketID int, category monitor.HotCa
 	return ""
 }
 
-// isCNHotCategory 判断分类是否属于 A 股市场（含 ETF）。
+// isCNHotCategory checks whether the category belongs to the A-share market (including ETFs).
 func isCNHotCategory(c monitor.HotCategory) bool {
 	return c == monitor.HotCategoryCNA || c == monitor.HotCategoryCNETF
 }
 
-// isHKHotCategory 判断分类是否属于港股市场。
+// isHKHotCategory checks whether the category belongs to the Hong Kong stock market.
 func isHKHotCategory(c monitor.HotCategory) bool {
 	return c == monitor.HotCategoryHK || c == monitor.HotCategoryHKETF
 }
 
-// isUSHotCategory 判断分类是否属于美股市场。
+// isUSHotCategory checks whether the category belongs to the US stock market.
 func isUSHotCategory(c monitor.HotCategory) bool {
 	switch c {
 	case monitor.HotCategoryUSSP500, monitor.HotCategoryUSNasdaq, monitor.HotCategoryUSDow, monitor.HotCategoryUSETF:
@@ -425,7 +430,7 @@ func isUSHotCategory(c monitor.HotCategory) bool {
 	return false
 }
 
-// normaliseHotCategory 把缺失或无效的分类回落到默认值。
+// normaliseHotCategory falls back missing or invalid categories to the default value.
 func normaliseHotCategory(c monitor.HotCategory) monitor.HotCategory {
 	switch c {
 	case monitor.HotCategoryCNA, monitor.HotCategoryCNETF,
@@ -436,7 +441,7 @@ func normaliseHotCategory(c monitor.HotCategory) monitor.HotCategory {
 	return monitor.HotCategoryCNA
 }
 
-// normaliseHotSort 把缺失或无效的排序字段回落到默认值。
+// normaliseHotSort falls back missing or invalid sort fields to the default value.
 func normaliseHotSort(s monitor.HotSort) monitor.HotSort {
 	switch s {
 	case monitor.HotSortVolume, monitor.HotSortGainers, monitor.HotSortLosers, monitor.HotSortMarketCap, monitor.HotSortPrice:
@@ -445,7 +450,7 @@ func normaliseHotSort(s monitor.HotSort) monitor.HotSort {
 	return monitor.HotSortVolume
 }
 
-// resolveEastMoneySort 把 HotSort 映射为东方财富 clist 的排序字段 ID 和排序方向。
+// resolveEastMoneySort maps HotSort to EastMoney clist sort field ID and direction.
 func resolveEastMoneySort(sortBy monitor.HotSort) (fid string, po int) {
 	switch sortBy {
 	case monitor.HotSortGainers:
@@ -461,7 +466,7 @@ func resolveEastMoneySort(sortBy monitor.HotSort) (fid string, po int) {
 	}
 }
 
-// normaliseEastMoneyCode 根据 marketID 补齐东方财富返回代码的前导零。
+// normaliseEastMoneyCode pads leading zeros for the EastMoney returned code based on marketID.
 func normaliseEastMoneyCode(code string, marketID int) string {
 	code = strings.ToUpper(strings.TrimSpace(code))
 	switch marketID {
@@ -481,9 +486,10 @@ func normaliseHotKeyword(keyword string) string {
 	return strings.ToLower(strings.TrimSpace(keyword))
 }
 
-// filterHotSeeds 根据关键词过滤 hotSeed 列表，匹配名称或代码包含关键词的项；如果关键词为空，则返回原列表的副本。
-// hotSeed 是我们预定义的数据池中的项，包含基本的市场、代码和名称信息；
-// 用于在搜索时对这些项进行初步筛选，以减少后续获取实时行情的开销。
+// filterHotSeeds filters the hotSeed list by keyword, matching items whose name or symbol contains the keyword.
+// If the keyword is empty, returns a copy of the original list.
+// hotSeed is an item from our predefined data pool containing basic market, symbol and name info,
+// used for preliminary filtering during search to reduce the overhead of fetching real-time quotes.
 func filterHotSeeds(seeds []hotSeed, keyword string) []hotSeed {
 	keyword = normaliseHotKeyword(keyword)
 	if keyword == "" {
@@ -499,8 +505,9 @@ func filterHotSeeds(seeds []hotSeed, keyword string) []hotSeed {
 	return filtered
 }
 
-// filterHotItems 根据关键词过滤 monitor.HotItem 列表，匹配名称或代码包含关键词的项；如果关键词为空，则返回原列表的副本。
-// 与 filterHotSeeds 类似，但作用于 monitor.HotItem 列表。
+// filterHotItems filters the monitor.HotItem list by keyword, matching items whose name or symbol contains the keyword.
+// If the keyword is empty, returns a copy of the original list.
+// Similar to filterHotSeeds, but operates on monitor.HotItem slices.
 func filterHotItems(items []monitor.HotItem, keyword string) []monitor.HotItem {
 	keyword = normaliseHotKeyword(keyword)
 	if keyword == "" {
@@ -539,12 +546,12 @@ func paginateHotItems(total, page, pageSize int) (start, end int) {
 	return start, end
 }
 
-// hotSearchCacheKey 生成热门搜索缓存的键，基于分类和排序条件。
+// hotSearchCacheKey generates the cache key for hot search based on category and sort order.
 func hotSearchCacheKey(category monitor.HotCategory, sortBy monitor.HotSort) string {
 	return string(category) + "|" + string(sortBy)
 }
 
-// mergeHotSeeds 合并两个 hotSeed 列表，去重后返回新列表。
+// mergeHotSeeds merges two hotSeed slices and returns a deduplicated new list.
 func mergeHotSeeds(base, extra []hotSeed) []hotSeed {
 	merged := append([]hotSeed(nil), base...)
 	seen := make(map[string]struct{}, len(base))
@@ -563,8 +570,8 @@ func mergeHotSeeds(base, extra []hotSeed) []hotSeed {
 	return merged
 }
 
-// mergeHotItemsWithSeeds 将 hotSeed 列表中的项合并到 monitor.HotItem 列表中，去重后返回新列表；
-// 如果某个 hotSeed 没有对应的 monitor.HotItem，则使用 hotSeed 信息构建一个新的 monitor.HotItem，并设置 quoteSource 为 fallbackSource。
+// mergeHotItemsWithSeeds merges items from a hotSeed list into a monitor.HotItem list, deduplicating and returning a new list.
+// If a hotSeed has no corresponding monitor.HotItem, a new monitor.HotItem is built from the hotSeed info with quoteSource set to fallbackSource.
 func mergeHotItemsWithSeeds(items []monitor.HotItem, seeds []hotSeed, fallbackSource string) []monitor.HotItem {
 	merged := cloneHotItems(items)
 	seen := make(map[string]struct{}, len(items))
@@ -611,7 +618,7 @@ func cloneHotItems(items []monitor.HotItem) []monitor.HotItem {
 	return append([]monitor.HotItem(nil), items...)
 }
 
-// sortHotItems 根据指定的排序条件对热门标的列表进行原地排序。
+// sortHotItems sorts the hot instrument list in place according to the specified sort order.
 func sortHotItems(items []monitor.HotItem, sortBy monitor.HotSort) {
 	sort.SliceStable(items, func(i, j int) bool {
 		switch sortBy {
@@ -636,7 +643,7 @@ func maxInt(a, b int) int {
 	return b
 }
 
-// searchYahooUSSeeds 获取与关键词匹配的美股 ETF 标的列表，并过滤出可能在美国交易所上市的 ETF。
+// searchYahooUSSeeds fetches a list of US ETF instruments matching the keyword and filters for those likely listed on US exchanges.
 func (s *HotService) searchYahooUSSeeds(ctx context.Context, keyword string) ([]hotSeed, error) {
 	parsed, err := fetchYahooSearch(ctx, s.client, keyword)
 	if err != nil {
@@ -692,7 +699,7 @@ func fetchYahooSearch(ctx context.Context, client *http.Client, keyword string) 
 	return yahooSearchResponse{}, collapseProblems(problems)
 }
 
-// fetchYahooSearchFromHost 从指定的 Yahoo Search API host 获取搜索结果，并解析为 yahooSearchResponse 结构。
+// fetchYahooSearchFromHost fetches search results from the specified Yahoo Search API host and parses them into the yahooSearchResponse struct.
 func fetchYahooSearchFromHost(ctx context.Context, client *http.Client, host string, params url.Values) (yahooSearchResponse, error) {
 	query := make(url.Values, len(params))
 	for key, values := range params {
@@ -742,7 +749,7 @@ func isYahooETFQuote(quoteType, typeDisp string) bool {
 	return quoteType == "ETF" || strings.Contains(typeDisp, "ETF")
 }
 
-// isLikelyUSExchange 判断给定的交易所信息是否可能是美国交易所，基于常见的美国交易所标识进行简单匹配。
+// isLikelyUSExchange checks whether the given exchange info likely represents a US exchange based on simple matching of common US exchange identifiers.
 func isLikelyUSExchange(exchange, exchDisp string) bool {
 	label := strings.ToUpper(strings.TrimSpace(exchange + " " + exchDisp))
 	if label == "" {

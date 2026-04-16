@@ -30,7 +30,7 @@ const dialogHeader = computed(() => {
     return t("dialogs.dcaDetail.titleWithName", { name });
 });
 
-// 过滤出有效的定投条目（amount 和 shares 都必须 > 0）
+// Keep only valid DCA entries where both amount and shares are greater than zero.
 const entries = computed(() => (props.item?.dcaEntries ?? []).filter((e) => e.amount > 0 && e.shares > 0));
 
 const summary = computed(() => {
@@ -38,7 +38,7 @@ const summary = computed(() => {
     const totalAmount = valid.reduce((s, e) => s + e.amount, 0);
     const totalShares = valid.reduce((s, e) => s + e.shares, 0);
     const totalFees = valid.reduce((s, e) => s + (e.fee ?? 0), 0);
-    // 与后端 sanitiseItem 保持一致：优先使用手动买入价
+    // Match backend sanitiseItem behavior by preferring the manually entered buy price.
     let totalEffectiveCost = 0;
     for (const e of valid) {
         const price = e.price ?? 0;
@@ -101,7 +101,7 @@ function pnlTone(v: number | null): string {
 
 <template>
     <Dialog v-model:visible="visibleProxy" modal :closable="false" :header="dialogHeader" :style="{ width: '860px' }" class="desk-dialog">
-        <!-- ── 汇总栏 ─────────────────────────────────────────────────────── -->
+        <!-- DCA summary bar -->
         <div v-if="summary.count > 0" class="dca-summary-bar" style="margin-bottom: 20px">
             <div class="dca-summary-cell">
                 <span class="dca-summary-label">{{ t("dialogs.dcaDetail.summary.count") }}</span>
@@ -140,9 +140,9 @@ function pnlTone(v: number | null): string {
             </template>
         </div>
 
-        <!-- ── 明细表格 ────────────────────────────────────────────────────── -->
+        <!-- DCA detail table -->
         <div v-if="entries.length > 0" class="dca-detail-table">
-            <!-- 表头 -->
+            <!-- Header row -->
             <div class="dca-detail-head">
                 <span class="dca-col-label dca-seq-col">#</span>
                 <span class="dca-col-label">{{ t("dialogs.dcaDetail.table.date") }}</span>
@@ -153,7 +153,7 @@ function pnlTone(v: number | null): string {
                 <span class="dca-col-label">{{ t("dialogs.dcaDetail.table.note") }}</span>
             </div>
 
-            <!-- 数据行 -->
+            <!-- Data rows -->
             <div v-for="(entry, idx) in entries" :key="entry.id" class="dca-detail-row">
                 <span class="dca-detail-cell dca-seq-col dca-seq">{{ idx + 1 }}</span>
                 <span class="dca-detail-cell">{{ formatEntryDate(entry.date) }}</span>
@@ -165,10 +165,10 @@ function pnlTone(v: number | null): string {
             </div>
         </div>
 
-        <!-- 空状态 -->
+        <!-- Empty state -->
         <div v-else class="dca-empty-hint">{{ t("dialogs.dcaDetail.validEmpty") }}</div>
 
-        <!-- ── 底部操作 ─────────────────────────────────────────────────────── -->
+        <!-- Footer actions -->
         <template #footer>
             <Button size="small" text :label="t('common.close')" @click="visibleProxy = false" />
             <Button size="small" icon="pi pi-pencil" :label="t('dialogs.dcaDetail.editRecords')" @click="$emit('edit')" />

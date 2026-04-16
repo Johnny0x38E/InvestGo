@@ -55,7 +55,7 @@ const sortedItems = computed(() => {
 
     const dir = sortDirection.value === "asc" ? 1 : -1;
 
-    // 这里在前端做二次排序，后端继续负责分页和基础过滤。
+    // Apply a secondary sort on the client while the backend remains responsible for pagination and baseline filtering.
     return result.sort((a, b) => {
         const valA = a[sortField.value!] as number;
         const valB = b[sortField.value!] as number;
@@ -198,7 +198,7 @@ function selectCategory(next: HotCategory): void {
 }
 
 async function resetAndLoad(): Promise<void> {
-    // 任何筛选条件变化都从第一页重拉，避免沿用旧分页结果。
+    // Reset to page one whenever any filter changes so stale pagination results are not reused.
     cancelInflightRequest(true);
     items.value = [];
     page.value = 1;
@@ -243,7 +243,7 @@ async function loadPage(nextPage: number, append: boolean): Promise<void> {
             signal: controller.signal,
             timeoutMs: 15000,
         });
-        // 多次快速切换分类时，只接收最后一次仍然有效的请求结果。
+        // When categories switch rapidly, only accept the response from the most recent still-active request.
         if (inflightController !== controller) {
             return;
         }
@@ -278,7 +278,7 @@ function bindObserver(): void {
         return;
     }
 
-    // 无限滚动只观察底部哨兵元素，进入可视区后再按页加载更多。
+    // Infinite scrolling only watches the bottom sentinel and loads the next page after it enters the viewport.
     observer?.disconnect();
     observer = new IntersectionObserver(
         (entries) => {

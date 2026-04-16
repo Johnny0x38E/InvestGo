@@ -14,7 +14,7 @@ const (
 	YahooScreenerListAPI = "https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved"
 	YahooScreenerAPI     = "https://query2.finance.yahoo.com/v1/finance/screener"
 	YahooChartPathPrefix = "/v8/finance/chart/"
-	FrankfurterAPI       = "https://api.frankfurter.dev/v1/latest" // 欧洲央行数据，提供多币种汇率
+	FrankfurterAPI       = "https://api.frankfurter.dev/v1/latest" // European Central Bank (ECB) data providing multi-currency FX rates
 )
 
 var YahooChartHosts = [...]string{
@@ -27,7 +27,7 @@ var YahooSearchHosts = [...]string{
 	"query2.finance.yahoo.com",
 }
 
-// URLWithQuery 统一拼接带 query string 的 endpoint，便于集中维护基础地址。
+// URLWithQuery uniformly builds an endpoint with a query string for centralized base URL maintenance.
 func URLWithQuery(base string, params url.Values) string {
 	if len(params) == 0 {
 		return base

@@ -17,7 +17,7 @@ import (
 	"golang.org/x/text/transform"
 )
 
-// collectQuoteTargets 把输入标的转换为标准目标，并汇总解析失败信息。
+// collectQuoteTargets converts input items into standard targets and collects any resolution failures.
 func collectQuoteTargets(items []monitor.WatchlistItem) (map[string]monitor.QuoteTarget, []string) {
 	targets := make(map[string]monitor.QuoteTarget, len(items))
 	var problems []string
@@ -34,7 +34,7 @@ func collectQuoteTargets(items []monitor.WatchlistItem) (map[string]monitor.Quot
 	return targets, problems
 }
 
-// buildQuote 根据关键价格字段构造统一 Quote 对象。
+// buildQuote constructs a unified Quote object from the key price fields.
 func buildQuote(name string, current, previous, open, high, low float64, updatedAt time.Time, source string) monitor.Quote {
 	change := 0.0
 	changePercent := 0.0
@@ -57,7 +57,7 @@ func buildQuote(name string, current, previous, open, high, low float64, updated
 	}
 }
 
-// parseFloat 安全解析接口里的数值字段。
+// parseFloat safely parses numeric fields from API responses.
 func parseFloat(raw string) float64 {
 	clean := strings.TrimSpace(strings.NewReplacer("\"", "", ";", "", ",", "").Replace(raw))
 	if clean == "" || clean == "-" {
@@ -78,7 +78,7 @@ func firstNonEmptyFloat(left, right float64) float64 {
 	return right
 }
 
-// collapseProblems 去重并合并多条错误信息。
+// collapseProblems deduplicates and merges multiple error messages.
 func collapseProblems(problems []string) error {
 	if len(problems) == 0 {
 		return nil
@@ -105,7 +105,7 @@ func collapseProblems(problems []string) error {
 	return errors.New(strings.Join(uniq, "; "))
 }
 
-// firstNonEmpty 返回第一个非空字符串。
+// firstNonEmpty returns the first non-empty string.
 func firstNonEmpty(values ...string) string {
 	for _, value := range values {
 		if strings.TrimSpace(value) != "" {
@@ -115,7 +115,7 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
-// partsAt 安全访问字符串切片中的元素，越界时返回空字符串。
+// partsAt safely accesses an element in a string slice, returning an empty string on out-of-bounds access.
 func partsAt(parts []string, index int) string {
 	if index < 0 || index >= len(parts) {
 		return ""
@@ -123,7 +123,7 @@ func partsAt(parts []string, index int) string {
 	return parts[index]
 }
 
-// parseTimestamp 安全解析接口里的时间字段，支持多种常见格式。
+// parseTimestamp safely parses time fields from API responses, supporting several common formats.
 func parseTimestamp(raw string) time.Time {
 	candidate := strings.TrimSpace(strings.NewReplacer("/", "-", "\"", "", ";", "").Replace(raw))
 	if candidate == "" {
@@ -145,7 +145,7 @@ func parseTimestamp(raw string) time.Time {
 	return time.Time{}
 }
 
-// decodeGB18030Body 把 GB18030 编码的响应体转换成 UTF-8 字符串。
+// decodeGB18030Body converts a GB18030-encoded response body into a UTF-8 string.
 func decodeGB18030Body(body io.Reader) (string, error) {
 	reader := transform.NewReader(body, simplifiedchinese.GB18030.NewDecoder())
 	payload, err := io.ReadAll(reader)
@@ -155,7 +155,8 @@ func decodeGB18030Body(body io.Reader) (string, error) {
 	return strings.TrimSpace(string(bytes.TrimPrefix(payload, []byte{0xef, 0xbb, 0xbf}))), nil
 }
 
-// fetchTextWithHeaders 发起带自定义请求头的 GET 请求，并返回响应文本。可选地对 GB18030 编码的响应进行解码。
+// fetchTextWithHeaders makes a GET request with custom headers and returns the response text.
+// Optionally decodes GB18030-encoded responses.
 func fetchTextWithHeaders(ctx context.Context, client *http.Client, requestURL string, headers map[string]string, decodeGB18030 bool) (string, error) {
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
 	if err != nil {
@@ -187,7 +188,7 @@ func fetchTextWithHeaders(ctx context.Context, client *http.Client, requestURL s
 	return strings.TrimSpace(string(payload)), nil
 }
 
-// isDigits 判断字符串是否全部由数字组成。
+// isDigits checks whether a string consists entirely of digits.
 func isDigits(value string) bool {
 	if value == "" {
 		return false
@@ -200,7 +201,7 @@ func isDigits(value string) bool {
 	return true
 }
 
-// isLetters 判断字符串是否全部由英文字母组成。
+// isLetters checks whether a string consists entirely of English letters.
 func isLetters(value string) bool {
 	if value == "" {
 		return false
@@ -215,7 +216,7 @@ func isLetters(value string) bool {
 
 type emFloat float64
 
-// UnmarshalJSON 兼容东方财富数值字段缺失时返回 "-" 的情况。
+// UnmarshalJSON handles EastMoney numeric fields returning "-" when missing.
 func (f *emFloat) UnmarshalJSON(data []byte) error {
 	var value float64
 	if err := json.Unmarshal(data, &value); err == nil {

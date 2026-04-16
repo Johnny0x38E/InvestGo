@@ -98,7 +98,7 @@ function mirrorClientLog(entry: DeveloperLogEntry): void {
         }),
         keepalive: true,
     }).catch(() => {
-        // 终端镜像只是辅助调试，不应反向污染前端日志或影响主流程。
+        // Terminal mirroring is for auxiliary debugging only; it should not pollute frontend logs or affect the main flow.
     });
 }
 

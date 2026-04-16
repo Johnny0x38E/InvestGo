@@ -5,7 +5,7 @@ import Dialog from "primevue/dialog";
 import InputNumber from "primevue/inputnumber";
 import Select from "primevue/select";
 import ToggleSwitch from "primevue/toggleswitch";
-import appDockMark from "../../assets/app-dock.svg";
+import appMark from "../../assets/app-mark.svg";
 import { api } from "../../api";
 
 import {
@@ -58,7 +58,7 @@ const settingsTabProxy = computed({
 });
 
 const developerLogCount = computed(() => props.developerLogs.length);
-const { locale, t } = useI18n();
+const { t } = useI18n();
 const settingsTabs = computed(() => getSettingsTabs());
 const themeModeOptions = computed(() => getThemeModeOptions());
 const colorThemeOptions = computed(() => getColorThemeOptions());
@@ -116,7 +116,7 @@ async function openExternal(url: string): Promise<void> {
                                 <InputNumber v-model="settingsDraft.refreshIntervalSeconds" :min="10" :step="10" fluid />
                             </label>
                         </div>
-                        <!-- <p class="settings-note">自选列表的实时行情按境内（A股+境内ETF）/ 港股（含港股ETF）/ 美股（含美股ETF）分三组走对应数据源，图表在所选源不支持时自动回退。</p> -->
+                        <!-- <p class="settings-note">Watchlist live quotes are grouped by mainland China (A-shares plus domestic ETFs), Hong Kong (including HK ETFs), and US markets (including US ETFs), and charts automatically fall back when the selected source does not support them.</p> -->
                     </div>
 
                     <div class="settings-section">
@@ -278,7 +278,7 @@ async function openExternal(url: string): Promise<void> {
                         <h4>{{ t("settings.sections.about") }}</h4>
                         <div class="settings-about-card">
                             <div class="settings-about-brand">
-                                <img :src="appDockMark" alt="InvestGo" />
+                                <img :src="appMark" alt="InvestGo" />
                             </div>
                             <div class="settings-about-summary">
                                 <div class="settings-about-heading">
@@ -293,17 +293,14 @@ async function openExternal(url: string): Promise<void> {
                             <Button size="small" outlined icon="pi pi-github" :label="t('settings.about.repository')" class="settings-about-action" @click="openExternal(projectMeta.repositoryUrl)" />
                         </div>
 
-                        <div class="settings-disclaimer-grid">
-                            <section class="settings-disclaimer-card">
-                                <div class="settings-disclaimer-header">
-                                    <strong>{{ t("settings.about.disclaimer") }}</strong>
-                                    <span>{{ t(`options.locale.${locale}`) }}</span>
-                                </div>
-                                <p>{{ t("settings.about.disclaimerParagraph1") }}</p>
-                                <p>{{ t("settings.about.disclaimerParagraph2") }}</p>
-                                <p>{{ t("settings.about.disclaimerParagraph3") }}</p>
-                            </section>
-                        </div>
+                        <section class="settings-disclaimer-card">
+                            <div class="settings-disclaimer-header">
+                                <strong>{{ t("settings.about.disclaimer") }}</strong>
+                            </div>
+                            <p>{{ t("settings.about.disclaimerParagraph1") }}</p>
+                            <p>{{ t("settings.about.disclaimerParagraph2") }}</p>
+                            <p>{{ t("settings.about.disclaimerParagraph3") }}</p>
+                        </section>
                     </div>
                 </div>
             </section>

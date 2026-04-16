@@ -16,7 +16,7 @@ function getWailsBridge(): WailsBridge | null {
     return (window as Window & { _wails?: WailsBridge })._wails ?? null;
 }
 
-// 前端在浏览器开发服务器下也能运行，所以这里对 Wails runtime 做一层安全封装。
+// The frontend can also run under the browser dev server, so the Wails runtime is safely wrapped here.
 export async function isWindowMaximised(): Promise<boolean> {
     const runtime = getWindowRuntime();
     if (!runtime) {
@@ -26,17 +26,17 @@ export async function isWindowMaximised(): Promise<boolean> {
     return runtime.WindowIsMaximised();
 }
 
-// 将窗口放大到当前可用工作区。
+// Maximize the window to the current available workspace.
 export function maximiseWindow(): void {
     getWindowRuntime()?.WindowMaximise();
 }
 
-// 从放大状态恢复到原始窗口尺寸。
+// Restore the window from maximized state to its original size.
 export function restoreWindow(): void {
     getWindowRuntime()?.WindowUnmaximise();
 }
 
-// 触发 Wails 原生窗口拖拽。
+// Trigger native Wails window dragging.
 export function startWindowDrag(): void {
     getWailsBridge()?.invoke("wails:drag");
 }

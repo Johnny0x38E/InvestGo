@@ -6,7 +6,7 @@ import type { HistoryInterval, HistorySeries, ModuleKey, OptionItem, StatusTone,
 
 type StatusReporter = (message: string, tone: StatusTone) => void;
 
-// 历史走势按标的和范围做本地缓存，避免用户切换区间或标的时重复请求同一段数据。
+// Cache historical data locally by item and interval to avoid re-fetching the same data when users switch intervals or items.
 export function useHistorySeries(items: Ref<WatchlistItem[]>, selectedItem: ComputedRef<WatchlistItem | null>, activeModule: Ref<ModuleKey>, setStatus: StatusReporter) {
     const historyInterval = ref<HistoryInterval>("1h");
     const historySeries = ref<HistorySeries | null>(null);
@@ -22,7 +22,7 @@ export function useHistorySeries(items: Ref<WatchlistItem[]>, selectedItem: Comp
         })),
     );
 
-    // 取消正在进行的历史请求。
+    // Cancel any in-flight history request.
     function cancelInflightHistory(resetLoading = false): void {
         inflightController?.abort(new ApiAbortError("aborted"));
         inflightController = null;
@@ -31,7 +31,7 @@ export function useHistorySeries(items: Ref<WatchlistItem[]>, selectedItem: Comp
         }
     }
 
-    // 按当前标的和范围加载图表数据，forceRefresh 用于绕过缓存刷新最新数据。
+    // Load chart data for the current item and interval; forceRefresh bypasses the cache to fetch fresh data.
     async function loadHistory(silent = false, forceRefresh = false): Promise<void> {
         const item = selectedItem.value;
         if (!item) {
@@ -43,7 +43,7 @@ export function useHistorySeries(items: Ref<WatchlistItem[]>, selectedItem: Comp
 
         const key = `${item.id}:${historyInterval.value}`;
         const keepCurrentSeries = silent && Boolean(historySeries.value);
-        // 静默刷新时优先保留当前图表，避免切换标的或区间时闪空。
+        // During silent refresh, prefer keeping the current chart to avoid a blank flash when switching items or intervals.
         if (!forceRefresh && historyCache.has(key)) {
             cancelInflightHistory(true);
             historySeries.value = historyCache.get(key) ?? null;
@@ -67,7 +67,7 @@ export function useHistorySeries(items: Ref<WatchlistItem[]>, selectedItem: Comp
                 signal: controller.signal,
                 timeoutMs: 12000,
             });
-            // 请求返回时 controller 可能已经被新的请求替换，需要丢弃过期结果。
+            // When the response arrives, the controller may have been replaced by a newer request; discard stale results.
             if (inflightController !== controller) {
                 return;
             }
@@ -95,7 +95,7 @@ export function useHistorySeries(items: Ref<WatchlistItem[]>, selectedItem: Comp
         }
     }
 
-    // 清空历史缓存，在标的增删改后强制重拉当前图表。
+    // Clear the history cache and force-reload the current chart after items are added, deleted, or updated.
     function clearHistoryCache(): void {
         cancelInflightHistory(true);
         historyCache.clear();
@@ -104,7 +104,7 @@ export function useHistorySeries(items: Ref<WatchlistItem[]>, selectedItem: Comp
         }
     }
 
-    // 切换图表区间。
+    // Switch the chart interval.
     function selectHistoryInterval(next: HistoryInterval): void {
         if (historyInterval.value === next) {
             return;
@@ -117,7 +117,7 @@ export function useHistorySeries(items: Ref<WatchlistItem[]>, selectedItem: Comp
         () => [activeModule.value, selectedItem.value?.id ?? "", historyInterval.value] as const,
         () => {
             if (activeModule.value !== "market" || !selectedItem.value) {
-                // 离开市场模块时直接取消请求，避免无意义的后台更新。
+                // When leaving the market module, cancel the request directly to avoid unnecessary background updates.
                 cancelInflightHistory(true);
                 return;
             }

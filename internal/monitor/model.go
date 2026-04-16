@@ -2,7 +2,7 @@ package monitor
 
 import "time"
 
-// AlertCondition 价格提醒的条件
+// AlertCondition defines price alert conditions
 type AlertCondition string
 
 const (
@@ -10,57 +10,58 @@ const (
 	AlertBelow AlertCondition = "below"
 )
 
-// DCAEntry 定投
+// DCAEntry represents a Dollar-Cost Averaging entry
 type DCAEntry struct {
 	ID     string    `json:"id"`
 	Date   time.Time `json:"date"`
-	Amount float64   `json:"amount"`          // 本次投入金额
-	Shares float64   `json:"shares"`          // 本次买入份额
-	Price  float64   `json:"price,omitempty"` // 手动录入的买入价（含手续费后的实际成交价），0 表示未填写
-	Fee    float64   `json:"fee,omitempty"`   // 本次定投手续费，0 表示未填写
+	Amount float64   `json:"amount"`          // Investment amount for this entry
+	Shares float64   `json:"shares"`          // Shares purchased this time
+	Price  float64   `json:"price,omitempty"` // Manually entered buy price (actual transaction price including fee), 0 means not filled
+	Fee    float64   `json:"fee,omitempty"`   // Fee for this DCA entry, 0 means not filled
 	Note   string    `json:"note,omitempty"`
 }
 
-// WatchlistItem 自选的一个投资标的
+// WatchlistItem represents an investment item on the watchlist
 type WatchlistItem struct {
-	ID             string     `json:"id"`                       // 唯一标识符，格式为 "市场-代码"，如 "CN-A-000001"、"HK-MAIN-00700"、"US-STOCK-AAPL"
-	Symbol         string     `json:"symbol"`                   // 标准化的标的代码，格式为 "市场-代码"，如 "CN-A-000001"、"HK-MAIN-00700"、"US-STOCK-AAPL"
-	Name           string     `json:"name"`                     // 标的名称，如 "Apple Inc."、"Tesla, Inc."、"贵州茅台"
-	Market         string     `json:"market"`                   // 市场标识，如 "CN-A"（沪深A股）、"HK-MAIN"（港股主板）、"US-STOCK"（美股）
-	Currency       string     `json:"currency"`                 // 货币代码，如 "CNY"、"HKD"、"USD"
-	Quantity       float64    `json:"quantity"`                 // 持仓数量
-	CostPrice      float64    `json:"costPrice"`                // 持仓的平均成本价（含手续费），即总成本金额除以持仓数量
-	CurrentPrice   float64    `json:"currentPrice"`             // 当前价格
-	PreviousClose  float64    `json:"previousClose"`            // 昨收价格
-	OpenPrice      float64    `json:"openPrice"`                // 今日开盘价
-	DayHigh        float64    `json:"dayHigh"`                  // 今日最高价
-	DayLow         float64    `json:"dayLow"`                   // 今日最低价
-	Change         float64    `json:"change"`                   // 今日涨跌额
-	ChangePercent  float64    `json:"changePercent"`            // 今日涨跌幅（百分比）
-	QuoteSource    string     `json:"quoteSource"`              // 当前价格数据来源，如 "eastmoney"、"yahoo"
-	QuoteUpdatedAt *time.Time `json:"quoteUpdatedAt,omitempty"` // 当前价格的最后更新时间
-	Thesis         string     `json:"thesis"`                   // 备注
-	Tags           []string   `json:"tags"`                     // 标签列表
-	DCAEntries     []DCAEntry `json:"dcaEntries,omitempty"`     // 定投记录列表
+	ID             string     `json:"id"`                       // Unique identifier, formatted as "market-code", e.g., "CN-A-000001", "HK-MAIN-00700", "US-STOCK-AAPL"
+	Symbol         string     `json:"symbol"`                   // Standardized instrument code, formatted as "market-code", e.g., "CN-A-000001", "HK-MAIN-00700", "US-STOCK-AAPL"
+	Name           string     `json:"name"`                     // Instrument name, e.g., "Apple Inc.", "Tesla, Inc.", "贵州茅台"
+	Market         string     `json:"market"`                   // Market identifier, e.g., "CN-A" (A-share), "HK-MAIN" (Hong Kong Main Board), "US-STOCK" (US stocks)
+	Currency       string     `json:"currency"`                 // Currency code, e.g., "CNY", "HKD", "USD"
+	Quantity       float64    `json:"quantity"`                 // Position quantity
+	CostPrice      float64    `json:"costPrice"`                // Average cost price of position (including fee), i.e., total cost amount divided by position quantity
+	CurrentPrice   float64    `json:"currentPrice"`             // Current price
+	PreviousClose  float64    `json:"previousClose"`            // Previous close price
+	OpenPrice      float64    `json:"openPrice"`                // Today's opening price
+	DayHigh        float64    `json:"dayHigh"`                  // Today's high price
+	DayLow         float64    `json:"dayLow"`                   // Today's low price
+	Change         float64    `json:"change"`                   // Today's change amount
+	ChangePercent  float64    `json:"changePercent"`            // Today's change percentage
+	QuoteSource    string     `json:"quoteSource"`              // Quote data source, e.g. "eastmoney", "yahoo"
+	QuoteUpdatedAt *time.Time `json:"quoteUpdatedAt,omitempty"` // Last quote update time
+	PinnedAt       *time.Time `json:"pinnedAt,omitempty"`       // Time when the item was pinned to the top; nil means not pinned
+	Thesis         string     `json:"thesis"`                   // Notes
+	Tags           []string   `json:"tags"`                     // Tag list
+	DCAEntries     []DCAEntry `json:"dcaEntries,omitempty"`     // DCA (Dollar-Cost Averaging) entry list
 	UpdatedAt      time.Time  `json:"updatedAt"`
 }
 
-// CostBasis 返回持仓的成本金额，即买入数量乘以买入价格。
+// CostBasis returns position cost amount, i.e., buy quantity multiplied by buy price.
 func (w WatchlistItem) CostBasis() float64 {
 	return w.Quantity * w.CostPrice
 }
 
-// MarketValue 返回持仓的当前资产，即持仓数量乘以当前价格。
+// MarketValue returns current position value, i.e., position quantity multiplied by current price.
 func (w WatchlistItem) MarketValue() float64 {
 	return w.Quantity * w.CurrentPrice
 }
 
-// UnrealisedPnL 返回持仓的未实现盈亏金额，即当前资产减去成本金额。
+// UnrealisedPnL returns position unrealized PnL (Profit and Loss) amount, i.e., current value minus cost amount.
 func (w WatchlistItem) UnrealisedPnL() float64 {
 	return w.MarketValue() - w.CostBasis()
 }
 
-// UnrealisedPnLPct 返回持仓的未实现盈亏百分比，即未实现盈亏金额除以成本金额再乘以100。
+// UnrealisedPnLPct returns position unrealized PnL percentage, i.e., unrealized PnL amount divided by cost amount multiplied by 100.
 func (w WatchlistItem) UnrealisedPnLPct() float64 {
 	if w.CostBasis() == 0 {
 		return 0
@@ -69,27 +70,27 @@ func (w WatchlistItem) UnrealisedPnLPct() float64 {
 	return w.UnrealisedPnL() / w.CostBasis() * 100
 }
 
-// AlertRule 价格提醒规则
+// AlertRule represents a price alert rule
 type AlertRule struct {
 	ID              string         `json:"id"`
 	ItemID          string         `json:"itemId"`
 	Name            string         `json:"name"`
-	Condition       AlertCondition `json:"condition"` // "above" 表示价格超过阈值时触发，"below" 表示价格低于阈值时触发
-	Threshold       float64        `json:"threshold"` // 价格阈值
+	Condition       AlertCondition `json:"condition"` // "above" triggers when price exceeds threshold, "below" triggers when price falls below threshold
+	Threshold       float64        `json:"threshold"` // Price threshold
 	Enabled         bool           `json:"enabled"`
-	Triggered       bool           `json:"triggered"`                 // 是否已触发过，触发后会自动设置为 true
-	LastTriggeredAt *time.Time     `json:"lastTriggeredAt,omitempty"` // 上次触发时间
+	Triggered       bool           `json:"triggered"`                 // Whether it has been triggered before, automatically set to true after triggering
+	LastTriggeredAt *time.Time     `json:"lastTriggeredAt,omitempty"` // Last triggered time
 	UpdatedAt       time.Time      `json:"updatedAt"`
 }
 
-// AppSettings 应用设置
+// AppSettings represents application settings
 type AppSettings struct {
 	RefreshIntervalSeconds int    `json:"refreshIntervalSeconds"`
-	QuoteSource            string `json:"quoteSource"` // "auto"、"cn"、"hk"、"us"，默认 "auto"
+	QuoteSource            string `json:"quoteSource"` // "auto", "cn", "hk", "us", default "auto"
 	CNQuoteSource          string `json:"cnQuoteSource"`
 	HKQuoteSource          string `json:"hkQuoteSource"`
 	USQuoteSource          string `json:"usQuoteSource"`
-	HotUSSource            string `json:"hotUSSource"` // "eastmoney" 或 "yahoo"，默认 "eastmoney"
+	HotUSSource            string `json:"hotUSSource"` // "eastmoney" or "yahoo", default "eastmoney"
 	ThemeMode              string `json:"themeMode"`
 	ColorTheme             string `json:"colorTheme"`
 	FontPreset             string `json:"fontPreset"`
@@ -102,7 +103,7 @@ type AppSettings struct {
 	UseNativeTitleBar      bool   `json:"useNativeTitleBar"`
 }
 
-// HistoryPoint 一根历史行情 K 线数据点
+// HistoryPoint represents a single historical K-line data point
 type HistoryPoint struct {
 	Timestamp time.Time `json:"timestamp"`
 	Open      float64   `json:"open"`
@@ -112,113 +113,113 @@ type HistoryPoint struct {
 	Volume    float64   `json:"volume"`
 }
 
-// HistorySeries 标的在指定区间下的完整历史走势
+// HistorySeries represents the complete historical trend for a given instrument in a specified interval
 type HistorySeries struct {
 	Symbol        string          `json:"symbol"`
 	Name          string          `json:"name"`
 	Market        string          `json:"market"`
 	Currency      string          `json:"currency"`
-	Interval      HistoryInterval `json:"interval"`      // 历史数据的时间间隔，如 "1d","1mo"
-	Source        string          `json:"source"`        // 数据来源，如 "eastmoney"、"yahoo"
-	StartPrice    float64         `json:"startPrice"`    // 区间的起始价格，即第一个数据点的开盘价
-	EndPrice      float64         `json:"endPrice"`      // 区间的结束价格，即最后一个数据点的收盘价
-	High          float64         `json:"high"`          // 区间内的最高价
-	Low           float64         `json:"low"`           // 区间内的最低价
-	Change        float64         `json:"change"`        // 区间内的涨跌额，即结束价格减去起始价格
-	ChangePercent float64         `json:"changePercent"` // 区间内的涨跌幅，即涨跌额除以起始价格再乘以100
-	Points        []HistoryPoint  `json:"points"`        // 数据点列表，按时间顺序排列
-	GeneratedAt   time.Time       `json:"generatedAt"`   // 数据生成时间
+	Interval      HistoryInterval `json:"interval"`      // Time interval of historical data, e.g., "1d", "1mo"
+	Source        string          `json:"source"`        // Data source, e.g., "eastmoney", "yahoo"
+	StartPrice    float64         `json:"startPrice"`    // Starting price of interval, i.e., opening price of the first data point
+	EndPrice      float64         `json:"endPrice"`      // Ending price of interval, i.e., closing price of the last data point
+	High          float64         `json:"high"`          // Highest price within interval
+	Low           float64         `json:"low"`           // Lowest price within interval
+	Change        float64         `json:"change"`        // Change amount within interval, i.e., ending price minus starting price
+	ChangePercent float64         `json:"changePercent"` // Change percentage within interval, i.e., change amount divided by starting price multiplied by 100
+	Points        []HistoryPoint  `json:"points"`        // Data point list, ordered by time
+	GeneratedAt   time.Time       `json:"generatedAt"`   // Data generation time
 }
 
-// RuntimeStatus 存储应用运行时的状态信息
+// RuntimeStatus stores application runtime status information
 type RuntimeStatus struct {
-	LastQuoteAttemptAt *time.Time `json:"lastQuoteAttemptAt,omitempty"` // 上次行情请求时间
-	LastQuoteRefreshAt *time.Time `json:"lastQuoteRefreshAt,omitempty"` // 上次行情刷新时间
-	LastQuoteError     string     `json:"lastQuoteError,omitempty"`     // 上次行情请求错误信息
-	QuoteSource        string     `json:"quoteSource"`                  // 当前使用的数据来源，"auto" 表示自动选择
-	LivePriceCount     int        `json:"livePriceCount"`               // 当前持仓中有价格的标的数量
-	AppVersion         string     `json:"appVersion"`                   // 当前应用版本
-	LastFxError        string     `json:"lastFxError,omitempty"`        // 上次汇率错误信息
-	LastFxRefreshAt    *time.Time `json:"lastFxRefreshAt,omitempty"`    // 上次汇率刷新时间
+	LastQuoteAttemptAt *time.Time `json:"lastQuoteAttemptAt,omitempty"` // Last quote request time
+	LastQuoteRefreshAt *time.Time `json:"lastQuoteRefreshAt,omitempty"` // Last quote refresh time
+	LastQuoteError     string     `json:"lastQuoteError,omitempty"`     // Last quote request error message
+	QuoteSource        string     `json:"quoteSource"`                  // Currently used data source, "auto" means automatic selection
+	LivePriceCount     int        `json:"livePriceCount"`               // Number of items in current holdings with prices
+	AppVersion         string     `json:"appVersion"`                   // Current application version
+	LastFxError        string     `json:"lastFxError,omitempty"`        // Last FX rate error message
+	LastFxRefreshAt    *time.Time `json:"lastFxRefreshAt,omitempty"`    // Last FX rate refresh time
 }
 
-// persistedState 需要持久化存储的应用状态
+// persistedState represents application state that needs to be persisted
 type persistedState struct {
-	Items     []WatchlistItem `json:"items"`     // 持仓列表
-	Alerts    []AlertRule     `json:"alerts"`    // 价格提醒规则列表
-	Settings  AppSettings     `json:"settings"`  // 设置
-	UpdatedAt time.Time       `json:"updatedAt"` // 上次更新的时间戳
+	Items     []WatchlistItem `json:"items"`     // Position list
+	Alerts    []AlertRule     `json:"alerts"`    // Price alert rule list
+	Settings  AppSettings     `json:"settings"`  // Settings
+	UpdatedAt time.Time       `json:"updatedAt"` // Last updated timestamp
 }
 
-// DashboardSummary 仪表盘上需要展示的汇总数据
+// DashboardSummary represents aggregated data to be displayed on the dashboard
 type DashboardSummary struct {
-	TotalCost       float64 `json:"totalCost"`       // 组合成本
-	TotalValue      float64 `json:"totalValue"`      // 总资产
-	TotalPnL        float64 `json:"totalPnL"`        // 总盈亏金额
-	TotalPnLPct     float64 `json:"totalPnLPct"`     // 总盈亏百分比
-	ItemCount       int     `json:"itemCount"`       // 持仓数量
-	TriggeredAlerts int     `json:"triggeredAlerts"` // 触发的提醒数量
-	WinCount        int     `json:"winCount"`        // 盈亏统计中的盈利数量
-	LossCount       int     `json:"lossCount"`       // 盈亏统计中的亏损数量
-	DisplayCurrency string  `json:"displayCurrency"` // 汇总数据的显示货币
+	TotalCost       float64 `json:"totalCost"`       // Portfolio cost
+	TotalValue      float64 `json:"totalValue"`      // Total assets
+	TotalPnL        float64 `json:"totalPnL"`        // Total PnL (Profit and Loss) amount
+	TotalPnLPct     float64 `json:"totalPnLPct"`     // Total PnL percentage
+	ItemCount       int     `json:"itemCount"`       // Position quantity
+	TriggeredAlerts int     `json:"triggeredAlerts"` // Number of triggered alerts
+	WinCount        int     `json:"winCount"`        // Profit count in PnL statistics
+	LossCount       int     `json:"lossCount"`       // Loss count in PnL statistics
+	DisplayCurrency string  `json:"displayCurrency"` // Display currency for aggregated data
 }
 
-// StateSnapshot 应用状态的完整快照
+// StateSnapshot represents a complete application state snapshot
 type StateSnapshot struct {
-	Dashboard    DashboardSummary    `json:"dashboard"`    // 仪表盘汇总数据
-	Items        []WatchlistItem     `json:"items"`        // 持仓列表
-	Alerts       []AlertRule         `json:"alerts"`       // 价格提醒规则列表
-	Settings     AppSettings         `json:"settings"`     // 设置
-	Runtime      RuntimeStatus       `json:"runtime"`      // 运行状态
-	QuoteSources []QuoteSourceOption `json:"quoteSources"` // 可用的数据来源列表
-	StoragePath  string              `json:"storagePath"`  // 持久化存储路径
-	GeneratedAt  time.Time           `json:"generatedAt"`  // 快照生成时间
+	Dashboard    DashboardSummary    `json:"dashboard"`    // Dashboard aggregated data
+	Items        []WatchlistItem     `json:"items"`        // Position list
+	Alerts       []AlertRule         `json:"alerts"`       // Price alert rule list
+	Settings     AppSettings         `json:"settings"`     // Settings
+	Runtime      RuntimeStatus       `json:"runtime"`      // Runtime status
+	QuoteSources []QuoteSourceOption `json:"quoteSources"` // Available data source list
+	StoragePath  string              `json:"storagePath"`  // Persistent storage path
+	GeneratedAt  time.Time           `json:"generatedAt"`  // Snapshot generation time
 }
 
-// HotCategory 热门榜单的分类
+// HotCategory represents hot list categories
 type HotCategory string
 
 const (
-	HotCategoryCNA      HotCategory = "cn-a"      // 沪深A股（主板+创业板+科创板）
-	HotCategoryCNETF    HotCategory = "cn-etf"    // 沪深ETF
-	HotCategoryHK       HotCategory = "hk"        // 港股
-	HotCategoryHKETF    HotCategory = "hk-etf"    // 港股ETF
-	HotCategoryUSSP500  HotCategory = "us-sp500"  // 标普500
-	HotCategoryUSNasdaq HotCategory = "us-nasdaq" // 纳斯达克100
-	HotCategoryUSDow    HotCategory = "us-dow"    // 道琼斯30
-	HotCategoryUSETF    HotCategory = "us-etf"    // 美股ETF
+	HotCategoryCNA      HotCategory = "cn-a"      // Shanghai/Shenzhen A-shares (Main Board + GEM + STAR Market)
+	HotCategoryCNETF    HotCategory = "cn-etf"    // Shanghai/Shenzhen ETFs
+	HotCategoryHK       HotCategory = "hk"        // Hong Kong stocks
+	HotCategoryHKETF    HotCategory = "hk-etf"    // Hong Kong stocksETF
+	HotCategoryUSSP500  HotCategory = "us-sp500"  // S&P 500
+	HotCategoryUSNasdaq HotCategory = "us-nasdaq" // Nasdaq 100
+	HotCategoryUSDow    HotCategory = "us-dow"    // Dow Jones 30
+	HotCategoryUSETF    HotCategory = "us-etf"    // US ETFs
 )
 
-// HotSort 热门榜单表格排序
+// HotSort represents hot list table sorting options
 type HotSort string
 
 const (
-	HotSortVolume    HotSort = "volume"     // 成交量榜
-	HotSortGainers   HotSort = "gainers"    // 涨幅榜
-	HotSortLosers    HotSort = "losers"     // 跌幅榜
-	HotSortMarketCap HotSort = "market-cap" // 市值榜
-	HotSortPrice     HotSort = "price"      // 价格榜
+	HotSortVolume    HotSort = "volume"     // Volume leaderboard
+	HotSortGainers   HotSort = "gainers"    // Gainers leaderboard
+	HotSortLosers    HotSort = "losers"     // Losers leaderboard
+	HotSortMarketCap HotSort = "market-cap" // Market cap leaderboard
+	HotSortPrice     HotSort = "price"      // Price leaderboard
 )
 
-// HotItem 热门榜单中每个标的的详细信息
+// HotItem represents detailed information for each item in the hot list
 type HotItem struct {
 	Symbol        string    `json:"symbol"`
 	Name          string    `json:"name"`
 	Market        string    `json:"market"`
 	Currency      string    `json:"currency"`
 	CurrentPrice  float64   `json:"currentPrice"`
-	Change        float64   `json:"change"`        // 涨跌额
-	ChangePercent float64   `json:"changePercent"` // 涨跌幅（百分比）
-	Volume        float64   `json:"volume"`        // 成交量
-	MarketCap     float64   `json:"marketCap"`     // 市值
+	Change        float64   `json:"change"`        // Change amount
+	ChangePercent float64   `json:"changePercent"` // Change percentage
+	Volume        float64   `json:"volume"`        // Trading volume
+	MarketCap     float64   `json:"marketCap"`     // Market capitalization
 	QuoteSource   string    `json:"quoteSource"`
 	UpdatedAt     time.Time `json:"updatedAt"`
 }
 
-// HotListResponse 表示热门榜单接口返回的分页结果
+// HotListResponse represents paginated results returned by the hot list API
 type HotListResponse struct {
-	Category    HotCategory `json:"category"` // 热门榜单分类，如 "cn-a"、"hk"、"us-sp500"
-	Sort        HotSort     `json:"sort"`     // 排序方式，如 "volume"、"gainers"、"losers"
+	Category    HotCategory `json:"category"` // Hot list category, e.g., "cn-a", "hk", "us-sp500"
+	Sort        HotSort     `json:"sort"`     // Sorting method, e.g., "volume", "gainers", "losers"
 	Page        int         `json:"page"`
 	PageSize    int         `json:"pageSize"`
 	Total       int         `json:"total"`

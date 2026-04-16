@@ -16,7 +16,7 @@ import (
 	"investgo/internal/monitor"
 )
 
-// applyHistorySummary 根据历史点序列计算涨跌摘要和区间高低点。
+// applyHistorySummary calculates the gain/loss summary and period high/low from the history point series.
 func applyHistorySummary(series *monitor.HistorySeries) {
 	if len(series.Points) == 0 {
 		return
@@ -42,7 +42,7 @@ func applyHistorySummary(series *monitor.HistorySeries) {
 	}
 }
 
-// minInt 返回两个整数中的较小值。
+// minInt returns the smaller of two integers.
 func minInt(left, right int) int {
 	if left < right {
 		return left
@@ -50,7 +50,7 @@ func minInt(left, right int) int {
 	return right
 }
 
-// trimHistoryPoints 截取窗口内的历史点，保留原始时间顺序。
+// trimHistoryPoints trims history points to the given window, preserving original chronological order.
 func trimHistoryPoints(points []monitor.HistoryPoint, window time.Duration) []monitor.HistoryPoint {
 	if window <= 0 || len(points) == 0 {
 		return points
@@ -74,12 +74,12 @@ func trimHistoryPoints(points []monitor.HistoryPoint, window time.Duration) []mo
 
 // ── EastMoney K-line chart provider ──────────────────────────────────────────
 
-// chinaLocation 定义了中国时区，供解析东方财富返回的时间戳使用。
-// 东方财富的 K 线接口返回的时间戳是中国时间，需要用这个时区来正确解析。
+// chinaLocation defines the China time zone for parsing timestamps returned by EastMoney.
+// EastMoney's K-line API returns timestamps in China time, which must be parsed with this location.
 var chinaLocation = time.FixedZone("CST", 8*3600)
 
-// EastMoneyChartProvider 通过东方财富 K 线接口抓取历史行情数据。
-// 应用当前统一使用该接口作为历史图表数据源。
+// EastMoneyChartProvider fetches historical quote data via the EastMoney K-line API.
+// The app currently uses this API as the unified historical chart data source.
 type EastMoneyChartProvider struct {
 	client *http.Client
 }
@@ -96,15 +96,15 @@ type eastMoneyKlineResponse struct {
 }
 
 type eastMoneyHistorySpec struct {
-	klt        int           // K 线周期（101=日，102=周，103=月，60=60min）
-	beg        string        // 起始日期 YYYYMMDD；"0" 表示最早
-	end        string        // 截止日期 YYYYMMDD
-	lmt        int           // 最多返回多少根 K 线（0=不限）
-	intraday   bool          // 是否为分钟级别（时间戳含时分秒）
-	trimWindow time.Duration // 截取最近多长时间的数据（0=不截取）
+	klt        int           // candlestick period (101=daily, 102=weekly, 103=monthly, 60=60min)
+	beg        string        // start date YYYYMMDD; "0" means earliest
+	end        string        // end date YYYYMMDD
+	lmt        int           // max number of candlesticks to return (0=unlimited)
+	intraday   bool          // whether it is minute-level (timestamp includes hour:minute:second)
+	trimWindow time.Duration // trim to the most recent duration (0=do not trim)
 }
 
-// NewEastMoneyChartProvider 创建东方财富历史行情 provider。
+// NewEastMoneyChartProvider creates an EastMoney historical quote provider.
 func NewEastMoneyChartProvider(client *http.Client) *EastMoneyChartProvider {
 	if client == nil {
 		client = &http.Client{Timeout: 10 * time.Second}
@@ -112,12 +112,12 @@ func NewEastMoneyChartProvider(client *http.Client) *EastMoneyChartProvider {
 	return &EastMoneyChartProvider{client: client}
 }
 
-// Name 返回东方财富历史源的显示名称。
+// Name returns the display name of the EastMoney history source.
 func (p *EastMoneyChartProvider) Name() string {
 	return "EastMoney"
 }
 
-// Fetch 通过东方财富 K 线接口抓取历史行情数据。
+// Fetch fetches historical quote data via the EastMoney K-line API.
 func (p *EastMoneyChartProvider) Fetch(ctx context.Context, item monitor.WatchlistItem, interval monitor.HistoryInterval) (monitor.HistorySeries, error) {
 	target, err := monitor.ResolveQuoteTarget(item)
 	if err != nil {
@@ -129,7 +129,7 @@ func (p *EastMoneyChartProvider) Fetch(ctx context.Context, item monitor.Watchli
 		return monitor.HistorySeries{}, fmt.Errorf("EastMoney history failed to resolve secid: %w", err)
 	}
 
-	// 东方财富不同周期依赖不同的 klt、日期窗口和裁剪策略。
+	// EastMoney uses different klt, date windows and trimming strategies for different intervals.
 	spec, err := eastMoneyHistorySpecFor(interval)
 	if err != nil {
 		return monitor.HistorySeries{}, err
@@ -208,7 +208,7 @@ func (p *EastMoneyChartProvider) Fetch(ctx context.Context, item monitor.Watchli
 	return series, nil
 }
 
-// eastMoneyHistorySpecFor 把图表区间映射为东方财富 K 线请求参数。
+// eastMoneyHistorySpecFor maps a chart interval to EastMoney K-line request parameters.
 func eastMoneyHistorySpecFor(interval monitor.HistoryInterval) (eastMoneyHistorySpec, error) {
 	now := time.Now()
 	end := now.AddDate(0, 0, 1).Format("20060102")
@@ -233,8 +233,8 @@ func eastMoneyHistorySpecFor(interval monitor.HistoryInterval) (eastMoneyHistory
 	}
 }
 
-// parseEastMoneyKlines 把东方财富 K 线字符串列表解析为历史点切片。
-// kline 字段顺序：日期, 开盘, 收盘, 最高, 最低, 成交量, 成交额（逗号分隔）。
+// parseEastMoneyKlines parses the EastMoney K-line string list into a slice of history points.
+// K-line field order: date, open, close, high, low, volume, turnover (comma-separated).
 func parseEastMoneyKlines(klines []string, intraday bool) []monitor.HistoryPoint {
 	layout := "2006-01-02"
 	if intraday {
@@ -274,8 +274,8 @@ func parseEastMoneyKlines(klines []string, intraday bool) []monitor.HistoryPoint
 	return points
 }
 
-// NewSmartHistoryProvider 创建包含东方财富和 Yahoo 两个历史行情提供者的映射表，
-// 供 monitor.NewStore 使用。client 为 nil 时各 provider 使用自身默认超时。
+// NewSmartHistoryProvider creates a map containing both EastMoney and Yahoo historical quote providers,
+// for use by monitor.NewStore. When client is nil, each provider uses its own default timeout.
 func NewSmartHistoryProvider(client *http.Client) map[string]monitor.HistoryProvider {
 	return map[string]monitor.HistoryProvider{
 		"eastmoney": NewEastMoneyChartProvider(client),

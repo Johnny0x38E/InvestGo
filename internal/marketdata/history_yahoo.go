@@ -34,7 +34,8 @@ func (p *YahooChartProvider) Name() string {
 	return "Yahoo Finance"
 }
 
-// Fetch 实现了 monitor.HistoryProvider 接口，负责从 Yahoo Finance 获取历史行情数据并转换为统一格式。
+// Fetch implements the monitor.HistoryProvider interface,
+// fetching historical quote data from Yahoo Finance and converting it to the unified format.
 func (p *YahooChartProvider) Fetch(ctx context.Context, item monitor.WatchlistItem, interval monitor.HistoryInterval) (monitor.HistorySeries, error) {
 	yahooSymbol, err := resolveYahooSymbol(item)
 	if err != nil {
@@ -112,7 +113,7 @@ func resolveYahooSymbol(item monitor.WatchlistItem) (string, error) {
 	return "", fmt.Errorf("Yahoo does not support market: %s", target.DisplaySymbol)
 }
 
-// historyQuerySpecFor 根据用户选择的历史范围返回适合 Yahoo Finance API 的查询参数和数据修剪窗口。
+// historyQuerySpecFor returns the query parameters and data trim window suitable for the Yahoo Finance API based on the user-selected history range.
 func historyQuerySpecFor(interval monitor.HistoryInterval) (historyQuerySpec, error) {
 	switch interval {
 	case monitor.HistoryRange1h:
@@ -134,7 +135,8 @@ func historyQuerySpecFor(interval monitor.HistoryInterval) (historyQuerySpec, er
 	}
 }
 
-// buildHistoryPoints 从 Yahoo Finance 的原始数据中构造统一的历史价格点列表，自动过滤掉无效数据。
+// buildHistoryPoints constructs a unified list of historical price points from raw Yahoo Finance data,
+// automatically filtering out invalid entries.
 func buildHistoryPoints(timestamps []int64, quote struct {
 	Open   []*float64 `json:"open"`
 	High   []*float64 `json:"high"`
@@ -186,7 +188,7 @@ func derefFloat(value *float64) float64 {
 	return *value
 }
 
-// DefaultHistorySourceRegistry 返回默认历史行情源注册表。
+// DefaultHistorySourceRegistry returns the default historical quote source registry.
 func DefaultHistorySourceRegistry(client *http.Client) map[string]monitor.HistoryProvider {
 	return map[string]monitor.HistoryProvider{
 		"eastmoney": NewEastMoneyChartProvider(client),

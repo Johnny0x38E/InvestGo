@@ -19,6 +19,7 @@ const emit = defineEmits<{
     (event: "add-item"): void;
     (event: "edit-item", value: WatchlistItem): void;
     (event: "delete-item", value: string): void;
+    (event: "toggle-pin", value: WatchlistItem): void;
     (event: "select-item", value: string): void;
     (event: "show-dca", value: WatchlistItem): void;
 }>();
@@ -118,6 +119,15 @@ const { t } = useI18n();
                         </td>
                         <td class="table-action-cell">
                             <div class="action-stack table-action-stack" @click.stop>
+                                <Button
+                                    size="small"
+                                    text
+                                    rounded
+                                    icon="pi pi-thumbtack"
+                                    :class="{ 'is-pinned-action': Boolean(item.pinnedAt) }"
+                                    :aria-label="item.pinnedAt ? t('watchlist.aria.unpin') : t('watchlist.aria.pin')"
+                                    @click="$emit('toggle-pin', item)"
+                                />
                                 <Button size="small" text rounded icon="pi pi-pencil" :aria-label="t('watchlist.aria.edit')" @click="$emit('edit-item', item)" />
                                 <Button size="small" text rounded severity="danger" icon="pi pi-trash" :aria-label="t('watchlist.aria.delete')" @click="$emit('delete-item', item.id)" />
                             </div>

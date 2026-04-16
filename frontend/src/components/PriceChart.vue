@@ -34,7 +34,7 @@ const enrichedPoints = computed(() => {
     const maxPrice = Math.max(...highs);
     const span = maxPrice - minPrice || maxPrice || 1;
 
-    // 先把价格点投影到 SVG 坐标系，后面的折线、面积和 hover 命中都复用这套坐标。
+    // Project price points into SVG coordinates first so the line, area, and hover hit testing can all reuse the same geometry.
     const xAt = (index: number) => padding.left + (index / Math.max(points.value.length - 1, 1)) * (width.value - padding.left - padding.right);
     const yAt = (value: number) => padding.top + (1 - (value - minPrice) / span) * (height.value - padding.top - padding.bottom);
 
@@ -122,7 +122,7 @@ function buildAreaPath(list: Array<{ x: number; y: number }>): { line: string; a
     }
 
     const line = buildSmoothPath(list);
-    // 面积图直接复用折线路径，并把末尾闭合到底部基线。
+    // Reuse the line path for the filled area and close the tail back to the bottom baseline.
     const baseline = (height.value - padding.bottom).toFixed(2);
     const area = `${line} L ${list[list.length - 1].x.toFixed(2)} ${baseline} L ${list[0].x.toFixed(2)} ${baseline} Z`;
     return { line, area };
@@ -133,7 +133,7 @@ function buildSmoothPath(list: Array<{ x: number; y: number }>): string {
         return `M ${list[0].x.toFixed(2)} ${list[0].y.toFixed(2)}`;
     }
 
-    // 用二次贝塞尔曲线把折线平滑化，避免小样本走势出现过于生硬的折角。
+    // Smooth the polyline with quadratic Bezier segments so small datasets do not produce harsh corners.
     const path: string[] = [`M ${list[0].x.toFixed(2)} ${list[0].y.toFixed(2)}`];
     for (let index = 1; index < list.length - 1; index += 1) {
         const xc = (list[index].x + list[index + 1].x) / 2;
@@ -155,7 +155,7 @@ function pointAtClientX(event: MouseEvent): void {
 
     const bounds = target.getBoundingClientRect();
     updateTooltipPosition(event);
-    // hover 命中按当前鼠标 X 坐标寻找最近点，而不是依赖固定索引步长。
+    // Resolve hover hits by the current mouse X coordinate instead of relying on a fixed index step.
     const ratio = (event.clientX - bounds.left) / Math.max(bounds.width, 1);
     const nextX = padding.left + ratio * (width.value - padding.left - padding.right);
     let winner = 0;
@@ -223,9 +223,9 @@ function bindResizeObserver(): void {
         return;
     }
 
-    // 图表容器在标签切换和窗口尺寸变化后都需要重新计算 SVG 尺寸。
-    // 直接从 contentRect 读尺寸避免触发额外 layout，再用 rAF 推迟响应式写入，
-    // 防止在同一帧内产生新的 ResizeObserver 通知形成死循环。
+    // Recompute the SVG size after tab switches and window resizes.
+    // Read dimensions directly from contentRect to avoid extra layout work, then defer reactive writes with rAF
+    // so ResizeObserver does not trigger a same-frame notification loop.
     resizeObserver?.disconnect();
     resizeObserver = new ResizeObserver((entries) => {
         const entry = entries[0];

@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// DefaultQuoteSourceID 是默认启用的行情源标识。
+// DefaultQuoteSourceID is the identifier of the default enabled quote source.
 const DefaultQuoteSourceID = "eastmoney"
 
 const (
@@ -17,7 +17,7 @@ const (
 	DefaultUSQuoteSourceID = "eastmoney"
 )
 
-// Quote 表示前端仪表盘消费的统一行情结构。
+// Quote represents the unified quote structure consumed by the frontend dashboard.
 type Quote struct {
 	Symbol        string
 	Name          string
@@ -34,13 +34,13 @@ type Quote struct {
 	UpdatedAt     time.Time
 }
 
-// QuoteProvider 定义了实时行情 provider 的统一契约。
+// QuoteProvider defines the unified contract for real-time quote providers.
 type QuoteProvider interface {
 	Fetch(ctx context.Context, items []WatchlistItem) (map[string]Quote, error)
 	Name() string
 }
 
-// QuoteSourceOption 描述一个可供用户选择的行情源。
+// QuoteSourceOption describes a quote source available for user selection.
 type QuoteSourceOption struct {
 	ID               string   `json:"id"`
 	Name             string   `json:"name"`
@@ -48,7 +48,7 @@ type QuoteSourceOption struct {
 	SupportedMarkets []string `json:"supportedMarkets"`
 }
 
-// QuoteTarget 表示标的代码标准化后的通用结果。
+// QuoteTarget represents the standardized common result after normalizing the item code.
 type QuoteTarget struct {
 	Key           string
 	DisplaySymbol string
@@ -56,12 +56,12 @@ type QuoteTarget struct {
 	Currency      string
 }
 
-// ResolveQuoteTarget 把标的标准化为系统内部统一使用的目标结构。
+// ResolveQuoteTarget standardizes an item into the target structure used uniformly within the system.
 func ResolveQuoteTarget(item WatchlistItem) (QuoteTarget, error) {
 	return resolveQuoteTarget(item.Symbol, item.Market, item.Currency)
 }
 
-// resolveQuoteTarget 根据代码、市场和币种推导统一的目标标识。
+// resolveQuoteTarget derives a unified target identifier based on code, market, and currency.
 func resolveQuoteTarget(symbol, market, currency string) (QuoteTarget, error) {
 	rawSymbol := strings.ToUpper(strings.TrimSpace(symbol))
 	if rawSymbol == "" {
@@ -71,7 +71,7 @@ func resolveQuoteTarget(symbol, market, currency string) (QuoteTarget, error) {
 	market = normaliseMarketLabel(market)
 	rawSymbol = strings.ReplaceAll(rawSymbol, " ", "")
 
-	// 兼容不同输入风格，把用户输入收敛到少量标准形式后再分派。
+	// Compatible with different input styles, converge user input to a few standard forms before dispatching.
 	switch {
 	case strings.HasPrefix(rawSymbol, "GB_"):
 		ticker := strings.TrimPrefix(rawSymbol, "GB_")
@@ -107,7 +107,7 @@ func resolveQuoteTarget(symbol, market, currency string) (QuoteTarget, error) {
 	}
 }
 
-// buildNumericTarget 处理纯数字代码，并按市场语义推导最终目标。
+// buildNumericTarget processes pure numeric codes and derives the final target based on market semantics.
 func buildNumericTarget(rawSymbol, market, currency string) (QuoteTarget, error) {
 	switch market {
 	case "HK-MAIN", "HK-GEM", "HK-ETF":
@@ -126,7 +126,7 @@ func buildNumericTarget(rawSymbol, market, currency string) (QuoteTarget, error)
 		return QuoteTarget{}, fmt.Errorf("Cannot infer market for numeric symbol: %s", rawSymbol)
 	}
 
-	// 6 位数字代码可能是 A 股、ETF 或北交所，需要结合前缀规则推断。
+	// 6-digit numeric codes may be A-shares, ETFs, or Beijing Exchange; need to infer based on prefix rules.
 	if market == "CN-GEM" || market == "CN-STAR" || market == "CN-ETF" {
 		_, exchange, err := inferCNMarketAndExchange(rawSymbol)
 		if err != nil {
@@ -142,7 +142,7 @@ func buildNumericTarget(rawSymbol, market, currency string) (QuoteTarget, error)
 	return buildCNTarget(rawSymbol, exchange, detectedMarket, currency)
 }
 
-// buildCNTarget 构造沪深市场标的的标准目标。
+// buildCNTarget constructs the standard target for Shanghai/Shenzhen market items.
 func buildCNTarget(rawSymbol, exchange, market, currency string) (QuoteTarget, error) {
 	if len(rawSymbol) != 6 {
 		return QuoteTarget{}, fmt.Errorf("A-share symbol must be 6 digits: %s", rawSymbol)
@@ -160,7 +160,7 @@ func buildCNTarget(rawSymbol, exchange, market, currency string) (QuoteTarget, e
 	}, nil
 }
 
-// buildBJTarget 构造北交所标的的标准目标。
+// buildBJTarget constructs the standard target for Beijing Exchange items.
 func buildBJTarget(rawSymbol, currency string) (QuoteTarget, error) {
 	if len(rawSymbol) != 6 {
 		return QuoteTarget{}, fmt.Errorf("Beijing Exchange symbol must be 6 digits: %s", rawSymbol)
@@ -174,7 +174,7 @@ func buildBJTarget(rawSymbol, currency string) (QuoteTarget, error) {
 	}, nil
 }
 
-// buildHKTarget 构造港股标的的标准目标。
+// buildHKTarget constructs the standard target for Hong Kong stock items.
 func buildHKTarget(rawSymbol, market, currency string) (QuoteTarget, error) {
 	if !isDigits(rawSymbol) {
 		return QuoteTarget{}, fmt.Errorf("Hong Kong symbol must be numeric: %s", rawSymbol)
@@ -183,7 +183,7 @@ func buildHKTarget(rawSymbol, market, currency string) (QuoteTarget, error) {
 		return QuoteTarget{}, fmt.Errorf("Hong Kong symbol length is invalid: %s", rawSymbol)
 	}
 
-	// 港股接口要求 5 位代码，不足时统一左侧补零。
+	// Hong Kong stock API requires 5-digit codes; pad with zeros on the left when insufficient.
 	padded := rawSymbol
 	if len(padded) < 5 {
 		padded = strings.Repeat("0", 5-len(padded)) + padded
@@ -199,7 +199,7 @@ func buildHKTarget(rawSymbol, market, currency string) (QuoteTarget, error) {
 	}, nil
 }
 
-// buildUSTarget 构造美股或美股 ETF 的标准目标。
+// buildUSTarget constructs the standard target for US stocks or US ETFs.
 func buildUSTarget(rawSymbol, market, currency string) (QuoteTarget, error) {
 	if !isUSSymbol(rawSymbol) {
 		return QuoteTarget{}, fmt.Errorf("US symbol is invalid: %s", rawSymbol)
@@ -219,7 +219,7 @@ func buildUSTarget(rawSymbol, market, currency string) (QuoteTarget, error) {
 	}, nil
 }
 
-// normaliseMarketLabel 把市场标签兼容值收敛为系统内部的标准枚举。
+// normaliseMarketLabel converges market label compatible values to system internal standard enumerations.
 func normaliseMarketLabel(market string) string {
 	switch strings.ToUpper(strings.TrimSpace(market)) {
 	case "A-SHARE", "ASHARE", "CN", "A", "CN-A":
@@ -247,7 +247,7 @@ func normaliseMarketLabel(market string) string {
 	}
 }
 
-// inferCNMarketAndExchange 根据 6 位数字代码推断 A 股市场和交易所。
+// inferCNMarketAndExchange infers A-share market and exchange based on 6-digit numeric code.
 func inferCNMarketAndExchange(rawSymbol string) (market, exchange string, err error) {
 	if len(rawSymbol) != 6 {
 		return "", "", fmt.Errorf("A-share / fund symbol must be 6 digits: %s", rawSymbol)
@@ -276,7 +276,7 @@ func inferCNMarketAndExchange(rawSymbol string) (market, exchange string, err er
 	return "", "", fmt.Errorf("Cannot recognize A-share / ETF symbol: %s", rawSymbol)
 }
 
-// resolveCNMarket 在已有存储值和代码推断结果之间确定最终的 A 股市场类型。
+// resolveCNMarket determines the final A-share market type between stored values and code inference results.
 func resolveCNMarket(code, storedMarket string) string {
 	switch storedMarket {
 	case "CN-GEM", "CN-STAR", "CN-ETF":
@@ -289,7 +289,7 @@ func resolveCNMarket(code, storedMarket string) string {
 	return market
 }
 
-// resolveHKMarket 返回规范化后的港股市场类型。
+// resolveHKMarket returns the normalized Hong Kong stock market type.
 func resolveHKMarket(storedMarket string) string {
 	switch storedMarket {
 	case "HK-GEM", "HK-ETF":
@@ -298,7 +298,7 @@ func resolveHKMarket(storedMarket string) string {
 	return "HK-MAIN"
 }
 
-// defaultCurrency 返回标准化后的币种；若为空则使用回退值。
+// defaultCurrency returns the normalized currency; if empty, uses the fallback value.
 func defaultCurrency(currency, fallback string) string {
 	currency = strings.ToUpper(strings.TrimSpace(currency))
 	if currency == "" {
@@ -307,7 +307,7 @@ func defaultCurrency(currency, fallback string) string {
 	return currency
 }
 
-// isDigits 判断字符串是否全部由数字组成。
+// isDigits checks whether a string consists entirely of digits.
 func isDigits(value string) bool {
 	if value == "" {
 		return false
@@ -320,7 +320,7 @@ func isDigits(value string) bool {
 	return true
 }
 
-// isUSSymbol 判断字符串是否符合美股代码字符集。
+// isUSSymbol checks whether a string matches the US stock code character set.
 func isUSSymbol(value string) bool {
 	if value == "" {
 		return false
@@ -338,7 +338,7 @@ func isUSSymbol(value string) bool {
 	return true
 }
 
-// normaliseUSSymbol 把美股代码转换为系统内部使用的标准格式。
+// normaliseUSSymbol converts US stock codes to the standard format used internally by the system.
 func normaliseUSSymbol(value string) string {
 	value = strings.ToUpper(strings.TrimSpace(value))
 	value = strings.ReplaceAll(value, ".", "-")

@@ -41,14 +41,14 @@ watch(
     },
 );
 
-// ── DCA 汇总 ────────────────────────────────────────────────────────────────
+// DCA summary
 
 const dcaSummary = computed(() => {
     const valid = props.form.dcaEntries.filter((e) => (e.amount ?? 0) > 0 && (e.shares ?? 0) > 0);
     const totalAmount = valid.reduce((s, e) => s + (e.amount ?? 0), 0);
     const totalShares = valid.reduce((s, e) => s + (e.shares ?? 0), 0);
     const totalFees = valid.reduce((s, e) => s + (e.fee ?? 0), 0);
-    // 与后端 sanitiseItem 保持一致：优先使用手动买入价
+    // Match backend sanitiseItem behavior by preferring the manually entered buy price.
     let totalEffectiveCost = 0;
     for (const e of valid) {
         const price = e.price ?? 0;
@@ -79,10 +79,10 @@ const dcaSummary = computed(() => {
     };
 });
 
-// 有效定投记录存在时，持仓数量/成本价由记录推算，锁定手动输入
+// When valid DCA records exist, derive quantity and cost price from those records and lock manual input.
 const hasDCA = computed(() => props.form.dcaEntries.some((e) => (e.amount ?? 0) > 0 && (e.shares ?? 0) > 0));
 
-// ── 条目 CRUD ────────────────────────────────────────────────────────────────
+// DCA entry CRUD helpers
 
 function addEntry(): void {
     props.form.dcaEntries.push({
@@ -100,7 +100,7 @@ function removeEntry(index: number): void {
     props.form.dcaEntries.splice(index, 1);
 }
 
-// 涨跌色调
+// Profit and loss tone
 function pnlTone(value: number | null): string {
     if (value === null) return "";
     return value > 0 ? "tone-rise" : value < 0 ? "tone-fall" : "";
@@ -109,7 +109,7 @@ function pnlTone(value: number | null): string {
 
 <template>
     <Dialog v-model:visible="visibleProxy" modal :closable="false" :header="form.id ? t('dialogs.item.editTitle') : t('dialogs.item.addTitle')" :style="{ width: '1060px' }" class="desk-dialog">
-        <!-- ── Tab 切换栏 ─────────────────────────────────────────────────── -->
+        <!-- Tab switcher -->
         <div class="item-dialog-tabs">
             <button class="item-dialog-tab" :class="{ active: activeTab === 'basic' }" type="button" @click="activeTab = 'basic'">{{ t("dialogs.item.tabs.basic") }}</button>
             <button class="item-dialog-tab" :class="{ active: activeTab === 'dca' }" type="button" @click="activeTab = 'dca'">
@@ -118,7 +118,7 @@ function pnlTone(value: number | null): string {
             </button>
         </div>
 
-        <!-- ── Tab 1：基础信息 ──────────────────────────────────────────────-->
+        <!-- Tab 1: Basic information -->
         <div v-if="activeTab === 'basic'" class="form-grid">
             <label>
                 <span>{{ t("dialogs.item.labels.symbol") }}</span>
@@ -137,7 +137,7 @@ function pnlTone(value: number | null): string {
                 <Select v-model="form.currency" :options="currencyOptions" option-label="label" option-value="value" />
             </label>
 
-            <!-- 持仓数量：有定投时只读，无定投时手动填 -->
+            <!-- Quantity is read-only when DCA records exist; otherwise it remains manually editable. -->
             <label v-if="!hasDCA">
                 <span>{{ t("dialogs.item.labels.quantity") }}</span>
                 <InputNumber v-model="form.quantity" :min="0" :step="0.001" :max-fraction-digits="3" fluid />
@@ -147,7 +147,7 @@ function pnlTone(value: number | null): string {
                 <div class="dca-derived-value">{{ t("dialogs.item.derived.shares", { value: dcaSummary.totalShares.toLocaleString(resolvedLocale(), { maximumFractionDigits: 4 }) }) }}</div>
             </div>
 
-            <!-- 成本价：有定投时只读，无定投时手动填 -->
+            <!-- Cost price is read-only when DCA records exist; otherwise it remains manually editable. -->
             <label v-if="!hasDCA">
                 <span>{{ t("dialogs.item.labels.costPrice") }}</span>
                 <InputNumber v-model="form.costPrice" :min="0" :step="0.001" :max-fraction-digits="3" fluid />
@@ -157,7 +157,7 @@ function pnlTone(value: number | null): string {
                 <div class="dca-derived-value">{{ t("dialogs.item.derived.weightedAverage", { price: formatUnitPrice(dcaSummary.avgCost, form.currency) }) }}</div>
             </div>
 
-            <!-- 有定投记录时给出提示 -->
+            <!-- Show a hint when DCA records are driving the derived fields. -->
             <p v-if="hasDCA" class="dca-derived-hint">
                 <i class="pi pi-info-circle" style="margin-right: 5px" />
                 {{ t("dialogs.item.derived.hint") }}
@@ -173,11 +173,11 @@ function pnlTone(value: number | null): string {
             </label>
         </div>
 
-        <!-- ── Tab 2：定投记录 ────────────────────────────────────────────── -->
+        <!-- Tab 2: DCA records -->
         <div v-else class="dca-panel">
-            <!-- 条目表格 -->
+            <!-- Entry table -->
             <div class="dca-table">
-                <!-- 表头 -->
+                <!-- Header row -->
                 <div class="dca-table-head">
                     <span class="dca-col-label">{{ t("dialogs.item.labels.date") }}</span>
                     <span class="dca-col-label">{{ t("dialogs.item.labels.investedAmount") }}</span>
@@ -188,40 +188,40 @@ function pnlTone(value: number | null): string {
                     <span />
                 </div>
 
-                <!-- 空状态 -->
+                <!-- Empty state -->
                 <div v-if="form.dcaEntries.length === 0" class="dca-empty-hint">{{ t("dialogs.item.empty") }}</div>
 
-                <!-- 条目行 -->
+                <!-- Entry rows -->
                 <div v-for="(entry, idx) in form.dcaEntries" :key="entry.id" class="dca-entry-row">
-                    <!-- 日期 -->
+                    <!-- Date -->
                     <input v-model="entry.date" type="date" class="dca-date-input" />
 
-                    <!-- 投入金额 -->
+                    <!-- Invested amount -->
                     <InputNumber v-model="entry.amount" :min="0" :step="100" :max-fraction-digits="3" fluid :placeholder="t('dialogs.item.placeholders.amount')" />
 
-                    <!-- 买入股/份 -->
+                    <!-- Shares purchased -->
                     <InputNumber v-model="entry.shares" :min="0" :step="0.001" :max-fraction-digits="4" fluid :placeholder="t('dialogs.item.placeholders.shares')" />
 
-                    <!-- 买入价（手动录入） -->
+                    <!-- Buy price, when entered manually -->
                     <InputNumber v-model="entry.price" :min="0" :step="0.001" :max-fraction-digits="3" fluid :placeholder="t('dialogs.item.placeholders.buyPrice')" />
 
-                    <!-- 手续费/佣金 -->
+                    <!-- Fee or commission -->
                     <InputNumber v-model="entry.fee" :min="0" :step="1" :max-fraction-digits="3" fluid :placeholder="t('dialogs.item.placeholders.fee')" />
 
-                    <!-- 备注 -->
+                    <!-- Note -->
                     <InputText v-model="entry.note" :placeholder="t('dialogs.item.placeholders.note')" style="font-size: 12px" />
 
-                    <!-- 删除 -->
+                    <!-- Delete -->
                     <Button text severity="danger" icon="pi pi-trash" size="small" :aria-label="t('common.delete')" @click="removeEntry(idx)" />
                 </div>
             </div>
 
-            <!-- 添加按钮 -->
+            <!-- Add-entry action -->
             <div class="dca-add-row">
                 <Button text icon="pi pi-plus" :label="t('common.add')" size="small" @click="addEntry" />
             </div>
 
-            <!-- 汇总栏（至少有一条有效记录才展示） -->
+            <!-- Summary bar, shown only when at least one valid record exists -->
             <div v-if="dcaSummary.count > 0" class="dca-summary-bar">
                 <div class="dca-summary-cell">
                     <span class="dca-summary-label">{{ t("dialogs.item.labels.dcaPeriods") }}</span>
@@ -263,7 +263,7 @@ function pnlTone(value: number | null): string {
             </div>
         </div>
 
-        <!-- ── 底部操作按钮 ────────────────────────────────────────────────── -->
+        <!-- Footer actions -->
         <template #footer>
             <Button size="small" text :label="t('common.cancel')" @click="visibleProxy = false" />
             <Button size="small" :label="t('common.save')" :loading="saving" @click="$emit('save')" />

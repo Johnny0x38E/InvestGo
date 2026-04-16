@@ -7,18 +7,18 @@ import type { DeveloperLogEntry, DeveloperLogSnapshot, StatusTone } from "../typ
 
 type StatusReporter = (message: string, tone: StatusTone) => void;
 
-// 统一管理前后端开发日志，避免根组件同时承担轮询、合并、复制和清理职责。
+// Unified management of frontend and backend developer logs, preventing the root component from handling polling, merging, copying, and cleanup all at once.
 export function useDeveloperLogs(setStatus: StatusReporter) {
     const backendLogs = ref<DeveloperLogEntry[]>([]);
     const logFilePath = ref("");
     const loadingLogs = ref(false);
 
-    // 前后端日志共用一个时间倒序列表，方便在设置页里统一查看。
+    // Frontend and backend logs share a single reverse-chronological list for unified viewing on the settings page.
     const developerLogs = computed<DeveloperLogEntry[]>(() =>
         [...backendLogs.value, ...clientLogs.value].sort((left, right) => new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime()).slice(0, 250),
     );
 
-    // 静默模式主要用于轮询刷新，失败时不打断当前页面状态。
+    // Silent mode is primarily for polling refresh; on failure it does not disrupt the current page state.
     async function loadBackendLogs(silent = false): Promise<void> {
         if (loadingLogs.value) {
             return;
@@ -55,7 +55,7 @@ export function useDeveloperLogs(setStatus: StatusReporter) {
             return;
         }
 
-        // 复制时使用纯文本格式，便于直接贴到 issue、IM 或终端里。
+        // Use plain text format when copying for easy pasting into issues, IM, or terminal.
         const payload = developerLogs.value.map((entry) => `[${entry.timestamp}] ${entry.level.toUpperCase()} ${entry.source}/${entry.scope} ${entry.message}`).join("\n\n");
 
         try {

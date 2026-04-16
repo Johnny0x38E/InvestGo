@@ -28,7 +28,7 @@ const emit = defineEmits<{
 const { t } = useI18n();
 const historyRangeOptions = computed(() => getHistoryRangeOptions());
 
-// 绑定右侧下拉框的当前选中标的。
+// Bind the current selection used by the right-side instrument dropdown.
 const selectedItemProxy = computed({
     get: () => props.selectedItemId,
     set: (value: string) => emit("update:selectedItemId", value),
@@ -41,11 +41,11 @@ const marketSnapshot = computed(() => {
         return null;
     }
 
-    // 实时行情价格优先；无实时价时回落到图表最后一根 K 线收盘价。
+    // Prefer the live quote price; fall back to the closing price of the last chart candle when live data is unavailable.
     const livePrice = item.currentPrice || series?.endPrice || 0;
 
-    // 区间变化以实时价为终点（对比图表区间起点），与自选/热门列表保持价格来源一致。
-    // 若缺少实时价或图表数据，则回落到后端计算好的 series.change / item.change。
+    // Use the live price as the interval endpoint, compared against the chart start price, to match the watchlist and hot-list price source.
+    // If live data or chart data is missing, fall back to the backend-computed series.change / item.change values.
     const hasLiveAndSeries = item.currentPrice > 0 && series != null && series.startPrice > 0;
     const effectiveChange = hasLiveAndSeries ? item.currentPrice - series.startPrice : (series?.change ?? item.change ?? 0);
     const effectiveChangePct = hasLiveAndSeries ? ((item.currentPrice - series!.startPrice) / series!.startPrice) * 100 : (series?.changePercent ?? item.changePercent ?? 0);
@@ -105,7 +105,7 @@ const marketOverview = computed(() => {
     };
 });
 
-// 持仓合并卡数据：市值 + 盈亏，无持仓时返回 null。
+// Build the combined position card data for market value and PnL; return null when there is no position.
 const positionDetail = computed(() => {
     const snapshot = marketSnapshot.value;
     if (!snapshot) return null;
@@ -123,7 +123,7 @@ const positionDetail = computed(() => {
     };
 });
 
-// 生成市场模块右侧的详情卡片（不含持仓，已单独渲染）。
+// Build the detail cards shown on the right side of the market module, excluding the separately rendered position card.
 const marketCards = computed<MarketMetricCard[]>(() => {
     const snapshot = marketSnapshot.value;
     if (!snapshot) {
