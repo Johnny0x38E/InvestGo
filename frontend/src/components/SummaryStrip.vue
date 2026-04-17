@@ -44,7 +44,7 @@ const cards = computed<SummaryCard[]>(() => {
             currency,
         },
         {
-            label: t("summary.unrealizedPnL"),
+            label: t("summary.positionPnL"),
             value: formatMoney(value?.totalPnL ?? 0, true),
             sub: formatPercent(value?.totalPnLPct ?? 0),
             tone: (value?.totalPnL ?? 0) >= 0 ? "rise" : "fall",
@@ -62,13 +62,13 @@ const cards = computed<SummaryCard[]>(() => {
 
 <template>
     <section class="summary-strip">
-        <article v-for="card in cards" :key="card.label" class="summary-card" :data-tone="card.tone">
+        <article v-for="card in cards" :key="card.label" class="summary-card">
             <span class="summary-label">{{ card.label }}</span>
-            <strong class="summary-value">
-                <span v-if="card.currency" class="summary-currency">{{ card.currency }}</span
-                >{{ card.value }}
+            <strong class="summary-value" :class="card.tone !== 'neutral' ? `tone-${card.tone}` : ''">
+                <span v-if="card.currency" class="summary-currency">{{ card.currency }}</span>
+                <span class="summary-number">{{ card.value }}</span>
             </strong>
-            <span class="summary-sub">{{ card.sub }}</span>
+            <span class="summary-sub" :class="card.tone === 'rise' || card.tone === 'fall' ? `tone-${card.tone}` : ''">{{ card.sub }}</span>
         </article>
     </section>
 </template>

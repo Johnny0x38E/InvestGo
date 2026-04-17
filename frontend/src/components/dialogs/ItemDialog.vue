@@ -251,7 +251,7 @@ function pnlTone(value: number | null): string {
                         <span class="dca-summary-value">{{ formatUnitPrice(dcaSummary.currentValue, form.currency) }}</span>
                     </div>
                     <div class="dca-summary-cell">
-                        <span class="dca-summary-label">{{ t("dialogs.item.labels.unrealizedPnL") }}</span>
+                        <span class="dca-summary-label">{{ t("dialogs.item.labels.positionPnL") }}</span>
                         <span class="dca-summary-value" :class="pnlTone(dcaSummary.pnl)">
                             {{ formatMoney(dcaSummary.pnl ?? 0, true) }}
                             <span style="font-weight: 400; font-size: 11px; margin-left: 4px">

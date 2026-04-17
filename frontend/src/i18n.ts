@@ -64,15 +64,34 @@ const messages: Record<SupportedLocale, TranslationTree> = {
             quickAddThesis: "来自热门榜单",
         },
         modules: {
+            overview: "概览",
             market: "市场行情",
             hot: "热门榜单",
             watchlist: "自选列表",
             alerts: "提醒规则",
         },
+        sidebar: {
+            marketItems: "市场标的",
+            hotMarkets: "热门市场",
+            hide: "隐藏侧栏",
+            show: "显示侧栏",
+        },
+        overview: {
+            tagline: "",
+            description: "把组合状态、同步情况和后续扩展模块集中到一个更稳定的首页视图。",
+            cards: {
+                quoteSource: "当前行情源",
+                quoteSourceSub: "当前实时刷新所使用的数据提供方",
+                syncStatus: "同步覆盖",
+                syncStatusSub: "已同步实时价格的标的数量",
+                updatedAt: "工作区更新",
+                updatedAtSub: "当前快照最近一次写入前端的时间",
+            },
+        },
         summary: {
             totalCost: "组合成本",
             currentValue: "当前资产",
-            unrealizedPnL: "未实现盈亏",
+            positionPnL: "持仓盈亏",
             triggeredAlerts: "触发提醒",
             itemsSub: "{count} 个标的",
             syncedSub: "{live}/{total} 个已同步",
@@ -239,13 +258,16 @@ const messages: Record<SupportedLocale, TranslationTree> = {
         watchlist: {
             title: "自选",
             searchPlaceholder: "代码 / 名称 / 标签",
+            meta: {
+                results: "{count} 个结果",
+                lastSynced: "最后同步 {time}",
+            },
             table: {
                 item: "标的",
                 currentPrice: "现价",
                 dayChange: "日涨跌",
-                unrealizedPnL: "浮盈亏",
+                positionPnL: "浮盈亏",
                 intradayRange: "日内区间",
-                lastSynced: "最近同步",
                 dca: "定投",
             },
             openPrice: "开盘 {price}",
@@ -279,6 +301,10 @@ const messages: Record<SupportedLocale, TranslationTree> = {
             title: "热门",
             ariaCategoryTabs: "热门分类",
             searchPlaceholder: "搜索名称 / 代码",
+            meta: {
+                source: "来源 {source}",
+                updatedAt: "最近更新 {time}",
+            },
             searchResults: "搜索结果 {count} / {total}",
             loadedSummary: "当前已加载 {count} / {total}",
             noMatch: "没有匹配的热门标的。",
@@ -298,7 +324,6 @@ const messages: Record<SupportedLocale, TranslationTree> = {
                 changePercent: "涨跌幅",
                 marketCap: "市值",
                 volume: "交易量",
-                source: "来源",
             },
         },
         market: {
@@ -312,6 +337,10 @@ const messages: Record<SupportedLocale, TranslationTree> = {
                 amplitude: "日内振幅",
                 amplitudeEstimated: "按昨收估算",
                 amplitudePending: "等待价格同步",
+            },
+            meta: {
+                chartSource: "图表来源 {source}",
+                syncedAt: "同步于 {time}",
             },
             hero: {
                 quote: "报价 {source}",
@@ -379,7 +408,7 @@ const messages: Record<SupportedLocale, TranslationTree> = {
                     totalShares: "累计份额",
                     weightedAvgPrice: "加权均价",
                     currentValue: "当前资产",
-                    unrealizedPnL: "浮动盈亏",
+                    positionPnL: "浮动盈亏",
                 },
                 derived: {
                     shares: "{value} 份（定投计算）",
@@ -407,7 +436,7 @@ const messages: Record<SupportedLocale, TranslationTree> = {
                     totalShares: "累计份额",
                     weightedAvgPrice: "加权均价",
                     currentValue: "当前资产",
-                    unrealizedPnL: "浮动盈亏",
+                    positionPnL: "浮动盈亏",
                 },
                 table: {
                     date: "日期",
@@ -495,15 +524,34 @@ const messages: Record<SupportedLocale, TranslationTree> = {
             quickAddThesis: "Imported from hot list",
         },
         modules: {
+            overview: "Overview",
             market: "Market",
             hot: "Hot Lists",
             watchlist: "Watchlist",
             alerts: "Alerts",
         },
+        sidebar: {
+            marketItems: "Market Items",
+            hotMarkets: "Hot Markets",
+            hide: "Hide Sidebar",
+            show: "Show Sidebar",
+        },
+        overview: {
+            tagline: "Investment Workspace",
+            description: "Centralize portfolio status, sync health, and future extensions into a more stable home view.",
+            cards: {
+                quoteSource: "Current Quote Source",
+                quoteSourceSub: "The data provider currently driving live refreshes",
+                syncStatus: "Live Coverage",
+                syncStatusSub: "How many tracked items currently have live prices",
+                updatedAt: "Workspace Updated",
+                updatedAtSub: "When the current snapshot was last pushed into the client",
+            },
+        },
         summary: {
             totalCost: "Cost Basis",
             currentValue: "Current Value",
-            unrealizedPnL: "Unrealized PnL",
+            positionPnL: "Position PnL",
             triggeredAlerts: "Triggered Alerts",
             itemsSub: "{count} items",
             syncedSub: "{live}/{total} synced",
@@ -578,8 +626,7 @@ const messages: Record<SupportedLocale, TranslationTree> = {
                     "This software is intended for personal learning and investment observation purposes only and does not constitute any form of investment advice, financial advice, or a recommendation to buy or sell.",
                 disclaimerParagraph2:
                     "Users should independently verify the accuracy and completeness of all data, information, and functions provided by this software. The authors and contributors assume no liability for investment losses, gains, data interruptions, data errors, or any outcomes from decisions made based on information from this software.",
-                disclaimerParagraph3:
-                    "Investing involves risk. Please understand the risks before entering the market and assume full responsibility for your own investment decisions.",
+                disclaimerParagraph3: "Investing involves risk. Please understand the risks before entering the market and assume full responsibility for your own investment decisions.",
             },
         },
         options: {
@@ -672,13 +719,16 @@ const messages: Record<SupportedLocale, TranslationTree> = {
         watchlist: {
             title: "Watchlist",
             searchPlaceholder: "Symbol / name / tags",
+            meta: {
+                results: "{count} results",
+                lastSynced: "Last sync {time}",
+            },
             table: {
                 item: "Item",
                 currentPrice: "Price",
                 dayChange: "Day Change",
-                unrealizedPnL: "Unrealized PnL",
+                positionPnL: "Position PnL",
                 intradayRange: "Intraday Range",
-                lastSynced: "Last Sync",
                 dca: "DCA",
             },
             openPrice: "Open {price}",
@@ -712,6 +762,10 @@ const messages: Record<SupportedLocale, TranslationTree> = {
             title: "Hot",
             ariaCategoryTabs: "Hot categories",
             searchPlaceholder: "Search name / symbol",
+            meta: {
+                source: "Source {source}",
+                updatedAt: "Updated {time}",
+            },
             searchResults: "{count} / {total} results",
             loadedSummary: "Loaded {count} / {total}",
             noMatch: "No matching hot items.",
@@ -731,7 +785,6 @@ const messages: Record<SupportedLocale, TranslationTree> = {
                 changePercent: "Change",
                 marketCap: "Market Cap",
                 volume: "Volume",
-                source: "Source",
             },
         },
         market: {
@@ -745,6 +798,10 @@ const messages: Record<SupportedLocale, TranslationTree> = {
                 amplitude: "Amplitude",
                 amplitudeEstimated: "Estimated from prev close",
                 amplitudePending: "Waiting for price sync",
+            },
+            meta: {
+                chartSource: "Chart Source {source}",
+                syncedAt: "Synced {time}",
             },
             hero: {
                 quote: "Quote {source}",
@@ -812,7 +869,7 @@ const messages: Record<SupportedLocale, TranslationTree> = {
                     totalShares: "Accumulated Shares",
                     weightedAvgPrice: "Weighted Avg Price",
                     currentValue: "Current Value",
-                    unrealizedPnL: "Unrealized PnL",
+                    positionPnL: "Position PnL",
                 },
                 derived: {
                     shares: "{value} shares (computed from DCA)",
@@ -840,7 +897,7 @@ const messages: Record<SupportedLocale, TranslationTree> = {
                     totalShares: "Accumulated Shares",
                     weightedAvgPrice: "Weighted Avg Price",
                     currentValue: "Current Value",
-                    unrealizedPnL: "Unrealized PnL",
+                    positionPnL: "Position PnL",
                 },
                 table: {
                     date: "Date",

@@ -66,7 +66,8 @@ export function formatUnitPrice(value: number, currency: string): string {
     if (settings.currencyDisplay === "code") {
         return `${currency} ${numeric}`;
     }
-    return `${currencySymbolMap[currency] || ""}${numeric}`;
+    const symbol = currencySymbolMap[currency] || "";
+    return symbol ? `${symbol} ${numeric}` : numeric;
 }
 
 export function formatRange(low: number, high: number, currency: string): string {

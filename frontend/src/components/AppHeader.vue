@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { reactive } from "vue";
-import Button from "primevue/button";
 
 import { formatDateTime } from "../format";
 import { useI18n } from "../i18n";
@@ -11,10 +10,6 @@ defineProps<{
     statusText: string;
     statusTone: StatusTone;
     generatedAt: string;
-}>();
-
-defineEmits<{
-    (event: "open-settings"): void;
 }>();
 
 const { t } = useI18n();
@@ -111,9 +106,9 @@ async function handleBarDoubleClick(event: MouseEvent): Promise<void> {
         <div class="window-tools">
             <div class="window-status" :data-tone="statusTone">
                 <span class="window-status-text">{{ statusText }}</span>
+                <span class="window-status-separator">·</span>
                 <span class="window-status-time">{{ t("app.recentRefresh", { time: formatDateTime(generatedAt) }) }}</span>
             </div>
-            <Button text rounded icon="pi pi-cog" size="small" :aria-label="t('settings.title')" class="window-settings-button" @click="$emit('open-settings')" />
         </div>
     </header>
 </template>

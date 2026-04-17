@@ -1,27 +1,55 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
+import {
+    computed,
+    onBeforeUnmount,
+    onMounted,
+    reactive,
+    ref,
+    watch,
+} from "vue";
 
 import { api } from "./api";
 import AppHeader from "./components/AppHeader.vue";
-import ModuleTabs from "./components/ModuleTabs.vue";
-import SummaryStrip from "./components/SummaryStrip.vue";
+import AppSidebar from "./components/AppSidebar.vue";
 import AlertDialog from "./components/dialogs/AlertDialog.vue";
 import ConfirmDialog from "./components/dialogs/ConfirmDialog.vue";
 import DCADetailDialog from "./components/dialogs/DCADetailDialog.vue";
 import ItemDialog from "./components/dialogs/ItemDialog.vue";
-import SettingsDialog from "./components/dialogs/SettingsDialog.vue";
+import SettingsModule from "./components/modules/SettingsModule.vue";
 import AlertsModule from "./components/modules/AlertsModule.vue";
 import HotModule from "./components/modules/HotModule.vue";
 import MarketModule from "./components/modules/MarketModule.vue";
+import OverviewModule from "./components/modules/OverviewModule.vue";
 import WatchlistModule from "./components/modules/WatchlistModule.vue";
 import { appendClientLog, installClientLogCapture } from "./devlog";
 import { useDeveloperLogs } from "./composables/useDeveloperLogs";
 import { useHistorySeries } from "./composables/useHistorySeries";
-import { defaultSettings, emptyAlertForm, emptyItemForm, mapAlertToForm, mapItemToForm, serialiseItemForm } from "./forms";
+import {
+    defaultSettings,
+    emptyAlertForm,
+    emptyItemForm,
+    mapAlertToForm,
+    mapItemToForm,
+    serialiseItemForm,
+} from "./forms";
 import { setFormatterSettings } from "./format";
 import { setI18nLocale, translate } from "./i18n";
 import { applyPrimeVueColorTheme } from "./theme";
-import type { AlertFormModel, AlertRule, AppSettings, HotItem, ItemFormModel, ModuleKey, OptionItem, QuoteSourceOption, SettingsTabKey, StateSnapshot, StatusTone, WatchlistItem } from "./types";
+import type {
+    AlertFormModel,
+    AlertRule,
+    AppSettings,
+    HotItem,
+    HotMarketGroup,
+    ItemFormModel,
+    ModuleKey,
+    OptionItem,
+    QuoteSourceOption,
+    SettingsTabKey,
+    StateSnapshot,
+    StatusTone,
+    WatchlistItem,
+} from "./types";
 
 const dashboard = ref<StateSnapshot["dashboard"] | null>(null);
 const items = ref<WatchlistItem[]>([]);
@@ -37,9 +65,13 @@ const storagePath = ref("");
 const generatedAt = ref("");
 const statusText = ref(translate("app.loading"));
 const statusTone = ref<StatusTone>("success");
+const appShellRef = ref<HTMLElement | null>(null);
 const search = ref("");
 const selectedItemId = ref("");
-const activeModule = ref<ModuleKey>("market");
+const activeModule = ref<ModuleKey>("overview");
+const hotMarketGroup = ref<HotMarketGroup>("cn");
+const sidebarWidth = ref(220);
+const sidebarHidden = ref(false);
 const settingsTab = ref<SettingsTabKey>("general");
 const settingsVisible = ref(false);
 const itemDialogVisible = ref(false);
@@ -66,6 +98,7 @@ const pendingDelete = reactive<{ kind: "" | "item" | "alert"; id: string }>({
 });
 let refreshTimer = 0;
 let developerLogTimer = 0;
+let sidebarResizeActive = false;
 
 const filteredItems = computed(() => {
     const keyword = search.value.trim().toLowerCase();
@@ -73,10 +106,18 @@ const filteredItems = computed(() => {
         return items.value;
     }
 
-    return items.value.filter((item) => [item.symbol, item.name, item.market, item.thesis, ...(item.tags ?? [])].filter(Boolean).join(" ").toLowerCase().includes(keyword));
+    return items.value.filter((item) =>
+        [item.symbol, item.name, item.market, item.thesis, ...(item.tags ?? [])]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase()
+            .includes(keyword),
+    );
 });
 
-const selectedItem = computed(() => items.value.find((item) => item.id === selectedItemId.value) ?? null);
+const selectedItem = computed(
+    () => items.value.find((item) => item.id === selectedItemId.value) ?? null,
+);
 
 const alertItemOptions = computed<OptionItem<string>[]>(() =>
     items.value.map((item) => ({
@@ -85,7 +126,9 @@ const alertItemOptions = computed<OptionItem<string>[]>(() =>
     })),
 );
 
-const trackedHotKeys = computed(() => items.value.map((item) => `${item.market}:${item.symbol}`));
+const trackedHotKeys = computed(() =>
+    items.value.map((item) => `${item.market}:${item.symbol}`),
+);
 
 watch(
     settings,
@@ -93,7 +136,10 @@ watch(
         // Persisted settings remain the source of truth for active formatting and other business-facing behavior so drafts do not affect displayed data.
         setFormatterSettings(value);
         setI18nLocale(value.locale);
-        document.documentElement.lang = value.locale === "system" ? navigator.language || "zh-CN" : value.locale;
+        document.documentElement.lang =
+            value.locale === "system"
+                ? navigator.language || "zh-CN"
+                : value.locale;
     },
     { deep: true, immediate: true },
 );
@@ -113,10 +159,12 @@ watch(
         ] as const,
     () => {
         // While the settings dialog is open, allow the current view to preview appearance drafts and automatically revert to saved values when it closes.
-        const appearance = settingsVisible.value ? settingsDraft : settings.value;
+        const appearance =
+            activeModule.value === "settings" ? settingsDraft : settings.value;
         document.documentElement.dataset.fontPreset = appearance.fontPreset;
         document.documentElement.dataset.colorTheme = appearance.colorTheme;
-        document.documentElement.dataset.priceColorScheme = appearance.priceColorScheme;
+        document.documentElement.dataset.priceColorScheme =
+            appearance.priceColorScheme;
         document.documentElement.dataset.themeMode = appearance.themeMode;
         applyPrimeVueColorTheme(appearance.colorTheme);
         applyResolvedTheme(appearance.themeMode);
@@ -124,23 +172,38 @@ watch(
     { immediate: true },
 );
 
-watch(settingsVisible, (visible) => {
-    if (visible) {
+watch(activeModule, (module) => {
+    if (module === "settings") {
         Object.assign(settingsDraft, settings.value);
     }
 });
 
-const { historyInterval, historySeries, historyLoading, historyError, historyItemOptions, loadHistory, clearHistoryCache, selectHistoryInterval } = useHistorySeries(
-    items,
-    selectedItem,
-    activeModule,
-    setStatus,
-);
+const {
+    historyInterval,
+    historySeries,
+    historyLoading,
+    historyError,
+    loadHistory,
+    clearHistoryCache,
+    selectHistoryInterval,
+} = useHistorySeries(items, selectedItem, activeModule, setStatus);
 
-const { developerLogs, loadingLogs, logFilePath, loadBackendLogs, clearDeveloperLogs, copyDeveloperLogs } = useDeveloperLogs(setStatus);
+const {
+    developerLogs,
+    loadingLogs,
+    logFilePath,
+    loadBackendLogs,
+    clearDeveloperLogs,
+    copyDeveloperLogs,
+} = useDeveloperLogs(setStatus);
 
 watch(
-    () => [settingsVisible.value, settingsTab.value, settingsDraft.developerMode] as const,
+    () =>
+        [
+            settingsVisible.value,
+            settingsTab.value,
+            settingsDraft.developerMode,
+        ] as const,
     ([visible, tab, developerMode]) => {
         window.clearInterval(developerLogTimer);
         if (!visible || tab !== "developer" || !developerMode) {
@@ -166,7 +229,47 @@ onBeforeUnmount(() => {
     window.clearTimeout(refreshTimer);
     window.clearInterval(developerLogTimer);
     matchMediaList.removeEventListener("change", syncThemeMode);
+    stopSidebarResize();
 });
+
+function clampSidebarWidth(value: number): number {
+    return Math.min(Math.max(Math.round(value), 220), 380);
+}
+
+function toggleSidebar(): void {
+    sidebarHidden.value = !sidebarHidden.value;
+}
+
+function startSidebarResize(): void {
+    sidebarHidden.value = false;
+    if (sidebarResizeActive) {
+        return;
+    }
+    sidebarResizeActive = true;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    window.addEventListener("mousemove", handleSidebarResize);
+    window.addEventListener("mouseup", stopSidebarResize);
+}
+
+function handleSidebarResize(event: MouseEvent): void {
+    if (!sidebarResizeActive) {
+        return;
+    }
+    const shellLeft = appShellRef.value?.getBoundingClientRect().left ?? 0;
+    sidebarWidth.value = clampSidebarWidth(event.clientX - shellLeft);
+}
+
+function stopSidebarResize(): void {
+    if (!sidebarResizeActive) {
+        return;
+    }
+    sidebarResizeActive = false;
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+    window.removeEventListener("mousemove", handleSidebarResize);
+    window.removeEventListener("mouseup", stopSidebarResize);
+}
 
 // Sync the system theme to the document root so the desktop shell continues to follow light and dark mode changes.
 function syncThemeMode(): void {
@@ -199,7 +302,12 @@ async function loadState(silent = false): Promise<void> {
 
         void refreshQuotes(true, false);
     } catch (error) {
-        setStatus(error instanceof Error ? error.message : translate("app.loadFailed"), "error");
+        setStatus(
+            error instanceof Error
+                ? error.message
+                : translate("app.loadFailed"),
+            "error",
+        );
     }
 }
 
@@ -223,25 +331,44 @@ function applySnapshot(snapshot: StateSnapshot): void {
 }
 
 // Refresh live quotes and optionally reload the currently selected chart range.
-async function refreshQuotes(silent = false, refreshHistory = true): Promise<void> {
+async function refreshQuotes(
+    silent = false,
+    refreshHistory = true,
+): Promise<void> {
     try {
         if (!silent) {
             setStatus(translate("app.syncingQuotes"), "success");
         }
-        const snapshot = await api<StateSnapshot>("/api/refresh", { method: "POST" });
+        const snapshot = await api<StateSnapshot>("/api/refresh", {
+            method: "POST",
+        });
         applySnapshot(snapshot);
-        if (refreshHistory && activeModule.value === "market" && selectedItem.value) {
+        if (
+            refreshHistory &&
+            activeModule.value === "market" &&
+            selectedItem.value
+        ) {
             await loadHistory(true, true);
         }
         if (snapshot.runtime.lastQuoteError) {
             setStatus(snapshot.runtime.lastQuoteError, "error");
         } else if (snapshot.runtime.lastFxError) {
-            setStatus(translate("app.quotesSyncedFxFailed", { error: snapshot.runtime.lastFxError }), "warn");
+            setStatus(
+                translate("app.quotesSyncedFxFailed", {
+                    error: snapshot.runtime.lastFxError,
+                }),
+                "warn",
+            );
         } else if (!silent) {
             setStatus(translate("app.quotesSynced"), "success");
         }
     } catch (error) {
-        setStatus(error instanceof Error ? error.message : translate("app.refreshFailed"), "error");
+        setStatus(
+            error instanceof Error
+                ? error.message
+                : translate("app.refreshFailed"),
+            "error",
+        );
     } finally {
         scheduleAutoRefresh();
     }
@@ -250,7 +377,8 @@ async function refreshQuotes(silent = false, refreshHistory = true): Promise<voi
 // Schedule the next automatic sync using the configured interval so every chart range stays up to date.
 function scheduleAutoRefresh(): void {
     window.clearTimeout(refreshTimer);
-    const intervalMs = Math.max(settings.value.refreshIntervalSeconds || 60, 10) * 1000;
+    const intervalMs =
+        Math.max(settings.value.refreshIntervalSeconds || 60, 10) * 1000;
 
     refreshTimer = window.setTimeout(() => {
         void refreshQuotes(true);
@@ -266,7 +394,7 @@ function setStatus(message: string, tone: StatusTone): void {
 // Open the settings dialog and copy the current settings into the draft model.
 function openSettings(): void {
     Object.assign(settingsDraft, settings.value);
-    settingsVisible.value = true;
+    activeModule.value = "settings";
 }
 
 // Persist user settings and let the backend return a refreshed full snapshot.
@@ -278,21 +406,29 @@ async function saveSettings(): Promise<void> {
             body: JSON.stringify(settingsDraft),
         });
         applySnapshot(snapshot);
-        settingsVisible.value = false;
         setStatus(translate("app.settingsSaved"), "success");
         // After saving settings, refresh the chart if the market module is active so the new settings take effect immediately.
         if (activeModule.value === "market" && selectedItem.value) {
             void loadHistory(true, true);
         }
+        activeModule.value = "overview";
     } catch (error) {
-        setStatus(error instanceof Error ? error.message : translate("app.settingsSaveFailed"), "error");
+        setStatus(
+            error instanceof Error
+                ? error.message
+                : translate("app.settingsSaveFailed"),
+            "error",
+        );
     } finally {
         savingSettings.value = false;
     }
 }
 
 // Open the item editor dialog.
-function openItemDialog(item?: WatchlistItem, initialTab: "basic" | "dca" = "basic"): void {
+function openItemDialog(
+    item?: WatchlistItem,
+    initialTab: "basic" | "dca" = "basic",
+): void {
     Object.assign(itemForm, item ? mapItemToForm(item) : emptyItemForm());
     itemDialogInitialTab.value = initialTab;
     itemDialogVisible.value = true;
@@ -318,14 +454,27 @@ async function saveItem(): Promise<void> {
         const payload = serialiseItemForm(itemForm);
         const path = itemForm.id ? `/api/items/${itemForm.id}` : "/api/items";
         const method = itemForm.id ? "PUT" : "POST";
-        const snapshot = await api<StateSnapshot>(path, { method, body: JSON.stringify(payload) });
+        const snapshot = await api<StateSnapshot>(path, {
+            method,
+            body: JSON.stringify(payload),
+        });
         clearHistoryCache();
         applySnapshot(snapshot);
         itemDialogVisible.value = false;
-        setStatus(itemForm.id ? translate("app.itemUpdated") : translate("app.itemAdded"), "success");
+        setStatus(
+            itemForm.id
+                ? translate("app.itemUpdated")
+                : translate("app.itemAdded"),
+            "success",
+        );
         activeModule.value = "watchlist";
     } catch (error) {
-        setStatus(error instanceof Error ? error.message : translate("app.itemSaveFailed"), "error");
+        setStatus(
+            error instanceof Error
+                ? error.message
+                : translate("app.itemSaveFailed"),
+            "error",
+        );
     } finally {
         savingItem.value = false;
     }
@@ -355,9 +504,17 @@ async function quickAddHotItem(item: HotItem): Promise<void> {
             }),
         });
         applySnapshot(snapshot);
-        setStatus(translate("app.hotItemAdded", { symbol: item.symbol }), "success");
+        setStatus(
+            translate("app.hotItemAdded", { symbol: item.symbol }),
+            "success",
+        );
     } catch (error) {
-        setStatus(error instanceof Error ? error.message : translate("app.addItemFailed"), "error");
+        setStatus(
+            error instanceof Error
+                ? error.message
+                : translate("app.addItemFailed"),
+            "error",
+        );
     }
 }
 
@@ -368,27 +525,45 @@ async function toggleItemPinned(item: WatchlistItem): Promise<void> {
             body: JSON.stringify({ pinned: !item.pinnedAt }),
         });
         applySnapshot(snapshot);
-        setStatus(item.pinnedAt ? translate("app.itemUnpinned") : translate("app.itemPinned"), "success");
+        setStatus(
+            item.pinnedAt
+                ? translate("app.itemUnpinned")
+                : translate("app.itemPinned"),
+            "success",
+        );
     } catch (error) {
-        setStatus(error instanceof Error ? error.message : translate("app.pinFailed"), "error");
+        setStatus(
+            error instanceof Error ? error.message : translate("app.pinFailed"),
+            "error",
+        );
     }
 }
 
 // Clear related history cache entries when an item is deleted.
 async function performDeleteItem(id: string): Promise<void> {
     try {
-        const snapshot = await api<StateSnapshot>(`/api/items/${id}`, { method: "DELETE" });
+        const snapshot = await api<StateSnapshot>(`/api/items/${id}`, {
+            method: "DELETE",
+        });
         clearHistoryCache();
         applySnapshot(snapshot);
         setStatus(translate("app.itemDeleted"), "success");
     } catch (error) {
-        setStatus(error instanceof Error ? error.message : translate("app.deleteFailed"), "error");
+        setStatus(
+            error instanceof Error
+                ? error.message
+                : translate("app.deleteFailed"),
+            "error",
+        );
     }
 }
 
 // Open the alert editor dialog.
 function openAlertDialog(alert?: AlertRule): void {
-    Object.assign(alertForm, alert ? mapAlertToForm(alert) : emptyAlertForm(items.value[0]?.id));
+    Object.assign(
+        alertForm,
+        alert ? mapAlertToForm(alert) : emptyAlertForm(items.value[0]?.id),
+    );
     alertDialogVisible.value = true;
 }
 
@@ -396,7 +571,9 @@ function openAlertDialog(alert?: AlertRule): void {
 async function saveAlert(): Promise<void> {
     savingAlert.value = true;
     try {
-        const path = alertForm.id ? `/api/alerts/${alertForm.id}` : "/api/alerts";
+        const path = alertForm.id
+            ? `/api/alerts/${alertForm.id}`
+            : "/api/alerts";
         const method = alertForm.id ? "PUT" : "POST";
         const snapshot = await api<StateSnapshot>(path, {
             method,
@@ -404,10 +581,20 @@ async function saveAlert(): Promise<void> {
         });
         applySnapshot(snapshot);
         alertDialogVisible.value = false;
-        setStatus(alertForm.id ? translate("app.alertUpdated") : translate("app.alertAdded"), "success");
+        setStatus(
+            alertForm.id
+                ? translate("app.alertUpdated")
+                : translate("app.alertAdded"),
+            "success",
+        );
         activeModule.value = "alerts";
     } catch (error) {
-        setStatus(error instanceof Error ? error.message : translate("app.alertSaveFailed"), "error");
+        setStatus(
+            error instanceof Error
+                ? error.message
+                : translate("app.alertSaveFailed"),
+            "error",
+        );
     } finally {
         savingAlert.value = false;
     }
@@ -416,11 +603,18 @@ async function saveAlert(): Promise<void> {
 // Delete an alert rule.
 async function performDeleteAlert(id: string): Promise<void> {
     try {
-        const snapshot = await api<StateSnapshot>(`/api/alerts/${id}`, { method: "DELETE" });
+        const snapshot = await api<StateSnapshot>(`/api/alerts/${id}`, {
+            method: "DELETE",
+        });
         applySnapshot(snapshot);
         setStatus(translate("app.alertDeleted"), "success");
     } catch (error) {
-        setStatus(error instanceof Error ? error.message : translate("app.deleteFailed"), "error");
+        setStatus(
+            error instanceof Error
+                ? error.message
+                : translate("app.deleteFailed"),
+            "error",
+        );
     }
 }
 
@@ -468,7 +662,11 @@ async function confirmDelete(): Promise<void> {
 
 // Switch the active module and eagerly load the current chart when entering the market module.
 function switchModule(next: ModuleKey): void {
-    appendClientLog("info", "tabs", `switch module ${activeModule.value} -> ${next}`);
+    appendClientLog(
+        "info",
+        "tabs",
+        `switch module ${activeModule.value} -> ${next}`,
+    );
     activeModule.value = next;
     if (next === "market") {
         void loadHistory(true);
@@ -477,69 +675,130 @@ function switchModule(next: ModuleKey): void {
 </script>
 
 <template>
-    <div class="app-shell">
-        <AppHeader :status-text="statusText" :status-tone="statusTone" :generated-at="generatedAt" @open-settings="openSettings" />
-
-        <SummaryStrip :dashboard="dashboard" :item-count="items.length" :live-price-count="runtime.livePriceCount" />
-
-        <section class="workspace-panel">
-            <ModuleTabs :active-module="activeModule" @switch="switchModule" />
-
-            <div class="workspace-stage">
-                <MarketModule
-                    v-if="activeModule === 'market'"
-                    :selected-item="selectedItem"
-                    :selected-item-id="selectedItemId"
-                    :history-interval="historyInterval"
-                    :history-item-options="historyItemOptions"
-                    :history-series="historySeries"
-                    :history-loading="historyLoading"
-                    :history-error="historyError"
-                    @refresh="refreshQuotes()"
-                    @update:selected-item-id="selectedItemId = $event"
-                    @select-interval="selectHistoryInterval"
-                />
-
-                <HotModule v-else-if="activeModule === 'hot'" :tracked-keys="trackedHotKeys" @add-item="quickAddHotItem" />
-
-                <WatchlistModule
-                    v-else-if="activeModule === 'watchlist'"
-                    :search="search"
-                    :filtered-items="filteredItems"
-                    :selected-item-id="selectedItemId"
-                    @update:search="search = $event"
-                    @add-item="openItemDialog()"
-                    @edit-item="openItemDialog"
-                    @delete-item="requestDeleteItem"
-                    @toggle-pin="toggleItemPinned"
-                    @select-item="selectedItemId = $event"
-                    @show-dca="showDCADetail"
-                />
-
-                <AlertsModule v-else :alerts="alerts" :items="items" @add-alert="openAlertDialog()" @edit-alert="openAlertDialog" @delete-alert="requestDeleteAlert" />
+    <div
+        ref="appShellRef"
+        class="app-shell"
+        :class="{ 'is-sidebar-hidden': sidebarHidden }"
+        :style="{ '--sidebar-width': `${sidebarWidth}px` }"
+    >
+        <div v-if="!sidebarHidden" class="sidebar-column">
+            <div class="sidebar-topbar">
+                <button
+                    type="button"
+                    :aria-label="translate('sidebar.hide')"
+                    class="sidebar-chrome-toggle"
+                    @click="toggleSidebar"
+                >
+                    <i class="pi pi-align-left" aria-hidden="true"></i>
+                </button>
             </div>
-        </section>
+            <AppSidebar
+                :active-module="activeModule"
+                :items="items"
+                :selected-item-id="selectedItemId"
+                :hot-market-group="hotMarketGroup"
+                @switch-module="switchModule"
+                @select-item="selectedItemId = $event"
+                @update:hot-market-group="hotMarketGroup = $event"
+                @open-settings="openSettings"
+                @toggle-visibility="toggleSidebar"
+                @start-resize="startSidebarResize"
+            />
+        </div>
 
-        <SettingsDialog
-            v-if="settingsVisible"
-            :visible="settingsVisible"
-            :settings-tab="settingsTab"
-            :settings-draft="settingsDraft"
-            :quote-sources="quoteSources"
-            :runtime="runtime"
-            :item-count="items.length"
-            :storage-path="storagePath"
-            :log-file-path="logFilePath"
-            :developer-logs="developerLogs"
-            :saving="savingSettings"
-            :loading-logs="loadingLogs"
-            @update:visible="settingsVisible = $event"
-            @update:settings-tab="settingsTab = $event"
-            @save="saveSettings"
-            @refresh-logs="loadBackendLogs()"
-            @copy-logs="copyDeveloperLogs"
-            @clear-logs="clearDeveloperLogs"
-        />
+        <div class="main-column">
+            <div class="main-topbar">
+                <button
+                    v-if="sidebarHidden"
+                    type="button"
+                    :aria-label="translate('sidebar.show')"
+                    class="sidebar-chrome-toggle"
+                    @click="toggleSidebar"
+                >
+                    <i class="pi pi-align-left" aria-hidden="true"></i>
+                </button>
+                <AppHeader
+                    :status-text="statusText"
+                    :status-tone="statusTone"
+                    :generated-at="generatedAt"
+                />
+            </div>
+
+            <div class="workspace-panel">
+                <div class="workspace-stage">
+                    <OverviewModule
+                        v-if="activeModule === 'overview'"
+                        :dashboard="dashboard"
+                        :item-count="items.length"
+                        :live-price-count="runtime.livePriceCount"
+                        :runtime="runtime"
+                        :generated-at="generatedAt"
+                    />
+
+                    <MarketModule
+                        v-else-if="activeModule === 'market'"
+                        :selected-item="selectedItem"
+                        :history-interval="historyInterval"
+                        :history-series="historySeries"
+                        :history-loading="historyLoading"
+                        :history-error="historyError"
+                        @refresh="refreshQuotes()"
+                        @select-interval="selectHistoryInterval"
+                    />
+
+                    <HotModule
+                        v-else-if="activeModule === 'hot'"
+                        :tracked-keys="trackedHotKeys"
+                        :market-group="hotMarketGroup"
+                        @update:market-group="hotMarketGroup = $event"
+                        @add-item="quickAddHotItem"
+                    />
+
+                    <WatchlistModule
+                        v-else-if="activeModule === 'watchlist'"
+                        :search="search"
+                        :filtered-items="filteredItems"
+                        :selected-item-id="selectedItemId"
+                        @update:search="search = $event"
+                        @add-item="openItemDialog()"
+                        @edit-item="openItemDialog"
+                        @delete-item="requestDeleteItem"
+                        @toggle-pin="toggleItemPinned"
+                        @select-item="selectedItemId = $event"
+                        @show-dca="showDCADetail"
+                    />
+
+                    <AlertsModule
+                        v-else-if="activeModule === 'alerts'"
+                        :alerts="alerts"
+                        :items="items"
+                        @add-alert="openAlertDialog()"
+                        @edit-alert="openAlertDialog"
+                        @delete-alert="requestDeleteAlert"
+                    />
+
+                    <SettingsModule
+                        v-else-if="activeModule === 'settings'"
+                        :settings-tab="settingsTab"
+                        :settings-draft="settingsDraft"
+                        :quote-sources="quoteSources"
+                        :runtime="runtime"
+                        :item-count="items.length"
+                        :storage-path="storagePath"
+                        :log-file-path="logFilePath"
+                        :developer-logs="developerLogs"
+                        :saving="savingSettings"
+                        :loading-logs="loadingLogs"
+                        @update:settings-tab="settingsTab = $event"
+                        @save="saveSettings"
+                        @cancel="activeModule = 'overview'"
+                        @refresh-logs="loadBackendLogs()"
+                        @copy-logs="copyDeveloperLogs"
+                        @clear-logs="clearDeveloperLogs"
+                    />
+                </div>
+            </div>
+        </div>
 
         <ItemDialog
             v-if="itemDialogVisible"
@@ -551,7 +810,13 @@ function switchModule(next: ModuleKey): void {
             @save="saveItem"
         />
 
-        <DCADetailDialog v-if="dcaDetailVisible" :visible="dcaDetailVisible" :item="dcaDetailItem" @update:visible="dcaDetailVisible = $event" @edit="editFromDCADetail" />
+        <DCADetailDialog
+            v-if="dcaDetailVisible"
+            :visible="dcaDetailVisible"
+            :item="dcaDetailItem"
+            @update:visible="dcaDetailVisible = $event"
+            @edit="editFromDCADetail"
+        />
 
         <AlertDialog
             v-if="alertDialogVisible"
