@@ -453,6 +453,97 @@ function unbindObserver(): void {
 </template>
 
 <style scoped>
+.hot-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+    min-width: 0;
+}
+
+.hot-toolbar .search-input {
+    height: 40px;
+    flex: 0 0 220px;
+    min-width: 180px;
+}
+
+.hot-category-tabs {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px;
+    border: 1px solid var(--border);
+    border-radius: calc(var(--radius-control) + 2px);
+    background: var(--panel-soft);
+    box-shadow: var(--shadow-soft);
+    flex: 0 0 auto;
+}
+
+.hot-category-tab {
+    min-height: 32px;
+    padding: 0 12px;
+    border-radius: calc(var(--radius-control) - 4px);
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--muted);
+    font: 600 12px/1 var(--font-ui);
+    cursor: pointer;
+    transition:
+        background 140ms ease,
+        border-color 140ms ease,
+        color 140ms ease,
+        box-shadow 140ms ease;
+}
+
+.hot-category-tab:hover {
+    color: var(--ink);
+    background: color-mix(in srgb, var(--accent-soft) 52%, var(--panel-strong));
+}
+
+.hot-category-tab.active {
+    color: var(--accent-strong);
+    border-color: color-mix(in srgb, var(--accent) 18%, var(--border));
+    background: linear-gradient(180deg, color-mix(in srgb, var(--accent-soft) 86%, var(--panel-strong)) 0%, color-mix(in srgb, var(--accent-soft) 34%, var(--panel-strong)) 100%);
+    box-shadow: var(--shadow-soft);
+}
+
+.hot-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.hot-table-shell {
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-panel);
+    background: var(--panel-strong);
+    box-shadow: var(--shadow-soft);
+}
+
+.hot-table {
+    min-width: 780px;
+}
+
+.hot-feedback,
+.hot-sentinel {
+    padding: 12px 14px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.hot-feedback-error {
+    color: var(--fall);
+}
+
 .sortable {
     cursor: pointer;
     user-select: none;
@@ -537,5 +628,18 @@ function unbindObserver(): void {
 .hot-table .table-action-cell :deep(.hot-add-button .p-button-label) {
     font-size: 11px;
     white-space: nowrap;
+}
+
+@media (max-width: 880px) {
+    .hot-summary {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .hot-module .panel-header,
+    .hot-module .hot-toolbar {
+        align-items: center;
+        flex-direction: row;
+    }
 }
 </style>

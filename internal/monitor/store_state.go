@@ -1,13 +1,7 @@
 package monitor
 
 import (
-	"crypto/rand"
-	"encoding/hex"
-	"encoding/json"
-	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -15,15 +9,16 @@ import (
 
 // load loads state file from disk; if file does not exist, write a seed state.
 func (s *Store) load() error {
-	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
-		return err
+	if s.repository == nil {
+		return fmt.Errorf("state repository is not configured")
 	}
 
-	payload, err := os.ReadFile(s.path)
-	if errors.Is(err, os.ErrNotExist) {
+	state := persistedState{}
+	found, err := s.repository.Load(&state)
+	if !found && err == nil {
 		s.state = seedState()
 		s.runtime.QuoteSource = s.quoteProviderSummaryLocked()
-		s.logInfo("storage", fmt.Sprintf("state file not found, seeding %s", s.path))
+		s.logInfo("storage", fmt.Sprintf("state file not found, seeding %s", s.repository.Path()))
 		return s.Save()
 	}
 	if err != nil {
@@ -31,14 +26,10 @@ func (s *Store) load() error {
 		return err
 	}
 
-	if err := json.Unmarshal(payload, &s.state); err != nil {
-		s.logError("storage", fmt.Sprintf("decode state failed: %v", err))
-		return err
-	}
-
+	s.state = state
 	s.normaliseLocked()
 	s.runtime.QuoteSource = s.quoteProviderSummaryLocked()
-	s.logInfo("storage", fmt.Sprintf("loaded state from %s", s.path))
+	s.logInfo("storage", fmt.Sprintf("loaded state from %s", s.repository.Path()))
 	return nil
 }
 
@@ -141,17 +132,10 @@ func (s *Store) normaliseLocked() {
 
 // saveLocked persists state using a temporary file with atomic replacement.
 func (s *Store) saveLocked() error {
-	payload, err := json.MarshalIndent(s.state, "", "  ")
-	if err != nil {
-		return err
+	if s.repository == nil {
+		return fmt.Errorf("state repository is not configured")
 	}
-
-	tempPath := s.path + ".tmp"
-	if err := os.WriteFile(tempPath, payload, 0o644); err != nil {
-		return err
-	}
-
-	return os.Rename(tempPath, s.path)
+	return s.repository.Save(s.state)
 }
 
 // snapshotLocked returns a read-only snapshot copy for frontend consumption.
@@ -192,7 +176,7 @@ func (s *Store) snapshotLocked() StateSnapshot {
 		Settings:     s.state.Settings,
 		Runtime:      runtime,
 		QuoteSources: quoteSources,
-		StoragePath:  s.path,
+		StoragePath:  s.repository.Path(),
 		GeneratedAt:  time.Now(),
 	}
 }
@@ -300,13 +284,9 @@ func marketGroupForMarket(market string) string {
 	}
 }
 
-// quoteSourceIDForMarketLocked returns the quote source ID that should be effective for the given market, with priority:
-// 1. Market-specific settings (HKQuoteSource, USQuoteSource, CNQuoteSource)
-// 2. General settings (QuoteSource)
-// 3. Market-specific defaults (defaultQuoteSourceIDForMarket)
-// 4. First available option in quote source list that supports this market
-// 5. First available option in quote source list
-// 6. Built-in default DefaultQuoteSourceID
+// quoteSourceIDForMarketLocked returns the quote source ID that should be effective for the given market.
+// The legacy single-field QuoteSource compatibility path is handled during state normalization and settings sanitisation,
+// so runtime selection only depends on the market-specific settings plus fallback rules.
 func (s *Store) quoteSourceIDForMarketLocked(market string) string {
 	settings := s.state.Settings
 	switch marketGroupForMarket(market) {
@@ -485,109 +465,4 @@ func buildDashboard(items []WatchlistItem, alerts []AlertRule, fx *FxRates, disp
 	}
 
 	return summary
-}
-
-// seedState returns sample state used on first startup.
-func seedState() persistedState {
-	now := time.Now()
-	items := []WatchlistItem{
-		{
-			ID:           newID("item"),
-			Symbol:       "09988.HK",
-			Name:         "阿里巴巴-W",
-			Market:       "HK-MAIN",
-			Currency:     "HKD",
-			Quantity:     100,
-			CostPrice:    310,
-			CurrentPrice: 328,
-			Thesis:       "阿里巴巴港股，长期持有，关注电商和云计算业务发展",
-			Tags:         []string{"互联网平台", "观察"},
-			UpdatedAt:    now.Add(-2 * time.Hour),
-		},
-		{
-			ID:           newID("item"),
-			Symbol:       "VOO",
-			Name:         "标普500ETF-Vanguard",
-			Market:       "US-ETF",
-			Currency:     "USD",
-			Quantity:     15,
-			CostPrice:    430,
-			CurrentPrice: 447,
-			Thesis:       "标普500指数ETF，分散投资美国大盘股，长期持有",
-			Tags:         []string{"ETF"},
-			UpdatedAt:    now.Add(-90 * time.Minute),
-		},
-	}
-
-	alerts := []AlertRule{
-		{
-			ID:        newID("alert"),
-			ItemID:    items[1].ID,
-			Name:      "阿里巴巴下破300止损",
-			Condition: AlertBelow,
-			Threshold: 300,
-			Enabled:   true,
-			UpdatedAt: now.Add(-30 * time.Minute),
-		},
-		{
-			ID:        newID("alert"),
-			ItemID:    items[2].ID,
-			Name:      "VOO 上破450止盈",
-			Condition: AlertAbove,
-			Threshold: 450,
-			Enabled:   true,
-			UpdatedAt: now.Add(-15 * time.Minute),
-		},
-	}
-
-	state := persistedState{
-		Items:  items,
-		Alerts: alerts,
-		Settings: AppSettings{
-			RefreshIntervalSeconds: 60,
-			QuoteSource:            DefaultQuoteSourceID,
-			CNQuoteSource:          DefaultCNQuoteSourceID,
-			HKQuoteSource:          DefaultHKQuoteSourceID,
-			USQuoteSource:          DefaultUSQuoteSourceID,
-			HotUSSource:            "eastmoney",
-			ThemeMode:              "system",
-			ColorTheme:             "blue",
-			FontPreset:             "system",
-			AmountDisplay:          "full",
-			CurrencyDisplay:        "symbol",
-			PriceColorScheme:       "cn",
-			Locale:                 "system",
-			DeveloperMode:          false,
-			DashboardCurrency:      "CNY",
-			UseNativeTitleBar:      false,
-		},
-	}
-
-	store := &Store{state: state}
-	store.evaluateAlertsLocked()
-	store.state.UpdatedAt = now
-	return store.state
-}
-
-// newID generates a prefixed random ID; falls back to timestamp scheme when random numbers are unavailable.
-func newID(prefix string) string {
-	buffer := make([]byte, 6)
-	if _, err := rand.Read(buffer); err != nil {
-		return fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())
-	}
-	return prefix + "-" + hex.EncodeToString(buffer)
-}
-
-// ptrTime returns an independent pointer copy of the given time value.
-func ptrTime(value time.Time) *time.Time {
-	copy := value
-	return &copy
-}
-
-// nonZeroTime falls back zero-value time to current time.
-func nonZeroTime(value time.Time) time.Time {
-	if value.IsZero() {
-		return time.Now()
-	}
-	return value
 }

@@ -77,3 +77,80 @@ onBeforeUnmount(() => {
         <div v-else class="empty-card">{{ t("alerts.empty") }}</div>
     </section>
 </template>
+
+<style scoped>
+.alert-pills {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.table-action-stack {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.empty-card {
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--radius-panel);
+    padding: 20px;
+    color: var(--muted);
+    line-height: 1.6;
+    background: rgba(148, 163, 184, 0.06);
+}
+
+.alert-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.alert-card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-panel);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--panel-soft) 92%, var(--accent-soft)) 0%, var(--panel-strong) 100%);
+    padding: 14px;
+    display: grid;
+    gap: 10px;
+    box-shadow: var(--shadow-soft);
+}
+
+.alert-card:hover {
+    border-color: color-mix(in srgb, var(--accent) 24%, var(--border));
+}
+
+.alert-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.alert-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.alert-head strong {
+    display: block;
+    font-size: 13px;
+    margin-bottom: 4px;
+}
+
+.alert-head > div > span,
+.alert-actions > span {
+    color: var(--muted);
+    font-size: 11px;
+}
+
+@media (max-width: 880px) {
+    .alert-head,
+    .alert-actions {
+        align-items: stretch;
+        flex-direction: column;
+    }
+}
+</style>

@@ -72,3 +72,71 @@ const cards = computed<SummaryCard[]>(() => {
         </article>
     </section>
 </template>
+
+<style scoped>
+.summary-strip {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    padding: 0;
+}
+
+.summary-card {
+    min-height: 82px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-panel);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--panel-soft) 48%, var(--panel-strong)) 0%, var(--panel-strong) 100%);
+    padding: 11px 12px 10px;
+    display: grid;
+    gap: 6px;
+    box-shadow: var(--shadow-soft);
+}
+
+.summary-label {
+    font-size: 11px;
+    color: var(--muted);
+}
+
+.summary-value {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.42rem;
+    font: 500 clamp(15px, 1vw, 18px) / 1.1 var(--font-display);
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+}
+
+.summary-currency {
+    font: inherit;
+    line-height: inherit;
+    color: inherit;
+}
+
+.summary-number {
+    min-width: 0;
+}
+
+.summary-sub {
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.35;
+}
+
+.tone-rise {
+    color: var(--rise);
+}
+
+.tone-fall {
+    color: var(--fall);
+}
+
+.tone-warn {
+    color: var(--warn);
+}
+
+@media (max-width: 1180px) {
+    .summary-strip {
+        grid-template-columns: 1fr;
+    }
+}
+</style>

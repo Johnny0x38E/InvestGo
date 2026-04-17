@@ -9,18 +9,12 @@ import {
 } from "vue";
 
 import { api } from "./api";
-import AppHeader from "./components/AppHeader.vue";
-import AppSidebar from "./components/AppSidebar.vue";
+import AppShell from "./components/AppShell.vue";
+import AppWorkspace from "./components/AppWorkspace.vue";
 import AlertDialog from "./components/dialogs/AlertDialog.vue";
 import ConfirmDialog from "./components/dialogs/ConfirmDialog.vue";
 import DCADetailDialog from "./components/dialogs/DCADetailDialog.vue";
 import ItemDialog from "./components/dialogs/ItemDialog.vue";
-import SettingsModule from "./components/modules/SettingsModule.vue";
-import AlertsModule from "./components/modules/AlertsModule.vue";
-import HotModule from "./components/modules/HotModule.vue";
-import MarketModule from "./components/modules/MarketModule.vue";
-import OverviewModule from "./components/modules/OverviewModule.vue";
-import WatchlistModule from "./components/modules/WatchlistModule.vue";
 import { appendClientLog, installClientLogCapture } from "./devlog";
 import { useDeveloperLogs } from "./composables/useDeveloperLogs";
 import { useHistorySeries } from "./composables/useHistorySeries";
@@ -65,13 +59,10 @@ const storagePath = ref("");
 const generatedAt = ref("");
 const statusText = ref(translate("app.loading"));
 const statusTone = ref<StatusTone>("success");
-const appShellRef = ref<HTMLElement | null>(null);
 const search = ref("");
 const selectedItemId = ref("");
 const activeModule = ref<ModuleKey>("overview");
 const hotMarketGroup = ref<HotMarketGroup>("cn");
-const sidebarWidth = ref(220);
-const sidebarHidden = ref(false);
 const settingsTab = ref<SettingsTabKey>("general");
 const settingsVisible = ref(false);
 const itemDialogVisible = ref(false);
@@ -98,7 +89,6 @@ const pendingDelete = reactive<{ kind: "" | "item" | "alert"; id: string }>({
 });
 let refreshTimer = 0;
 let developerLogTimer = 0;
-let sidebarResizeActive = false;
 
 const filteredItems = computed(() => {
     const keyword = search.value.trim().toLowerCase();
@@ -229,47 +219,7 @@ onBeforeUnmount(() => {
     window.clearTimeout(refreshTimer);
     window.clearInterval(developerLogTimer);
     matchMediaList.removeEventListener("change", syncThemeMode);
-    stopSidebarResize();
 });
-
-function clampSidebarWidth(value: number): number {
-    return Math.min(Math.max(Math.round(value), 220), 380);
-}
-
-function toggleSidebar(): void {
-    sidebarHidden.value = !sidebarHidden.value;
-}
-
-function startSidebarResize(): void {
-    sidebarHidden.value = false;
-    if (sidebarResizeActive) {
-        return;
-    }
-    sidebarResizeActive = true;
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-    window.addEventListener("mousemove", handleSidebarResize);
-    window.addEventListener("mouseup", stopSidebarResize);
-}
-
-function handleSidebarResize(event: MouseEvent): void {
-    if (!sidebarResizeActive) {
-        return;
-    }
-    const shellLeft = appShellRef.value?.getBoundingClientRect().left ?? 0;
-    sidebarWidth.value = clampSidebarWidth(event.clientX - shellLeft);
-}
-
-function stopSidebarResize(): void {
-    if (!sidebarResizeActive) {
-        return;
-    }
-    sidebarResizeActive = false;
-    document.body.style.cursor = "";
-    document.body.style.userSelect = "";
-    window.removeEventListener("mousemove", handleSidebarResize);
-    window.removeEventListener("mouseup", stopSidebarResize);
-}
 
 // Sync the system theme to the document root so the desktop shell continues to follow light and dark mode changes.
 function syncThemeMode(): void {
@@ -675,130 +625,67 @@ function switchModule(next: ModuleKey): void {
 </script>
 
 <template>
-    <div
-        ref="appShellRef"
-        class="app-shell"
-        :class="{ 'is-sidebar-hidden': sidebarHidden }"
-        :style="{ '--sidebar-width': `${sidebarWidth}px` }"
+    <AppShell
+        :active-module="activeModule"
+        :items="items"
+        :selected-item-id="selectedItemId"
+        :hot-market-group="hotMarketGroup"
+        :status-text="statusText"
+        :status-tone="statusTone"
+        :generated-at="generatedAt"
+        @switch-module="switchModule"
+        @select-item="selectedItemId = $event"
+        @update:hot-market-group="hotMarketGroup = $event"
+        @open-settings="openSettings"
     >
-        <div v-if="!sidebarHidden" class="sidebar-column">
-            <div class="sidebar-topbar">
-                <button
-                    type="button"
-                    :aria-label="translate('sidebar.hide')"
-                    class="sidebar-chrome-toggle"
-                    @click="toggleSidebar"
-                >
-                    <i class="pi pi-align-left" aria-hidden="true"></i>
-                </button>
-            </div>
-            <AppSidebar
-                :active-module="activeModule"
-                :items="items"
-                :selected-item-id="selectedItemId"
-                :hot-market-group="hotMarketGroup"
-                @switch-module="switchModule"
-                @select-item="selectedItemId = $event"
-                @update:hot-market-group="hotMarketGroup = $event"
-                @open-settings="openSettings"
-                @toggle-visibility="toggleSidebar"
-                @start-resize="startSidebarResize"
-            />
-        </div>
-
-        <div class="main-column">
-            <div class="main-topbar">
-                <button
-                    v-if="sidebarHidden"
-                    type="button"
-                    :aria-label="translate('sidebar.show')"
-                    class="sidebar-chrome-toggle"
-                    @click="toggleSidebar"
-                >
-                    <i class="pi pi-align-left" aria-hidden="true"></i>
-                </button>
-                <AppHeader
-                    :status-text="statusText"
-                    :status-tone="statusTone"
-                    :generated-at="generatedAt"
-                />
-            </div>
-
-            <div class="workspace-panel">
-                <div class="workspace-stage">
-                    <OverviewModule
-                        v-if="activeModule === 'overview'"
-                        :dashboard="dashboard"
-                        :item-count="items.length"
-                        :live-price-count="runtime.livePriceCount"
-                        :runtime="runtime"
-                        :generated-at="generatedAt"
-                    />
-
-                    <MarketModule
-                        v-else-if="activeModule === 'market'"
-                        :selected-item="selectedItem"
-                        :history-interval="historyInterval"
-                        :history-series="historySeries"
-                        :history-loading="historyLoading"
-                        :history-error="historyError"
-                        @refresh="refreshQuotes()"
-                        @select-interval="selectHistoryInterval"
-                    />
-
-                    <HotModule
-                        v-else-if="activeModule === 'hot'"
-                        :tracked-keys="trackedHotKeys"
-                        :market-group="hotMarketGroup"
-                        @update:market-group="hotMarketGroup = $event"
-                        @add-item="quickAddHotItem"
-                    />
-
-                    <WatchlistModule
-                        v-else-if="activeModule === 'watchlist'"
-                        :search="search"
-                        :filtered-items="filteredItems"
-                        :selected-item-id="selectedItemId"
-                        @update:search="search = $event"
-                        @add-item="openItemDialog()"
-                        @edit-item="openItemDialog"
-                        @delete-item="requestDeleteItem"
-                        @toggle-pin="toggleItemPinned"
-                        @select-item="selectedItemId = $event"
-                        @show-dca="showDCADetail"
-                    />
-
-                    <AlertsModule
-                        v-else-if="activeModule === 'alerts'"
-                        :alerts="alerts"
-                        :items="items"
-                        @add-alert="openAlertDialog()"
-                        @edit-alert="openAlertDialog"
-                        @delete-alert="requestDeleteAlert"
-                    />
-
-                    <SettingsModule
-                        v-else-if="activeModule === 'settings'"
-                        :settings-tab="settingsTab"
-                        :settings-draft="settingsDraft"
-                        :quote-sources="quoteSources"
-                        :runtime="runtime"
-                        :item-count="items.length"
-                        :storage-path="storagePath"
-                        :log-file-path="logFilePath"
-                        :developer-logs="developerLogs"
-                        :saving="savingSettings"
-                        :loading-logs="loadingLogs"
-                        @update:settings-tab="settingsTab = $event"
-                        @save="saveSettings"
-                        @cancel="activeModule = 'overview'"
-                        @refresh-logs="loadBackendLogs()"
-                        @copy-logs="copyDeveloperLogs"
-                        @clear-logs="clearDeveloperLogs"
-                    />
-                </div>
-            </div>
-        </div>
+        <AppWorkspace
+            :active-module="activeModule"
+            :dashboard="dashboard"
+            :item-count="items.length"
+            :live-price-count="runtime.livePriceCount"
+            :runtime="runtime"
+            :generated-at="generatedAt"
+            :selected-item="selectedItem"
+            :history-interval="historyInterval"
+            :history-series="historySeries"
+            :history-loading="historyLoading"
+            :history-error="historyError"
+            :tracked-hot-keys="trackedHotKeys"
+            :hot-market-group="hotMarketGroup"
+            :search="search"
+            :filtered-items="filteredItems"
+            :selected-item-id="selectedItemId"
+            :alerts="alerts"
+            :items="items"
+            :settings-tab="settingsTab"
+            :settings-draft="settingsDraft"
+            :quote-sources="quoteSources"
+            :storage-path="storagePath"
+            :log-file-path="logFilePath"
+            :developer-logs="developerLogs"
+            :saving-settings="savingSettings"
+            :loading-logs="loadingLogs"
+            @refresh="refreshQuotes()"
+            @select-interval="selectHistoryInterval"
+            @update:hot-market-group="hotMarketGroup = $event"
+            @add-hot-item="quickAddHotItem"
+            @update:search="search = $event"
+            @add-item="openItemDialog()"
+            @edit-item="openItemDialog"
+            @delete-item="requestDeleteItem"
+            @toggle-pin="toggleItemPinned"
+            @select-item="selectedItemId = $event"
+            @show-dca="showDCADetail"
+            @add-alert="openAlertDialog()"
+            @edit-alert="openAlertDialog"
+            @delete-alert="requestDeleteAlert"
+            @update:settings-tab="settingsTab = $event"
+            @save-settings="saveSettings"
+            @cancel-settings="activeModule = 'overview'"
+            @refresh-logs="loadBackendLogs()"
+            @copy-logs="copyDeveloperLogs"
+            @clear-logs="clearDeveloperLogs"
+        />
 
         <ItemDialog
             v-if="itemDialogVisible"
@@ -838,5 +725,5 @@ function switchModule(next: ModuleKey): void {
             @update:visible="confirmDialogVisible = $event"
             @confirm="confirmDelete"
         />
-    </div>
+    </AppShell>
 </template>

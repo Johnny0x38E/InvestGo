@@ -153,6 +153,15 @@ const lastSyncedAt = computed(() => {
 </template>
 
 <style scoped>
+.watch-table td {
+    vertical-align: top;
+}
+
+.watch-table td.watch-table-cell-dca,
+.watch-table td.table-action-cell {
+    vertical-align: middle;
+}
+
 .watch-table th:first-child,
 .watch-table td:first-child {
     width: 34%;

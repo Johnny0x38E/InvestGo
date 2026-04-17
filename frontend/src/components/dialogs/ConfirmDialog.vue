@@ -34,3 +34,11 @@ const { t } = useI18n();
         </template>
     </Dialog>
 </template>
+
+<style scoped>
+.confirm-copy {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.7;
+}
+</style>
