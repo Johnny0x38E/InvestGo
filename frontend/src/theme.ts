@@ -8,6 +8,9 @@ const themeSeeds: Record<ColorTheme, string> = {
     graphite: "#627588",
     forest: "#2f7d69",
     sunset: "#c36f37",
+    rose:    "#b84c6e",
+    violet:  "#6b4fc8",
+    amber:   "#a87928",
 };
 
 export const investGoPreset = definePreset(Aura, {

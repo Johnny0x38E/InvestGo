@@ -2,13 +2,13 @@ package monitor
 
 import "context"
 
-// HistoryProvider defines the interface for fetching historical data, called by the monitoring module to display historical trend charts.
+// HistoryProvider is the interface for loading historical price series, used by the Store for chart rendering and portfolio trend calculation.
 type HistoryProvider interface {
 	Fetch(ctx context.Context, item WatchlistItem, interval HistoryInterval) (HistorySeries, error)
 	Name() string
 }
 
-// HistoryInterval defines the time range and granularity of historical data for use by the Fetch method.
+// HistoryInterval specifies the time range and granularity of a historical price request.
 type HistoryInterval string
 
 const (

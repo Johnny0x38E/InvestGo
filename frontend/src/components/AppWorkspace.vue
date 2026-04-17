@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import AlertsModule from "./modules/AlertsModule.vue";
 import HotModule from "./modules/HotModule.vue";
-import MarketModule from "./modules/MarketModule.vue";
+import HoldingsModule from "./modules/HoldingsModule.vue";
 import OverviewModule from "./modules/OverviewModule.vue";
 import SettingsModule from "./modules/SettingsModule.vue";
 import WatchlistModule from "./modules/WatchlistModule.vue";
@@ -53,7 +53,9 @@ defineEmits<{
     (event: "refresh"): void;
     (event: "select-interval", value: HistoryInterval): void;
     (event: "update:hotMarketGroup", value: HotMarketGroup): void;
-    (event: "add-hot-item", item: HotItem): void;
+    (event: "hot-watch-item", item: HotItem): void;
+    (event: "hot-unwatch-item", item: HotItem): void;
+    (event: "hot-open-position", item: HotItem): void;
     (event: "update:search", value: string): void;
     (event: "add-item"): void;
     (event: "edit-item", item: WatchlistItem): void;
@@ -79,12 +81,11 @@ defineEmits<{
         :dashboard="dashboard"
         :item-count="itemCount"
         :live-price-count="livePriceCount"
-        :runtime="runtime"
         :generated-at="generatedAt"
     />
 
-    <MarketModule
-        v-else-if="activeModule === 'market'"
+    <WatchlistModule
+        v-else-if="activeModule === 'watchlist'"
         :selected-item="selectedItem"
         :history-interval="historyInterval"
         :history-series="historySeries"
@@ -92,6 +93,7 @@ defineEmits<{
         :history-error="historyError"
         @refresh="$emit('refresh')"
         @select-interval="$emit('select-interval', $event)"
+        @delete-item="$emit('delete-item', $event)"
     />
 
     <HotModule
@@ -99,11 +101,13 @@ defineEmits<{
         :tracked-keys="trackedHotKeys"
         :market-group="hotMarketGroup"
         @update:market-group="$emit('update:hotMarketGroup', $event)"
-        @add-item="$emit('add-hot-item', $event)"
+        @watch-item="$emit('hot-watch-item', $event)"
+        @unwatch-item="$emit('hot-unwatch-item', $event)"
+        @open-position="$emit('hot-open-position', $event)"
     />
 
-    <WatchlistModule
-        v-else-if="activeModule === 'watchlist'"
+    <HoldingsModule
+        v-else-if="activeModule === 'holdings'"
         :search="search"
         :filtered-items="filteredItems"
         :selected-item-id="selectedItemId"

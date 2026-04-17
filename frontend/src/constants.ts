@@ -1,5 +1,5 @@
 import { translate } from "./i18n";
-import type { AlertCondition, AppSettings, HotCategory, HotMarketGroup, HotSort, HistoryInterval, MarketType, ModuleTab, OptionItem, SettingsTab } from "./types";
+import type { AlertCondition, AppSettings, ColorTheme, HotCategory, HotMarketGroup, HotSort, HistoryInterval, MarketType, ModuleTab, OptionItem, SettingsTab } from "./types";
 
 export const projectMeta = {
     repositoryUrl: "https://github.com/Johnny0x38E/InvestGo",
@@ -8,8 +8,8 @@ export const projectMeta = {
 export function getModuleTabs(): ModuleTab[] {
     return [
         { key: "overview", label: translate("modules.overview"), icon: "pi pi-home" },
-        { key: "market", label: translate("modules.market"), icon: "pi pi-chart-line" },
-        { key: "watchlist", label: translate("modules.watchlist"), icon: "pi pi-table" },
+        { key: "watchlist", label: translate("modules.watchlist"), icon: "pi pi-chart-line" },
+        { key: "holdings", label: translate("modules.holdings"), icon: "pi pi-wallet" },
         { key: "hot", label: translate("modules.hot"), icon: "pi pi-bolt" },
         { key: "alerts", label: translate("modules.alerts"), icon: "pi pi-bell" },
     ];
@@ -79,8 +79,22 @@ export function getColorThemeOptions(): OptionItem<AppSettings["colorTheme"]>[] 
         { label: translate("options.colorTheme.graphite"), value: "graphite" },
         { label: translate("options.colorTheme.forest"), value: "forest" },
         { label: translate("options.colorTheme.sunset"), value: "sunset" },
+        { label: translate("options.colorTheme.rose"), value: "rose" },
+        { label: translate("options.colorTheme.violet"), value: "violet" },
+        { label: translate("options.colorTheme.amber"), value: "amber" },
     ];
 }
+
+/** Representative accent swatch for each color theme (always light-mode tones for visibility). */
+export const COLOR_THEME_SWATCHES: Record<ColorTheme, string> = {
+    blue:     "#355f96",
+    graphite: "#627588",
+    forest:   "#2f7d69",
+    sunset:   "#c36f37",
+    rose:     "#b84c6e",
+    violet:   "#6b4fc8",
+    amber:    "#a87928",
+};
 
 export function getAmountDisplayOptions(): OptionItem<AppSettings["amountDisplay"]>[] {
     return [

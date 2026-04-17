@@ -75,7 +75,8 @@ export function formatRange(low: number, high: number, currency: string): string
         return "-";
     }
 
-    return `${formatUnitPrice(low, currency)} - ${formatUnitPrice(high, currency)}`;
+    const fmt = (v: number) => formatNumber(v, 2);
+    return `${fmt(low)} - ${fmt(high)}`;
 }
 
 export function formatDateTime(value?: string): string {

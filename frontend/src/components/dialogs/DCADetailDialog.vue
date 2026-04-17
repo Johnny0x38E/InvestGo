@@ -30,54 +30,14 @@ const dialogHeader = computed(() => {
     return t("dialogs.dcaDetail.titleWithName", { name });
 });
 
-// Keep only valid DCA entries where both amount and shares are greater than zero.
+// Backend sanitiseItem guarantees only valid entries are persisted; the filter here is a defensive guard.
 const entries = computed(() => (props.item?.dcaEntries ?? []).filter((e) => e.amount > 0 && e.shares > 0));
 
-const summary = computed(() => {
-    const valid = entries.value;
-    const totalAmount = valid.reduce((s, e) => s + e.amount, 0);
-    const totalShares = valid.reduce((s, e) => s + e.shares, 0);
-    const totalFees = valid.reduce((s, e) => s + (e.fee ?? 0), 0);
-    // Match backend sanitiseItem behavior by preferring the manually entered buy price.
-    let totalEffectiveCost = 0;
-    for (const e of valid) {
-        const price = e.price ?? 0;
-        const fee = e.fee ?? 0;
-        if (price > 0) {
-            totalEffectiveCost += price * e.shares;
-        } else {
-            totalEffectiveCost += Math.max(e.amount - fee, 0);
-        }
-    }
-    const avgCost = totalShares > 0 ? totalEffectiveCost / totalShares : 0;
-    const curPrice = props.item?.currentPrice ?? 0;
-    const currentValue = totalShares * curPrice;
-    const pnl = curPrice > 0 ? currentValue - totalEffectiveCost : null;
-    const pnlPct = totalEffectiveCost > 0 && pnl !== null ? (pnl / totalEffectiveCost) * 100 : null;
-    return {
-        count: valid.length,
-        totalAmount,
-        totalShares,
-        totalFees,
-        avgCost,
-        currentValue,
-        pnl,
-        pnlPct,
-        hasCurPrice: curPrice > 0,
-    };
-});
+const summary = computed(() => props.item?.dcaSummary ?? null);
 
-function buyPrice(entry: { price?: number; fee?: number; amount: number; shares: number }): string {
+function buyPrice(entry: { effectivePrice?: number }): string {
     if (!props.item) return "—";
-    let p: number;
-    if (entry.price && entry.price > 0) {
-        p = entry.price;
-    } else if (entry.shares > 0) {
-        const net = Math.max(entry.amount - (entry.fee ?? 0), 0);
-        p = net / entry.shares;
-    } else {
-        p = 0;
-    }
+    const p = "effectivePrice" in entry && typeof entry.effectivePrice === "number" ? entry.effectivePrice : 0;
     return p > 0 ? formatUnitPrice(p, props.item.currency) : "—";
 }
 
@@ -100,9 +60,9 @@ function pnlTone(v: number | null): string {
 </script>
 
 <template>
-    <Dialog v-model:visible="visibleProxy" modal :closable="false" :header="dialogHeader" :style="{ width: '860px' }" class="desk-dialog">
+    <Dialog v-model:visible="visibleProxy" modal :closable="false" :header="dialogHeader" :style="{ width: '1100px' }" class="desk-dialog">
         <!-- DCA summary bar -->
-        <div v-if="summary.count > 0" class="dca-summary-bar" style="margin-bottom: 20px">
+        <div v-if="summary && summary.count > 0" class="dca-summary-bar" style="margin-bottom: 20px">
             <div class="dca-summary-cell">
                 <span class="dca-summary-label">{{ t("dialogs.dcaDetail.summary.count") }}</span>
                 <span class="dca-summary-value">{{ t("dialogs.dcaDetail.summary.countValue", { count: summary.count }) }}</span>
@@ -121,9 +81,9 @@ function pnlTone(v: number | null): string {
             </div>
             <div class="dca-summary-cell">
                 <span class="dca-summary-label">{{ t("dialogs.dcaDetail.summary.weightedAvgPrice") }}</span>
-                <span class="dca-summary-value">{{ formatUnitPrice(summary.avgCost, item?.currency ?? "") }}</span>
+                <span class="dca-summary-value">{{ formatUnitPrice(summary.averageCost, item?.currency ?? "") }}</span>
             </div>
-            <template v-if="summary.hasCurPrice">
+            <template v-if="summary.hasCurrentPrice">
                 <div class="dca-summary-cell">
                     <span class="dca-summary-label">{{ t("dialogs.dcaDetail.summary.currentValue") }}</span>
                     <span class="dca-summary-value">{{ formatUnitPrice(summary.currentValue, item?.currency ?? "") }}</span>
@@ -132,9 +92,7 @@ function pnlTone(v: number | null): string {
                     <span class="dca-summary-label">{{ t("dialogs.dcaDetail.summary.positionPnL") }}</span>
                     <span class="dca-summary-value" :class="pnlTone(summary.pnl)">
                         {{ formatMoney(summary.pnl ?? 0, true) }}
-                        <span style="font-weight: 400; font-size: 11px; margin-left: 4px">
-                            {{ summary.pnlPct !== null ? formatPercent(summary.pnlPct) : "" }}
-                        </span>
+                        <span style="font-weight: 400; font-size: 11px; margin-left: 4px">{{ formatPercent(summary.pnlPct) }}</span>
                     </span>
                 </div>
             </template>
@@ -179,7 +137,7 @@ function pnlTone(v: number | null): string {
 <style scoped>
 .dca-summary-bar {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 1px;
     background: var(--border);
     border: 1px solid var(--border);
@@ -191,8 +149,8 @@ function pnlTone(v: number | null): string {
 .dca-summary-cell {
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    padding: 10px 14px;
+    gap: 10px;
+    padding: 10px 10px;
     background: var(--panel-strong);
 }
 
@@ -201,6 +159,7 @@ function pnlTone(v: number | null): string {
     color: var(--muted);
     text-transform: uppercase;
     letter-spacing: 0.04em;
+    white-space: nowrap;
 }
 
 .dca-summary-value {
@@ -236,7 +195,7 @@ function pnlTone(v: number | null): string {
 .dca-detail-head,
 .dca-detail-row {
     display: grid;
-    grid-template-columns: 44px 148px minmax(126px, 1.05fr) minmax(118px, 0.95fr) minmax(118px, 0.95fr) minmax(118px, 0.9fr) minmax(144px, 1.2fr);
+    grid-template-columns: 40px 148px 148px 128px 128px 96px 1fr;
     gap: 0;
     padding: 0 4px;
 }

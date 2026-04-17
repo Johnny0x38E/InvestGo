@@ -28,7 +28,7 @@ func joinProblems(problems []string) error {
 	return errors.New(strings.Join(unique, "; "))
 }
 
-// applyQuoteToItem backfills latest quote fields to the item object.
+// applyQuoteToItem writes the latest quote data onto the given item in place.
 func applyQuoteToItem(item *WatchlistItem, quote Quote) {
 	if strings.TrimSpace(quote.Name) != "" {
 		item.Name = quote.Name
@@ -44,7 +44,7 @@ func applyQuoteToItem(item *WatchlistItem, quote Quote) {
 	item.QuoteUpdatedAt = ptrTime(nonZeroTime(quote.UpdatedAt))
 }
 
-// inheritLiveFields inherits real-time fields from the old entry to avoid overwriting quote information during form updates.
+// inheritLiveFields copies live market data from an existing item so that a user edit does not erase the last known quote.
 func inheritLiveFields(item WatchlistItem, existing WatchlistItem) WatchlistItem {
 	item.PreviousClose = existing.PreviousClose
 	item.OpenPrice = existing.OpenPrice
@@ -62,7 +62,7 @@ func inheritLiveFields(item WatchlistItem, existing WatchlistItem) WatchlistItem
 	return item
 }
 
-// countLiveQuotes counts the number of items with valid real-time update times.
+// countLiveQuotes returns the number of items that have received at least one live price update.
 func countLiveQuotes(items []WatchlistItem) int {
 	total := 0
 	for _, item := range items {

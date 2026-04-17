@@ -19,7 +19,9 @@ const props = defineProps<{
 }>();
 
 defineEmits<{
-    (event: "add-item", item: HotItem): void;
+    (event: "watch-item", item: HotItem): void;
+    (event: "unwatch-item", item: HotItem): void;
+    (event: "open-position", item: HotItem): void;
     (event: "update:marketGroup", value: HotMarketGroup): void;
 }>();
 
@@ -390,8 +392,8 @@ function unbindObserver(): void {
                         </td>
                         <td>
                             <div class="value-stack">
-                                <strong :class="item.changePercent >= 0 ? 'tone-rise' : 'tone-fall'">{{ formatPercent(item.changePercent) }}</strong>
-                                <span :class="item.change >= 0 ? 'tone-rise' : 'tone-fall'">{{ formatMoney(item.change, true) }}</span>
+                                <strong :class="item.changePercent > 0 ? 'tone-rise' : item.changePercent < 0 ? 'tone-fall' : ''">{{ formatPercent(item.changePercent) }}</strong>
+                                <span :class="item.change > 0 ? 'tone-rise' : item.change < 0 ? 'tone-fall' : ''">{{ formatMoney(item.change, true) }}</span>
                             </div>
                         </td>
                         <td>
@@ -408,28 +410,41 @@ function unbindObserver(): void {
                         </td>
                         <td class="table-action-cell hot-table-sticky hot-table-sticky-actions">
                             <div class="action-stack table-action-stack" @click.stop>
-                                <Button
-                                    v-if="isTracked(item)"
-                                    size="small"
-                                    text
-                                    rounded
-                                    severity="success"
-                                    icon="pi pi-check"
-                                    class="hot-added-button"
-                                    :aria-label="t('hot.added')"
-                                    disabled
-                                />
-                                <Button
-                                    v-else
-                                    size="small"
-                                    text
-                                    rounded
-                                    icon="pi pi-plus"
-                                    class="hot-add-button"
-                                    :label="t('hot.addToWatchlist')"
-                                    :aria-label="t('hot.addToWatchlist')"
-                                    @click="$emit('add-item', item)"
-                                />
+                                <template v-if="isTracked(item)">
+                                    <Button
+                                        size="small"
+                                        text
+                                        rounded
+                                        icon="pi pi-bookmark-fill"
+                                        class="hot-watched-button"
+                                        style="color: var(--accent);"
+                                        :aria-label="t('hot.unwatchItem')"
+                                        :title="t('hot.unwatchItem')"
+                                        @click="$emit('unwatch-item', item)"
+                                    />
+                                </template>
+                                <template v-else>
+                                    <Button
+                                        size="small"
+                                        text
+                                        rounded
+                                        icon="pi pi-bookmark"
+                                        class="hot-watch-button"
+                                        :aria-label="t('hot.watchItem')"
+                                        :title="t('hot.watchItem')"
+                                        @click="$emit('watch-item', item)"
+                                    />
+                                    <Button
+                                        size="small"
+                                        text
+                                        rounded
+                                        icon="pi pi-wallet"
+                                        class="hot-position-button"
+                                        :aria-label="t('hot.openPosition')"
+                                        :title="t('hot.openPosition')"
+                                        @click="$emit('open-position', item)"
+                                    />
+                                </template>
                             </div>
                         </td>
                     </tr>
@@ -547,6 +562,7 @@ function unbindObserver(): void {
 .sortable {
     cursor: pointer;
     user-select: none;
+    white-space: nowrap;
 }
 
 .sortable span {
@@ -585,7 +601,7 @@ function unbindObserver(): void {
 
 .hot-table th.hot-table-sticky-volume,
 .hot-table td.hot-table-sticky-volume {
-    right: 124px;
+    right: 88px;
     width: 108px;
     min-width: 108px;
     max-width: 108px;
@@ -594,26 +610,26 @@ function unbindObserver(): void {
 .hot-table th.hot-table-sticky-actions,
 .hot-table td.hot-table-sticky-actions {
     right: 0;
-    width: 124px;
-    min-width: 124px;
-    max-width: 124px;
+    width: 88px;
+    min-width: 88px;
+    max-width: 88px;
 }
 
 .hot-table td.table-action-cell {
-    padding-left: 8px;
-    padding-right: 8px;
+    padding-left: 12px;
+    padding-right: 12px;
 }
 
 .hot-table .table-action-stack {
     width: 100%;
     justify-content: center;
-    gap: 2px;
+    gap: 4px;
 }
 
 .hot-table .table-action-cell :deep(.p-button) {
-    width: 24px;
-    height: 24px;
-    min-width: 24px;
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
     padding: 0;
 }
 
@@ -621,14 +637,19 @@ function unbindObserver(): void {
     width: auto;
     min-width: 0;
     height: 28px;
-    padding: 0 0.55rem;
-    gap: 0.3rem;
+    padding: 0.25rem 0.7rem;
+    gap: 0.35rem;
 }
 
 .hot-table .table-action-cell :deep(.hot-add-button .p-button-label) {
     font-size: 11px;
     white-space: nowrap;
 }
+
+.hot-table .table-action-cell :deep(.hot-position-button.p-button) {
+    color: var(--accent);
+}
+
 
 @media (max-width: 880px) {
     .hot-summary {

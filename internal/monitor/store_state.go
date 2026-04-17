@@ -169,6 +169,10 @@ func (s *Store) snapshotLocked() StateSnapshot {
 		return alerts[i].UpdatedAt.After(alerts[j].UpdatedAt)
 	})
 
+	for index := range items {
+		items[index] = decorateItemDerived(items[index])
+	}
+
 	return StateSnapshot{
 		Dashboard:    buildDashboard(items, alerts, s.fxRates, s.state.Settings.DashboardCurrency),
 		Items:        items,
@@ -442,8 +446,8 @@ func buildDashboard(items []WatchlistItem, alerts []AlertRule, fx *FxRates, disp
 
 		summary.TotalCost += costBasis
 		summary.TotalValue += marketValue
-		// Only items with actual holdings (Quantity > 0) and recorded cost price participate in PnL (Profit and Loss) counting.
-		// Pure observation items (Quantity=0, CostPrice=0) and edge cases where cost becomes zero after DCA (Dollar-Cost Averaging) are excluded.
+		// Only items with an actual position (Quantity > 0) and a recorded cost price contribute to the win/loss tally.
+		// Watch-only items and zero-cost DCA edge cases are excluded from this count.
 		if item.Quantity > 0 && item.CostPrice > 0 {
 			if item.CurrentPrice > item.CostPrice {
 				summary.WinCount++

@@ -6,7 +6,7 @@ import { getHotMarketOptions, getModuleTabs } from "../constants";
 import { useI18n } from "../i18n";
 import type { HotMarketGroup, ModuleKey, WatchlistItem } from "../types";
 
-defineProps<{
+const props = defineProps<{
     activeModule: ModuleKey;
     items: WatchlistItem[];
     selectedItemId: string;
@@ -25,6 +25,18 @@ const { t } = useI18n();
 const moduleTabs = computed(() => getModuleTabs());
 const hotMarketOptions = computed(() => getHotMarketOptions());
 
+// Items sorted for the watchlist sidebar: position items first, then watch-only items.
+// Within each group the original order is preserved.
+const sidebarItems = computed(() => {
+    const withPos = props.items.filter((item) => item.position?.hasPosition);
+    const watchOnly = props.items.filter((item) => !item.position?.hasPosition);
+    return [...withPos, ...watchOnly];
+});
+
+function itemHasPosition(item: WatchlistItem): boolean {
+    return item.position?.hasPosition ?? false;
+}
+
 function switchModule(next: ModuleKey): void {
     emit("switch-module", next);
 }
@@ -33,43 +45,24 @@ function switchModule(next: ModuleKey): void {
 <template>
     <aside class="app-sidebar">
         <nav class="sidebar-primary-nav">
-            <button
-                v-for="tab in moduleTabs"
-                :key="tab.key"
-                class="sidebar-primary-item"
-                :class="{ active: activeModule === tab.key }"
-                type="button"
-                @click="switchModule(tab.key)"
-            >
+            <button v-for="tab in moduleTabs" :key="tab.key" class="sidebar-primary-item" :class="{ active: activeModule === tab.key }" type="button" @click="switchModule(tab.key)">
                 <i :class="tab.icon"></i>
                 <span>{{ tab.label }}</span>
             </button>
         </nav>
 
         <div class="sidebar-secondary-shell">
-            <section
-                v-if="activeModule === 'market'"
-                class="sidebar-secondary-group"
-            >
-                <button
-                    v-for="item in items"
-                    :key="item.id"
-                    class="sidebar-secondary-item"
-                    :class="{ active: selectedItemId === item.id }"
-                    type="button"
-                    @click="$emit('select-item', item.id)"
-                >
-                    <strong :title="item.name || item.symbol">{{
-                        item.name || item.symbol
-                    }}</strong>
+            <section v-if="activeModule === 'watchlist'" class="sidebar-secondary-group">
+                <button v-for="item in sidebarItems" :key="item.id" class="sidebar-secondary-item" :class="{ active: selectedItemId === item.id }" type="button" @click="$emit('select-item', item.id)">
+                    <div class="sidebar-item-name-row">
+                        <strong :title="item.name || item.symbol">{{ item.name || item.symbol }}</strong>
+                        <i v-if="itemHasPosition(item)" class="pi pi-wallet sidebar-position-icon" :title="t('sidebar.positionBadgeTitle')"></i>
+                    </div>
                     <span>{{ item.market }} · {{ item.symbol }}</span>
                 </button>
             </section>
 
-            <section
-                v-else-if="activeModule === 'hot'"
-                class="sidebar-secondary-group"
-            >
+            <section v-else-if="activeModule === 'hot'" class="sidebar-secondary-group">
                 <button
                     v-for="entry in hotMarketOptions"
                     :key="entry.value"
@@ -84,21 +77,10 @@ function switchModule(next: ModuleKey): void {
         </div>
 
         <div class="sidebar-footer">
-            <Button
-                size="small"
-                text
-                icon="pi pi-cog"
-                :label="t('settings.title')"
-                class="sidebar-settings-button"
-                :class="{ active: activeModule === 'settings' }"
-                @click="$emit('open-settings')"
-            />
+            <Button size="small" text icon="pi pi-cog" :label="t('settings.title')" class="sidebar-settings-button" :class="{ active: activeModule === 'settings' }" @click="$emit('open-settings')" />
         </div>
 
-        <div
-            class="sidebar-resize-handle"
-            @mousedown.prevent.stop="$emit('start-resize', $event)"
-        ></div>
+        <div class="sidebar-resize-handle" @mousedown.prevent.stop="$emit('start-resize', $event)"></div>
     </aside>
 </template>
 
@@ -185,6 +167,43 @@ function switchModule(next: ModuleKey): void {
     overflow: hidden;
     text-overflow: ellipsis;
     display: block;
+}
+
+.sidebar-item-name-row strong {
+    display: block;
+    font-size: 12px;
+    line-height: 1.25;
+    font-weight: 500;
+}
+
+.sidebar-item-name-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    overflow: hidden;
+}
+
+.sidebar-item-name-row strong {
+    flex: 1 1 0;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sidebar-position-icon {
+    flex: 0 0 auto;
+    font-size: 10px;
+    color: color-mix(in srgb, var(--accent) 35%, transparent);
+    transition: color 140ms ease;
+}
+
+.sidebar-secondary-item:hover .sidebar-position-icon {
+    color: color-mix(in srgb, var(--accent) 60%, transparent);
+}
+
+.sidebar-secondary-item.active .sidebar-position-icon {
+    color: var(--accent);
 }
 
 .sidebar-secondary-item span {

@@ -99,7 +99,7 @@ export function useHistorySeries(items: Ref<WatchlistItem[]>, selectedItem: Comp
     function clearHistoryCache(): void {
         cancelInflightHistory(true);
         historyCache.clear();
-        if (activeModule.value === "market") {
+        if (activeModule.value === "watchlist") {
             void loadHistory(true, true);
         }
     }
@@ -116,8 +116,8 @@ export function useHistorySeries(items: Ref<WatchlistItem[]>, selectedItem: Comp
     watch(
         () => [activeModule.value, selectedItem.value?.id ?? "", historyInterval.value] as const,
         () => {
-            if (activeModule.value !== "market" || !selectedItem.value) {
-                // When leaving the market module, cancel the request directly to avoid unnecessary background updates.
+            if (activeModule.value !== "watchlist" || !selectedItem.value) {
+                // When leaving the watchlist module, cancel the request directly to avoid unnecessary background updates.
                 cancelInflightHistory(true);
                 return;
             }

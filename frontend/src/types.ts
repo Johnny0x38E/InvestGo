@@ -1,25 +1,14 @@
 // History intervals use time-window semantics; there is no separate real-time label.
 export type HistoryInterval = "1h" | "1d" | "1w" | "1mo" | "1y" | "3y" | "all";
 export type AlertCondition = "above" | "below";
-export type ModuleKey =
-    | "overview"
-    | "market"
-    | "hot"
-    | "watchlist"
-    | "alerts"
-    | "settings";
-export type SettingsTabKey =
-    | "general"
-    | "display"
-    | "region"
-    | "developer"
-    | "about";
+export type ModuleKey = "overview" | "watchlist" | "hot" | "holdings" | "alerts" | "settings";
+export type SettingsTabKey = "general" | "display" | "region" | "developer" | "about";
 export type StatusTone = "success" | "warn" | "error";
 export type CardTone = "neutral" | "rise" | "fall" | "warn";
 export type DeveloperLogLevel = "debug" | "info" | "warn" | "error";
 export type DeveloperLogSource = "backend" | "frontend" | "system";
 export type ThemeMode = "system" | "light" | "dark";
-export type ColorTheme = "blue" | "graphite" | "forest" | "sunset";
+export type ColorTheme = "blue" | "graphite" | "forest" | "sunset" | "rose" | "violet" | "amber";
 
 // Unified market types conforming to exchange conventions
 export type MarketType =
@@ -58,6 +47,27 @@ export interface DCAEntry {
     price?: number; // Manually entered buy price; 0 or omitted means not filled
     fee?: number; // Commission / fee
     note?: string;
+    effectivePrice?: number;
+}
+
+export interface DCASummary {
+    count: number;
+    totalAmount: number;
+    totalShares: number;
+    totalFees: number;
+    averageCost: number;
+    currentValue: number;
+    pnl: number;
+    pnlPct: number;
+    hasCurrentPrice: boolean;
+}
+
+export interface PositionSummary {
+    costBasis: number;
+    marketValue: number;
+    unrealisedPnL: number;
+    unrealisedPnLPct: number;
+    hasPosition: boolean;
 }
 
 export interface WatchlistItem {
@@ -68,6 +78,7 @@ export interface WatchlistItem {
     currency: string;
     quantity: number;
     costPrice: number;
+    acquiredAt?: string;
     currentPrice: number;
     previousClose: number;
     openPrice: number;
@@ -81,6 +92,8 @@ export interface WatchlistItem {
     thesis: string;
     tags: string[];
     dcaEntries?: DCAEntry[];
+    dcaSummary?: DCASummary;
+    position?: PositionSummary;
     updatedAt: string;
 }
 
@@ -144,6 +157,42 @@ export interface DashboardSummary {
     displayCurrency: string;
 }
 
+export interface OverviewHoldingSlice {
+    itemId: string;
+    symbol: string;
+    name: string;
+    market: string;
+    currency: string;
+    value: number;
+    weight: number;
+}
+
+export interface OverviewTrendSeries {
+    itemId: string;
+    symbol: string;
+    name: string;
+    market: string;
+    currency: string;
+    latestValue: number;
+    firstBuyDate: string;
+    values: number[];
+}
+
+export interface OverviewTrend {
+    startDate?: string;
+    endDate?: string;
+    dates: string[];
+    series: OverviewTrendSeries[];
+    totalValue: number;
+}
+
+export interface OverviewAnalytics {
+    displayCurrency: string;
+    breakdown: OverviewHoldingSlice[];
+    trend: OverviewTrend;
+    generatedAt: string;
+}
+
 export interface HistoryPoint {
     timestamp: string;
     open: number;
@@ -167,6 +216,20 @@ export interface HistorySeries {
     change: number;
     changePercent: number;
     points: HistoryPoint[];
+    snapshot?: {
+        livePrice: number;
+        effectiveChange: number;
+        effectiveChangePct: number;
+        previousClose: number;
+        openPrice: number;
+        rangeHigh: number;
+        rangeLow: number;
+        amplitudePct: number;
+        positionValue: number;
+        positionBaseline: number;
+        positionPnL: number;
+        positionPnLPct: number;
+    };
     generatedAt: string;
 }
 
@@ -245,6 +308,7 @@ export interface ItemFormModel {
     currency: string;
     quantity: number;
     costPrice: number;
+    acquiredAt: string;
     tagsText: string;
     thesis: string;
     currentPrice: number; // Used only for DCA summary display; not serialized on submit

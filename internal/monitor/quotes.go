@@ -17,7 +17,7 @@ const (
 	DefaultUSQuoteSourceID = "eastmoney"
 )
 
-// Quote represents the unified quote structure consumed by the frontend dashboard.
+// Quote holds real-time market data for one instrument, shared between quote providers and the frontend.
 type Quote struct {
 	Symbol        string
 	Name          string
@@ -48,7 +48,7 @@ type QuoteSourceOption struct {
 	SupportedMarkets []string `json:"supportedMarkets"`
 }
 
-// QuoteTarget represents the standardized common result after normalizing the item code.
+// QuoteTarget is the normalized, canonical market identity of a tracked item, used as the lookup key across all quote providers.
 type QuoteTarget struct {
 	Key           string
 	DisplaySymbol string
@@ -56,12 +56,12 @@ type QuoteTarget struct {
 	Currency      string
 }
 
-// ResolveQuoteTarget standardizes an item into the target structure used uniformly within the system.
+// ResolveQuoteTarget resolves a WatchlistItem into its canonical QuoteTarget.
 func ResolveQuoteTarget(item WatchlistItem) (QuoteTarget, error) {
 	return resolveQuoteTarget(item.Symbol, item.Market, item.Currency)
 }
 
-// resolveQuoteTarget derives a unified target identifier based on code, market, and currency.
+// resolveQuoteTarget normalizes a raw symbol, market, and currency string into a canonical QuoteTarget.
 func resolveQuoteTarget(symbol, market, currency string) (QuoteTarget, error) {
 	rawSymbol := strings.ToUpper(strings.TrimSpace(symbol))
 	if rawSymbol == "" {
@@ -71,7 +71,7 @@ func resolveQuoteTarget(symbol, market, currency string) (QuoteTarget, error) {
 	market = normaliseMarketLabel(market)
 	rawSymbol = strings.ReplaceAll(rawSymbol, " ", "")
 
-	// Compatible with different input styles, converge user input to a few standard forms before dispatching.
+	// Normalize the many input formats a user may provide to a small set of canonical forms before dispatching.
 	switch {
 	case strings.HasPrefix(rawSymbol, "GB_"):
 		ticker := strings.TrimPrefix(rawSymbol, "GB_")
@@ -219,7 +219,7 @@ func buildUSTarget(rawSymbol, market, currency string) (QuoteTarget, error) {
 	}, nil
 }
 
-// normaliseMarketLabel converges market label compatible values to system internal standard enumerations.
+// normaliseMarketLabel maps any recognized market label variant to the canonical internal market identifier.
 func normaliseMarketLabel(market string) string {
 	switch strings.ToUpper(strings.TrimSpace(market)) {
 	case "A-SHARE", "ASHARE", "CN", "A", "CN-A":

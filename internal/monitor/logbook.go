@@ -341,7 +341,7 @@ func appendLogAttr(parts *[]string, groups []string, attr slog.Attr) {
 		return
 	}
 
-	// slog groups need to be flattened into flat key paths to avoid nested structures losing semantics in logs.
+	// Flatten slog group attributes into dot-separated key paths so they remain readable in plain-text log output.
 	if attr.Value.Kind() == slog.KindGroup {
 		nextGroups := groups
 		if attr.Key != "" {

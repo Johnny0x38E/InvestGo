@@ -131,16 +131,18 @@ main ──► api ──► monitor ◄── marketdata ◄── datasource
 
 用户自选标的。市价字段（CurrentPrice、PreviousClose 等）由行情刷新回填，不由用户直接写入。
 
+
 ```go
 type WatchlistItem struct {
-    ID             string
-    Symbol         string     // 规范化后的代码，如 600519.SH、00700.HK、QQQ
+    ID             string           // 唯一标识
+    Symbol         string           // 规范化后的代码，如 600519.SH、00700.HK、QQQ
     Name           string
-    Market         string     // 见市场枚举
-    Currency       string     // CNY / HKD / USD
-    Quantity       float64    // 持仓数量（0 表示仅观察）
-    CostPrice      float64    // 成本价
-    CurrentPrice   float64    // 最新价（行情回填）
+    Market         string           // 见市场枚举
+    Currency       string           // CNY / HKD / USD
+    Quantity       float64          // 持仓数量（0 表示仅观察）
+    CostPrice      float64          // 成本价（单价）
+    AcquiredAt     *time.Time       // 首次建仓时间（仅持仓项有效；纯观察项由 sanitiseItem 清除）
+    CurrentPrice   float64          // 最新价（行情回填）
     PreviousClose  float64
     OpenPrice      float64
     DayHigh        float64
@@ -149,13 +151,17 @@ type WatchlistItem struct {
     ChangePercent  float64
     QuoteSource    string
     QuoteUpdatedAt *time.Time
-    Thesis         string     // 投资逻辑备注
-    Tags           []string   // 自定义标签（去重、去空）
+    PinnedAt       *time.Time       // 非 nil 时表示已置顶
+    Thesis         string           // 投资逻辑备注
+    Tags           []string         // 自定义标签（去重、去空）
+    DCAEntries     []DCAEntry       // 定投记录（纯观察项为空）
+    DCASummary     *DCASummary      // 由 DCAEntries 聚合，非 nil 表示有有效定投记录
+    Position       *PositionSummary // 后端派生的持仓指标；前端应使用 Position.HasPosition 而非自行判断
     UpdatedAt      time.Time
 }
 ```
 
-辅助方法：`CostBasis()`、`MarketValue()`、`UnrealisedPnL()`、`UnrealisedPnLPct()`
+> **watchOnly 语义**：Quantity == 0 且 DCAEntries 为空的项为纯观察项。`sanitiseItem` 在保存纯观察项时会主动清除 `AcquiredAt`，使其不参与 Overview 趋势计算。
 
 **市场枚举**：
 
@@ -171,6 +177,47 @@ type WatchlistItem struct {
 | `HK-ETF`   | 港股 ETF         |
 | `US-STOCK` | 美股             |
 | `US-ETF`   | 美股 ETF         |
+
+### DCAEntry / DCASummary / PositionSummary
+
+定投记录和持仓派生指标：
+
+```go
+// DCAEntry 记录一次定投操作。
+type DCAEntry struct {
+    ID             string
+    Date           time.Time
+    Amount         float64    // 投入金额
+    Shares         float64    // 买入份额
+    Price          float64    // 期望价（可选）
+    Fee            float64    // 手续费（可选）
+    Note           string     // 备注（可选）
+    EffectivePrice float64    // 实际成交均价（Amount / Shares）
+}
+
+// DCASummary 汇总 DCAEntries 的聚合指标，由后端在快照时计算。
+type DCASummary struct {
+    Count           int
+    TotalAmount     float64
+    TotalShares     float64
+    TotalFees       float64
+    AverageCost     float64
+    CurrentValue    float64
+    PnL             float64
+    PnLPct          float64
+    HasCurrentPrice bool
+}
+
+// PositionSummary 由后端基于 Quantity / CostPrice 派生，随快照下发给前端。
+// 前端通过 item.position?.hasPosition 判断是否有持仓，不在客户端重新计算。
+type PositionSummary struct {
+    CostBasis        float64
+    MarketValue      float64
+    UnrealisedPnL    float64
+    UnrealisedPnLPct float64
+    HasPosition      bool
+}
+```
 
 ### AlertRule
 
@@ -198,7 +245,7 @@ type AppSettings struct {
     USQuoteSource          string
     HotUSSource            string  // "eastmoney" | "yahoo"
     ThemeMode              string  // "system" | "light" | "dark"
-    ColorTheme             string  // "blue" | "graphite" | "forest" | "sunset"
+    ColorTheme             string  // "blue" | "graphite" | "forest" | "sunset" | "rose" | "violet" | "amber"
     FontPreset             string  // "system" | "reading" | "compact"
     AmountDisplay          string  // "full" | "compact"
     CurrencyDisplay        string  // "symbol" | "code"
@@ -535,7 +582,7 @@ Handler 使用自实现的轻量路由（不依赖 `net/http` 的模式匹配）
 ```
 main()
   ├─ 创建 LogBook（容量 400 条）
-  ├─ 按需启用终端日志（-dev 参数或构建注入 defaultTerminalLogging=1）
+  ├─ 按需启用终端日志（--dev 参数或构建注入 defaultTerminalLogging=1）
   ├─ 配置日志文件（~/Library/Application Support/investgo/logs/app.log）
   ├─ applySystemProxy()：读 macOS 系统代理并注入环境变量
   ├─ DefaultQuoteSourceRegistry()：创建 EastMoney + Yahoo provider 注册表
@@ -577,7 +624,7 @@ main()
 前端 POST /api/items  或  PUT /api/items/{id}
   └─ api.Handler.handleCreateItem / handleUpdateItem
        └─ store.UpsertItem(input)
-            ├─ sanitiseItem()：规范化代码、市场、货币，校验数值
+            ├─ sanitiseItem()：规范化代码、市场、货币，校验数值；纯观察项（Quantity=0 且无 DCA）自动清除 AcquiredAt
             ├─ [读锁] 取当前 provider，查旧条目（更新时）
             ├─ inheritLiveFields()：保留已有盘口数据
             ├─ [无锁] provider.Fetch() 补一跳行情（8s 超时）
@@ -663,7 +710,7 @@ type LogBook struct {
 }
 ```
 
-三条输出通路：**内存**（环形缓冲）+ **文件**（追加写）+ **终端**（stderr，-dev 模式启用）
+三条输出通路：**内存**（环形缓冲）+ **文件**（追加写）+ **终端**（stderr，--dev 模式启用）
 
 日志等级：`debug` / `info` / `warn` / `error`
 
@@ -756,3 +803,13 @@ type FxRates struct {
 2. 在 `quotes.go` 的 `normaliseMarketLabel()` 和 `inferCNMarketAndExchange()` 中处理新市场
 3. 在 `store_state.go` 的 `marketGroupForMarket()` 中归组
 4. 在 `quote_sources.go` 的 `resolveAllEastMoneySecIDs()` 和 `SupportedMarkets` 中处理新市场的 secid 映射
+
+### 新增配色主题
+
+新增一个 `ColorTheme` 值需要同步修改以下五处，缺一不可：
+
+1. `frontend/src/types.ts` — 扩展 `ColorTheme` 联合类型
+2. `frontend/src/constants.ts` — 在 `getColorThemeOptions()` 追加选项，并在 `COLOR_THEME_SWATCHES` 补充代表色
+3. `frontend/src/style.css` — 添加两个 CSS 规则块（亮色选择器 + `html[data-theme="dark"]` 组合选择器）
+4. `frontend/src/theme.ts` — 在 `themeSeeds` 中添加 PrimeVue 调色板种子色
+5. `internal/monitor/settings_rules.go` — 在 `sanitiseSettings` 的 `switch settings.ColorTheme` 中加入新值，并同步更新 `internal/monitor/error_i18n.go` 中对应的错误提示

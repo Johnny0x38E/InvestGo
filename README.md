@@ -2,59 +2,106 @@
 
 [English](./README.md) | [简体中文](./README.zh-CN.md) | [License](./LICENSE)
 
-InvestGo is a desktop investment watchlist application built with Go and Wails v3. It supports watchlists, real-time quotes, historical charts, hot lists, and price alerts.
+InvestGo is a desktop investment tracker for watchlists, holdings, charts, hot lists, and alerts.
 
 ## Screenshots
 
-![Light](assets/screenshot1-light.png)
+| Light                      | Dark                     |
+| -------------------------- | ------------------------ |
+| ![Light](assets/light.png) | ![Dark](assets/dark.png) |
 
-![Dark](assets/screenshot2-dark.png)
+## Tech Stack
 
-![Screenshot 2](assets/screenshot3.png)
-
-![Screenshot 3](assets/screenshot4.png)
-
-![Screenshot 4](assets/screenshot5.png)
-
-![Screenshot 5](assets/screenshot6.png)
-
-## Quick Start
-
-```bash
-git clone https://github.com/Johnny0x38E/InvestGo.git
-cd InvestGo
-npm install
-npm run dev           # Frontend development server (localhost:5173)
-go run main.go -dev   # Backend development
-```
+- Go 1.25
+- Wails v3
+- Vue 3 + TypeScript
+- PrimeVue 4
+- Vite 8
+- Chart.js 4
+- EastMoney and Yahoo Finance for market data
+- Frankfurter for exchange rates
+- macOS app packaging with shell scripts, `swift`, `iconutil`, and `hdiutil`
 
 ## Build
 
+Prerequisites:
+
+- Node.js 20+
+- Go 1.25+
+- macOS 13+ on Apple Silicon for the Darwin arm64 build scripts
+
+Install dependencies:
+
 ```bash
-VERSION=0.1.0 ./scripts/build-macos-arm64.sh
-./scripts/build-macos-arm64.sh --dev
-./scripts/package-macos-dmg.sh
+npm install
 ```
 
-## Requirements
+Build the frontend bundle:
 
-- Go 1.25+
-- Node.js 20+
-- macOS arm64
+```bash
+npm run build
+```
 
-## Disclaimer
+Run checks:
 
-**IMPORTANT NOTICE**: This software is intended for personal learning and investment observation purposes only and does not constitute any form of investment advice, financial advice, or a recommendation to buy or sell.
+```bash
+npm run typecheck
+env GOCACHE=/tmp/go-build-cache go test ./...
+```
 
-Users should independently verify the accuracy and completeness of all data, information, and functions provided by this software. The authors and contributors assume no liability for:
+Build the desktop binary:
 
-1. Any investment losses or gains resulting from the use of this software
-2. The accuracy, timeliness, or completeness of the data provided
-3. Data interruptions or errors caused by network failures, data source changes, or other technical issues
-4. Any outcomes from investment decisions based on information from this software
+```bash
+./scripts/build-darwin-aarch64.sh
+VERSION=1.0.0 ./scripts/build-darwin-aarch64.sh
+./scripts/build-darwin-aarch64.sh --dev
+```
 
-Investment involves risks. Users should fully understand the risks before using this software and assume full responsibility for all consequences of their investment decisions.
+Notes:
+
+- The build script renders `build/appicon.png`, runs `npm run build`, and outputs `build/bin/investgo-darwin-aarch64`.
+- `--dev` enables terminal logging and F12 Web Inspector support.
+
+Build script environment variables:
+
+- `VERSION`
+- `APP_VERSION`
+- `OUTPUT_FILE`
+- `MACOS_MIN_VERSION`
+- `GOCACHE`
+- `MACOSX_DEPLOYMENT_TARGET`
+- `CGO_CFLAGS`
+- `CGO_LDFLAGS`
+
+## Package
+
+Package the app bundle and DMG:
+
+```bash
+./scripts/package-darwin-aarch64.sh
+VERSION=1.0.0 ./scripts/package-darwin-aarch64.sh
+./scripts/package-darwin-aarch64.sh --dev
+```
+
+Packaging script environment variables:
+
+- `APP_NAME`
+- `BINARY_NAME`
+- `VERSION`
+- `APP_ID`
+- `MACOS_MIN_VERSION`
+- `VOLUME_NAME`
+- `ICON_SOURCE`
+- `APPLE_SIGN_IDENTITY`
+- `NOTARYTOOL_PROFILE`
+- `SKIP_APP_BUILD`
+- `SKIP_DMG_CREATE`
+
+Outputs:
+
+- `build/macos/InvestGo.app`
+- `build/bin/investgo-<version>-darwin-aarch64.dmg`
 
 ## License
 
-This project is licensed under the [MIT License](./LICENSE).
+This project is open-sourced under the [MIT License](./LICENSE).

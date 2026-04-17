@@ -10,7 +10,7 @@ import (
 	"investgo/internal/monitor/validation"
 )
 
-// UpsertItem adds or updates a watchlist item, and tries to fetch the latest quote in real-time mode.
+// UpsertItem saves or updates a tracked item and fetches a fresh quote when a live provider is available.
 func (s *Store) UpsertItem(input WatchlistItem) (StateSnapshot, error) {
 	item, err := sanitiseItem(input)
 	if err != nil {
@@ -25,6 +25,13 @@ func (s *Store) UpsertItem(input WatchlistItem) (StateSnapshot, error) {
 		if index := s.findItemIndexLocked(input.ID); index >= 0 {
 			copy := s.state.Items[index]
 			existing = &copy
+		}
+	} else {
+		for _, it := range s.state.Items {
+			if it.Symbol == item.Symbol && it.Market == item.Market {
+				s.mu.RUnlock()
+				return StateSnapshot{}, fmt.Errorf("Item already exists in the list: %s (%s)", item.Symbol, item.Market)
+			}
 		}
 	}
 	s.mu.RUnlock()
@@ -90,7 +97,7 @@ func (s *Store) UpsertItem(input WatchlistItem) (StateSnapshot, error) {
 	return s.snapshotLocked(), nil
 }
 
-// SetItemPinned updates whether the specified item is pinned to the top of watchlist-oriented views.
+// SetItemPinned pins or unpins the specified item; pinned items sort to the top of all list views.
 func (s *Store) SetItemPinned(id string, pinned bool) (StateSnapshot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -270,11 +277,10 @@ func sanitiseItem(input WatchlistItem) (WatchlistItem, error) {
 	item.Currency = target.Currency
 	item.QuoteSource = strings.TrimSpace(item.QuoteSource)
 
-	// If there are DCA (Dollar-Cost Averaging) records, first filter and normalize entries, then automatically calculate accumulated shares and weighted average price.
-	// Calculation rules:
-	//   1. Prefer manually entered buy price (Price > 0): effectiveCost = Price × Shares
-	//   2. When no buy price, deduct fee from total investment: effectiveCost = max(Amount - Fee, 0)
-	// Weighted average price = Σ effectiveCost_i / Σ Shares_i
+	// When DCA entries are present, normalize them and re-derive Quantity and CostPrice:
+	//   1. If a buy price is recorded (Price > 0), use Price × Shares as the effective cost.
+	//   2. Otherwise, derive effective cost from the invested amount net of fees: max(Amount − Fee, 0).
+	//   Weighted average cost price = Σ effectiveCost_i / Σ Shares_i
 	if len(item.DCAEntries) > 0 {
 		validEntries, totalShares, averageCost := validation.NormalizeDCAEntries(item.DCAEntries, newID)
 		item.DCAEntries = validEntries
@@ -291,6 +297,17 @@ func sanitiseItem(input WatchlistItem) (WatchlistItem, error) {
 	}
 	if item.CostPrice < 0 || item.CurrentPrice < 0 {
 		return WatchlistItem{}, errors.New("Price must not be negative")
+	}
+
+	if item.AcquiredAt != nil {
+		normalized := time.Date(item.AcquiredAt.Year(), item.AcquiredAt.Month(), item.AcquiredAt.Day(), 0, 0, 0, 0, time.UTC)
+		item.AcquiredAt = &normalized
+	}
+
+	// Watch-only items (no shares held, no DCA records) should never carry an
+	// acquisition date — clear it so the overview trend correctly excludes them.
+	if item.Quantity == 0 && len(item.DCAEntries) == 0 {
+		item.AcquiredAt = nil
 	}
 
 	return item, nil

@@ -88,9 +88,9 @@ func sanitiseSettings(input AppSettings, current AppSettings, quoteProviders map
 	switch settings.ColorTheme {
 	case "", "blue":
 		settings.ColorTheme = "blue"
-	case "graphite", "forest", "sunset":
+	case "graphite", "forest", "sunset", "rose", "violet", "amber":
 	default:
-		return AppSettings{}, errors.New("Color theme must be one of: blue / graphite / forest / sunset")
+		return AppSettings{}, errors.New("Color theme must be one of: blue / graphite / forest / sunset / rose / violet / amber")
 	}
 	switch settings.AmountDisplay {
 	case "", "full":
