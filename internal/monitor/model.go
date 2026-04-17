@@ -56,12 +56,12 @@ func (w WatchlistItem) MarketValue() float64 {
 	return w.Quantity * w.CurrentPrice
 }
 
-// UnrealisedPnL returns position unrealized PnL (Profit and Loss) amount, i.e., current value minus cost amount.
+// UnrealisedPnL returns position position PnL (Profit and Loss) amount, i.e., current value minus cost amount.
 func (w WatchlistItem) UnrealisedPnL() float64 {
 	return w.MarketValue() - w.CostBasis()
 }
 
-// UnrealisedPnLPct returns position unrealized PnL percentage, i.e., unrealized PnL amount divided by cost amount multiplied by 100.
+// UnrealisedPnLPct returns position position PnL percentage, i.e., position PnL amount divided by cost amount multiplied by 100.
 func (w WatchlistItem) UnrealisedPnLPct() float64 {
 	if w.CostBasis() == 0 {
 		return 0
@@ -183,7 +183,7 @@ const (
 	HotCategoryCNA      HotCategory = "cn-a"      // Shanghai/Shenzhen A-shares (Main Board + GEM + STAR Market)
 	HotCategoryCNETF    HotCategory = "cn-etf"    // Shanghai/Shenzhen ETFs
 	HotCategoryHK       HotCategory = "hk"        // Hong Kong stocks
-	HotCategoryHKETF    HotCategory = "hk-etf"    // Hong Kong stocksETF
+	HotCategoryHKETF    HotCategory = "hk-etf"    // Hong Kong stocks ETFs
 	HotCategoryUSSP500  HotCategory = "us-sp500"  // S&P 500
 	HotCategoryUSNasdaq HotCategory = "us-nasdaq" // Nasdaq 100
 	HotCategoryUSDow    HotCategory = "us-dow"    // Dow Jones 30

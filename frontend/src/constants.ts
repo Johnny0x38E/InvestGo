@@ -7,9 +7,10 @@ export const projectMeta = {
 
 export function getModuleTabs(): ModuleTab[] {
     return [
+        { key: "overview", label: translate("modules.overview"), icon: "pi pi-home" },
         { key: "market", label: translate("modules.market"), icon: "pi pi-chart-line" },
-        { key: "hot", label: translate("modules.hot"), icon: "pi pi-bolt" },
         { key: "watchlist", label: translate("modules.watchlist"), icon: "pi pi-table" },
+        { key: "hot", label: translate("modules.hot"), icon: "pi pi-bolt" },
         { key: "alerts", label: translate("modules.alerts"), icon: "pi pi-bell" },
     ];
 }

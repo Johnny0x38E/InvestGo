@@ -2,11 +2,10 @@
 import { computed, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from "vue";
 import Button from "primevue/button";
 import InputText from "primevue/inputtext";
-import Select from "primevue/select";
 import Tag from "primevue/tag";
 
 import { ApiAbortError, api } from "../../api";
-import { getHotCategoryOptions, getHotMarketOptions } from "../../constants";
+import { getHotCategoryOptions } from "../../constants";
 import { formatDateTime, formatMoney, formatPercent, formatUnitPrice } from "../../format";
 import { useI18n } from "../../i18n";
 import type { HotCategory, HotItem, HotListResponse, HotMarketGroup } from "../../types";
@@ -16,14 +15,15 @@ type SortDirection = "asc" | "desc";
 
 const props = defineProps<{
     trackedKeys: string[];
+    marketGroup: HotMarketGroup;
 }>();
 
-const emit = defineEmits<{
+defineEmits<{
     (event: "add-item", item: HotItem): void;
+    (event: "update:marketGroup", value: HotMarketGroup): void;
 }>();
 
 const category = ref<HotCategory>("cn-a");
-const marketGroup = ref<HotMarketGroup>("cn");
 const searchKeyword = ref("");
 const activeKeyword = ref("");
 const sortField = ref<SortField>("volume");
@@ -43,9 +43,8 @@ const { t } = useI18n();
 
 const trackedSet = computed(() => new Set(props.trackedKeys));
 const normalizedKeyword = computed(() => activeKeyword.value);
-const hotMarketOptions = computed(() => getHotMarketOptions());
 const hotCategoryOptions = computed(() => getHotCategoryOptions());
-const categoryOptions = computed(() => hotCategoryOptions.value[marketGroup.value]);
+const categoryOptions = computed(() => hotCategoryOptions.value[props.marketGroup]);
 
 const sortedItems = computed(() => {
     const result = [...items.value];
@@ -77,6 +76,22 @@ const emptyMessage = computed(() => {
     return t("hot.noData");
 });
 
+const sourceSummary = computed(() => {
+    const distinct = Array.from(new Set(items.value.map((item) => item.quoteSource).filter(Boolean)));
+    if (!distinct.length) {
+        return t("common.notAvailable");
+    }
+    return distinct.join(" / ");
+});
+
+const updatedAtSummary = computed(() => {
+    const timestamps = items.value.map((item) => item.updatedAt).filter(Boolean);
+    if (!timestamps.length) {
+        return "";
+    }
+    return timestamps.reduce((latest, current) => (new Date(current).getTime() > new Date(latest).getTime() ? current : latest));
+});
+
 function handleSort(field: SortField): void {
     if (sortField.value === field) {
         sortDirection.value = sortDirection.value === "asc" ? "desc" : "asc";
@@ -93,7 +108,7 @@ function getSortIcon(field: SortField): string {
     return sortDirection.value === "asc" ? "pi pi-sort-amount-up" : "pi pi-sort-amount-down";
 }
 
-watch(marketGroup, async (next, previous) => {
+watch(() => props.marketGroup, async (next, previous) => {
     if (next === previous) {
         return;
     }
@@ -133,6 +148,7 @@ watch(activeKeyword, async (next, previous) => {
 });
 
 onMounted(async () => {
+    category.value = normalizeCategory(category.value);
     bindObserver();
     await ensureInitialLoad();
 });
@@ -187,7 +203,7 @@ function categoryBelongsToGroup(next: HotCategory, group: HotMarketGroup): boole
 }
 
 function normalizeCategory(next: HotCategory): HotCategory {
-    return categoryBelongsToGroup(next, marketGroup.value) ? next : firstCategoryForGroup(marketGroup.value);
+    return categoryBelongsToGroup(next, props.marketGroup) ? next : firstCategoryForGroup(props.marketGroup);
 }
 
 function selectCategory(next: HotCategory): void {
@@ -309,7 +325,6 @@ function unbindObserver(): void {
                 <h3 class="title">{{ t("hot.title") }}</h3>
             </div>
             <div class="hot-toolbar">
-                <Select v-model="marketGroup" :options="hotMarketOptions" option-label="label" option-value="value" class="compact-select hot-market-select" />
                 <div class="hot-category-tabs" role="tablist" :aria-label="t('hot.ariaCategoryTabs')">
                     <button
                         v-for="entry in categoryOptions"
@@ -331,6 +346,8 @@ function unbindObserver(): void {
         <div class="hot-summary">
             <span v-if="normalizedKeyword">{{ t("hot.searchResults", { count: items.length, total }) }}</span>
             <span v-else>{{ t("hot.loadedSummary", { count: items.length, total }) }}</span>
+            <span>{{ t("hot.meta.source", { source: sourceSummary }) }}</span>
+            <span>{{ t("hot.meta.updatedAt", { time: updatedAtSummary ? formatDateTime(updatedAtSummary) : t("common.notAvailable") }) }}</span>
         </div>
 
         <div class="hot-table-shell">
@@ -350,12 +367,11 @@ function unbindObserver(): void {
                             {{ t("hot.table.marketCap") }}
                             <span :class="getSortIcon('marketCap')"></span>
                         </th>
-                        <th @click="handleSort('volume')" class="sortable">
+                        <th class="hot-table-sticky hot-table-sticky-volume" @click="handleSort('volume')">
                             {{ t("hot.table.volume") }}
                             <span :class="getSortIcon('volume')"></span>
                         </th>
-                        <th>{{ t("hot.table.source") }}</th>
-                        <th></th>
+                        <th class="hot-table-sticky hot-table-sticky-actions"></th>
                     </tr>
                 </thead>
                 <tbody v-if="visibleItems.length">
@@ -384,29 +400,43 @@ function unbindObserver(): void {
                                 <span>{{ t("hot.totalMarketCap") }}</span>
                             </div>
                         </td>
-                        <td>
+                        <td class="hot-table-sticky hot-table-sticky-volume">
                             <div class="value-stack">
                                 <strong>{{ formatMoney(item.volume) }}</strong>
                                 <span>{{ t("hot.tradedVolume") }}</span>
                             </div>
                         </td>
-                        <td>
-                            <div class="value-stack">
-                                <strong>{{ item.quoteSource }}</strong>
-                                <span>{{ formatDateTime(item.updatedAt) }}</span>
-                            </div>
-                        </td>
-                        <td class="table-action-cell">
+                        <td class="table-action-cell hot-table-sticky hot-table-sticky-actions">
                             <div class="action-stack table-action-stack" @click.stop>
-                                <Tag v-if="isTracked(item)" :value="t('hot.added')" severity="success" />
-                                <Button v-else size="small" outlined icon="pi pi-plus" :label="t('hot.addToWatchlist')" :aria-label="t('hot.addToWatchlist')" @click="$emit('add-item', item)" />
+                                <Button
+                                    v-if="isTracked(item)"
+                                    size="small"
+                                    text
+                                    rounded
+                                    severity="success"
+                                    icon="pi pi-check"
+                                    class="hot-added-button"
+                                    :aria-label="t('hot.added')"
+                                    disabled
+                                />
+                                <Button
+                                    v-else
+                                    size="small"
+                                    text
+                                    rounded
+                                    icon="pi pi-plus"
+                                    class="hot-add-button"
+                                    :label="t('hot.addToWatchlist')"
+                                    :aria-label="t('hot.addToWatchlist')"
+                                    @click="$emit('add-item', item)"
+                                />
                             </div>
                         </td>
                     </tr>
                 </tbody>
                 <tbody v-else-if="!loading">
                     <tr>
-                        <td colspan="7" class="empty-row">{{ emptyMessage }}</td>
+                        <td colspan="6" class="empty-row">{{ emptyMessage }}</td>
                     </tr>
                 </tbody>
             </table>
@@ -431,6 +461,81 @@ function unbindObserver(): void {
 .sortable span {
     margin-left: 4px;
     opacity: 0.8;
-    font-size: 0.8em;
+    font-size: 12px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+}
+
+.hot-table th.hot-table-sticky-volume .pi {
+    font-size: 11px;
+    line-height: 1;
+}
+
+.hot-table th:first-child,
+.hot-table td:first-child {
+    width: 42%;
+}
+
+.hot-table th:nth-child(2),
+.hot-table td:nth-child(2) {
+    width: 102px;
+}
+
+.hot-table th:nth-child(3),
+.hot-table td:nth-child(3) {
+    width: 106px;
+}
+
+.hot-table th:nth-child(4),
+.hot-table td:nth-child(4) {
+    width: 108px;
+}
+
+.hot-table th.hot-table-sticky-volume,
+.hot-table td.hot-table-sticky-volume {
+    right: 124px;
+    width: 108px;
+    min-width: 108px;
+    max-width: 108px;
+}
+
+.hot-table th.hot-table-sticky-actions,
+.hot-table td.hot-table-sticky-actions {
+    right: 0;
+    width: 124px;
+    min-width: 124px;
+    max-width: 124px;
+}
+
+.hot-table td.table-action-cell {
+    padding-left: 8px;
+    padding-right: 8px;
+}
+
+.hot-table .table-action-stack {
+    width: 100%;
+    justify-content: center;
+    gap: 2px;
+}
+
+.hot-table .table-action-cell :deep(.p-button) {
+    width: 24px;
+    height: 24px;
+    min-width: 24px;
+    padding: 0;
+}
+
+.hot-table .table-action-cell :deep(.hot-add-button.p-button) {
+    width: auto;
+    min-width: 0;
+    height: 28px;
+    padding: 0 0.55rem;
+    gap: 0.3rem;
+}
+
+.hot-table .table-action-cell :deep(.hot-add-button .p-button-label) {
+    font-size: 11px;
+    white-space: nowrap;
 }
 </style>
