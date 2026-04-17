@@ -31,6 +31,7 @@ func (params routeParams) Value(name string) string {
 func (h *Handler) registerRoutes() []route {
 	return []route{
 		{method: http.MethodGet, pattern: "/state", handler: h.handleState},
+		{method: http.MethodGet, pattern: "/overview", handler: h.handleOverview},
 		{method: http.MethodGet, pattern: "/logs", handler: h.handleLogs},
 		{method: http.MethodDelete, pattern: "/logs", handler: h.handleClearLogs},
 		{method: http.MethodPost, pattern: "/client-logs", handler: h.handleClientLogs},
@@ -47,6 +48,16 @@ func (h *Handler) registerRoutes() []route {
 		{method: http.MethodPut, pattern: "/alerts/{id}", handler: h.handleUpdateAlert},
 		{method: http.MethodDelete, pattern: "/alerts/{id}", handler: h.handleDeleteAlert},
 	}
+}
+
+// handleOverview returns the backend-computed analytics payload for the overview module.
+func (h *Handler) handleOverview(writer http.ResponseWriter, request *http.Request, _ routeParams) {
+	analytics, err := h.store.OverviewAnalytics(request.Context())
+	if err != nil {
+		writeError(writer, request, http.StatusBadGateway, err)
+		return
+	}
+	writeJSON(writer, http.StatusOK, analytics)
 }
 
 // handleOpenExternal opens an external link using the platform default browser.
@@ -224,7 +235,7 @@ func (h *Handler) handleUpdateSettings(writer http.ResponseWriter, request *http
 	writeJSON(writer, http.StatusOK, localizeSnapshot(snapshot, requestLocale(request)))
 }
 
-// handleCreateItem creates a new watchlist item.
+// handleCreateItem creates a new tracked item (watch-only or held position).
 func (h *Handler) handleCreateItem(writer http.ResponseWriter, request *http.Request, _ routeParams) {
 	var item monitor.WatchlistItem
 	if err := decodeJSON(request, &item); err != nil {
@@ -241,7 +252,7 @@ func (h *Handler) handleCreateItem(writer http.ResponseWriter, request *http.Req
 	writeJSON(writer, http.StatusOK, localizeSnapshot(snapshot, requestLocale(request)))
 }
 
-// handleUpdateItem updates the watchlist item with the given ID.
+// handleUpdateItem updates the tracked item with the given ID.
 func (h *Handler) handleUpdateItem(writer http.ResponseWriter, request *http.Request, params routeParams) {
 	var item monitor.WatchlistItem
 	if err := decodeJSON(request, &item); err != nil {
@@ -259,7 +270,7 @@ func (h *Handler) handleUpdateItem(writer http.ResponseWriter, request *http.Req
 	writeJSON(writer, http.StatusOK, localizeSnapshot(snapshot, requestLocale(request)))
 }
 
-// handleDeleteItem deletes the watchlist item with the given ID.
+// handleDeleteItem deletes the tracked item with the given ID.
 func (h *Handler) handleDeleteItem(writer http.ResponseWriter, request *http.Request, params routeParams) {
 	snapshot, err := h.store.DeleteItem(params.Value("id"))
 	if err != nil {
@@ -270,7 +281,7 @@ func (h *Handler) handleDeleteItem(writer http.ResponseWriter, request *http.Req
 	writeJSON(writer, http.StatusOK, localizeSnapshot(snapshot, requestLocale(request)))
 }
 
-// handlePinItem updates the pinned state of the watchlist item with the given ID.
+// handlePinItem updates the pinned state of the tracked item with the given ID.
 func (h *Handler) handlePinItem(writer http.ResponseWriter, request *http.Request, params routeParams) {
 	var payload pinItemRequest
 	if err := decodeJSON(request, &payload); err != nil {

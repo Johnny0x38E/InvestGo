@@ -1,4 +1,4 @@
-import type { AlertFormModel, AlertRule, AppSettings, DCAEntry, DCAEntryRow, ItemFormModel, WatchlistItem } from "./types";
+import type { AlertFormModel, AlertRule, AppSettings, DCAEntry, DCAEntryRow, HotItem, ItemFormModel, WatchlistItem } from "./types";
 
 // Default settings used during frontend initialization; must stay in sync with backend defaults.
 export const defaultSettings: AppSettings = {
@@ -29,9 +29,54 @@ export function emptyItemForm(): ItemFormModel {
         currency: "CNY",
         quantity: 0,
         costPrice: 0,
+        acquiredAt: "",
         tagsText: "",
         thesis: "",
         currentPrice: 0,
+        dcaEntries: [],
+    };
+}
+function todayDateString(): string {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+}
+
+// Pre-fill a form for "关注" (watch only, no position) from a hot list item.
+export function hotItemToWatchForm(item: HotItem): ItemFormModel {
+    return {
+        id: "",
+        symbol: item.symbol,
+        name: item.name,
+        market: item.market,
+        currency: item.currency,
+        quantity: 0,
+        costPrice: 0,
+        acquiredAt: "",
+        tagsText: "",
+        thesis: "",
+        currentPrice: item.currentPrice,
+        dcaEntries: [],
+    };
+}
+
+// Pre-fill a form for "建仓" (open position) from a hot list item.
+// acquiredAt defaults to today; costPrice defaults to currentPrice.
+export function hotItemToPositionForm(item: HotItem): ItemFormModel {
+    return {
+        id: "",
+        symbol: item.symbol,
+        name: item.name,
+        market: item.market,
+        currency: item.currency,
+        quantity: 0,
+        costPrice: item.currentPrice,
+        acquiredAt: todayDateString(),
+        tagsText: "",
+        thesis: "",
+        currentPrice: item.currentPrice,
         dcaEntries: [],
     };
 }
@@ -66,6 +111,7 @@ export function mapItemToForm(item: WatchlistItem): ItemFormModel {
         currency: item.currency,
         quantity: item.quantity,
         costPrice: item.costPrice,
+        acquiredAt: item.acquiredAt ? isoDateToInputValue(item.acquiredAt) : "",
         tagsText: item.tags.join(", "),
         thesis: item.thesis,
         currentPrice: item.currentPrice,
@@ -86,7 +132,20 @@ export function mapItemToForm(item: WatchlistItem): ItemFormModel {
 // Serialize the form model into a backend-compatible item payload.
 export function serialiseItemForm(form: ItemFormModel): Omit<
     WatchlistItem,
-    "currentPrice" | "previousClose" | "openPrice" | "dayHigh" | "dayLow" | "change" | "changePercent" | "quoteSource" | "quoteUpdatedAt" | "pinnedAt" | "updatedAt" | "tags"
+    | "currentPrice"
+    | "previousClose"
+    | "openPrice"
+    | "dayHigh"
+    | "dayLow"
+    | "change"
+    | "changePercent"
+    | "quoteSource"
+    | "quoteUpdatedAt"
+    | "pinnedAt"
+    | "updatedAt"
+    | "tags"
+    | "dcaSummary"
+    | "position"
 > & {
     tags: string[];
     dcaEntries: DCAEntry[];
@@ -99,6 +158,7 @@ export function serialiseItemForm(form: ItemFormModel): Omit<
         currency: form.currency,
         quantity: form.quantity || 0,
         costPrice: form.costPrice || 0,
+        acquiredAt: form.acquiredAt ? new Date(form.acquiredAt + "T00:00:00").toISOString() : undefined,
         thesis: form.thesis,
         tags: form.tagsText
             .split(",")

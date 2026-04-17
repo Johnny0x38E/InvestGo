@@ -14,10 +14,16 @@ const (
 )
 
 type DCAEntry = domain.DCAEntry
+type DCASummary = domain.DCASummary
+type PositionSummary = domain.PositionSummary
 type WatchlistItem = domain.WatchlistItem
 type AlertRule = domain.AlertRule
 type AppSettings = domain.AppSettings
 type DashboardSummary = domain.DashboardSummary
+type OverviewHoldingSlice = domain.OverviewHoldingSlice
+type OverviewTrendSeries = domain.OverviewTrendSeries
+type OverviewTrend = domain.OverviewTrend
+type OverviewAnalytics = domain.OverviewAnalytics
 type HotCategory = domain.HotCategory
 type HotSort = domain.HotSort
 type HotItem = domain.HotItem
@@ -42,7 +48,7 @@ const (
 	HotSortPrice     = domain.HotSortPrice
 )
 
-// HistoryPoint represents a single historical K-line data point
+// HistoryPoint represents a single OHLCV (candlestick) data point in a price history series.
 type HistoryPoint struct {
 	Timestamp time.Time `json:"timestamp"`
 	Open      float64   `json:"open"`
@@ -52,7 +58,7 @@ type HistoryPoint struct {
 	Volume    float64   `json:"volume"`
 }
 
-// HistorySeries represents the complete historical trend for a given instrument in a specified interval
+// HistorySeries holds a complete price history series for one instrument over a specified time range.
 type HistorySeries struct {
 	Symbol        string          `json:"symbol"`
 	Name          string          `json:"name"`
@@ -67,16 +73,33 @@ type HistorySeries struct {
 	Change        float64         `json:"change"`        // Change amount within interval, i.e., ending price minus starting price
 	ChangePercent float64         `json:"changePercent"` // Change percentage within interval, i.e., change amount divided by starting price multiplied by 100
 	Points        []HistoryPoint  `json:"points"`        // Data point list, ordered by time
-	GeneratedAt   time.Time       `json:"generatedAt"`   // Data generation time
+	Snapshot      *MarketSnapshot `json:"snapshot,omitempty"`
+	GeneratedAt   time.Time       `json:"generatedAt"` // Data generation time
 }
 
-// RuntimeStatus stores application runtime status information
+// MarketSnapshot represents backend-derived market and position metrics for the selected item and interval.
+type MarketSnapshot struct {
+	LivePrice          float64 `json:"livePrice"`
+	EffectiveChange    float64 `json:"effectiveChange"`
+	EffectiveChangePct float64 `json:"effectiveChangePct"`
+	PreviousClose      float64 `json:"previousClose"`
+	OpenPrice          float64 `json:"openPrice"`
+	RangeHigh          float64 `json:"rangeHigh"`
+	RangeLow           float64 `json:"rangeLow"`
+	AmplitudePct       float64 `json:"amplitudePct"`
+	PositionValue      float64 `json:"positionValue"`
+	PositionBaseline   float64 `json:"positionBaseline"`
+	PositionPnL        float64 `json:"positionPnL"`
+	PositionPnLPct     float64 `json:"positionPnLPct"`
+}
+
+// RuntimeStatus holds live operational metrics exposed to the frontend status panel.
 type RuntimeStatus struct {
 	LastQuoteAttemptAt *time.Time `json:"lastQuoteAttemptAt,omitempty"` // Last quote request time
 	LastQuoteRefreshAt *time.Time `json:"lastQuoteRefreshAt,omitempty"` // Last quote refresh time
 	LastQuoteError     string     `json:"lastQuoteError,omitempty"`     // Last quote request error message
 	QuoteSource        string     `json:"quoteSource"`                  // Currently used data source, "auto" means automatic selection
-	LivePriceCount     int        `json:"livePriceCount"`               // Number of items in current holdings with prices
+	LivePriceCount     int        `json:"livePriceCount"`               // Number of tracked items with an active price quote
 	AppVersion         string     `json:"appVersion"`                   // Current application version
 	LastFxError        string     `json:"lastFxError,omitempty"`        // Last FX rate error message
 	LastFxRefreshAt    *time.Time `json:"lastFxRefreshAt,omitempty"`    // Last FX rate refresh time
@@ -84,7 +107,7 @@ type RuntimeStatus struct {
 
 // persistedState represents application state that needs to be persisted
 type persistedState struct {
-	Items     []WatchlistItem `json:"items"`     // Position list
+	Items     []WatchlistItem `json:"items"`     // Tracked item list (watch-only entries and held positions)
 	Alerts    []AlertRule     `json:"alerts"`    // Price alert rule list
 	Settings  AppSettings     `json:"settings"`  // Settings
 	UpdatedAt time.Time       `json:"updatedAt"` // Last updated timestamp
@@ -93,7 +116,7 @@ type persistedState struct {
 // StateSnapshot represents a complete application state snapshot
 type StateSnapshot struct {
 	Dashboard    DashboardSummary    `json:"dashboard"`    // Dashboard aggregated data
-	Items        []WatchlistItem     `json:"items"`        // Position list
+	Items        []WatchlistItem     `json:"items"`        // Tracked item list (watch-only entries and held positions)
 	Alerts       []AlertRule         `json:"alerts"`       // Price alert rule list
 	Settings     AppSettings         `json:"settings"`     // Settings
 	Runtime      RuntimeStatus       `json:"runtime"`      // Runtime status

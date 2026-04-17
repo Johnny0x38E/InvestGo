@@ -22,6 +22,8 @@ import {
     defaultSettings,
     emptyAlertForm,
     emptyItemForm,
+    hotItemToWatchForm,
+    hotItemToPositionForm,
     mapAlertToForm,
     mapItemToForm,
     serialiseItemForm,
@@ -73,6 +75,7 @@ const savingItem = ref(false);
 const dcaDetailVisible = ref(false);
 const dcaDetailItem = ref<WatchlistItem | null>(null);
 const itemDialogInitialTab = ref<"basic" | "dca">("basic");
+const itemDialogWatchOnly = ref(false);
 const savingAlert = ref(false);
 const deleting = ref(false);
 const matchMediaList = window.matchMedia("(prefers-color-scheme: dark)");
@@ -295,7 +298,7 @@ async function refreshQuotes(
         applySnapshot(snapshot);
         if (
             refreshHistory &&
-            activeModule.value === "market" &&
+            activeModule.value === "watchlist" &&
             selectedItem.value
         ) {
             await loadHistory(true, true);
@@ -357,8 +360,8 @@ async function saveSettings(): Promise<void> {
         });
         applySnapshot(snapshot);
         setStatus(translate("app.settingsSaved"), "success");
-        // After saving settings, refresh the chart if the market module is active so the new settings take effect immediately.
-        if (activeModule.value === "market" && selectedItem.value) {
+        // After saving settings, refresh the chart if the watchlist module is active so the new settings take effect immediately.
+        if (activeModule.value === "watchlist" && selectedItem.value) {
             void loadHistory(true, true);
         }
         activeModule.value = "overview";
@@ -381,6 +384,30 @@ function openItemDialog(
 ): void {
     Object.assign(itemForm, item ? mapItemToForm(item) : emptyItemForm());
     itemDialogInitialTab.value = initialTab;
+    itemDialogWatchOnly.value = false;
+    itemDialogVisible.value = true;
+}
+
+// Open the item dialog pre-filled from a hot list item in "关注" (watch only) mode.
+function openHotWatchDialog(item: HotItem): void {
+    Object.assign(itemForm, hotItemToWatchForm(item));
+    itemDialogInitialTab.value = "basic";
+    itemDialogWatchOnly.value = true;
+    itemDialogVisible.value = true;
+}
+
+function unwatchHotItem(item: HotItem): void {
+    const existing = items.value.find(i => i.symbol === item.symbol && i.market === item.market);
+    if (existing) {
+        requestDeleteItem(existing.id);
+    }
+}
+
+// Open the item dialog pre-filled from a hot list item in "建仓" (open position) mode.
+function openHotPositionDialog(item: HotItem): void {
+    Object.assign(itemForm, hotItemToPositionForm(item));
+    itemDialogInitialTab.value = "basic";
+    itemDialogWatchOnly.value = false;
     itemDialogVisible.value = true;
 }
 
@@ -402,6 +429,13 @@ async function saveItem(): Promise<void> {
     savingItem.value = true;
     try {
         const payload = serialiseItemForm(itemForm);
+        // In watch-only mode, clear all position fields so the item is saved as a pure watchlist entry.
+        if (itemDialogWatchOnly.value) {
+            payload.quantity = 0;
+            payload.costPrice = 0;
+            payload.acquiredAt = undefined;
+            payload.dcaEntries = [];
+        }
         const path = itemForm.id ? `/api/items/${itemForm.id}` : "/api/items";
         const method = itemForm.id ? "PUT" : "POST";
         const snapshot = await api<StateSnapshot>(path, {
@@ -417,7 +451,6 @@ async function saveItem(): Promise<void> {
                 : translate("app.itemAdded"),
             "success",
         );
-        activeModule.value = "watchlist";
     } catch (error) {
         setStatus(
             error instanceof Error
@@ -618,7 +651,7 @@ function switchModule(next: ModuleKey): void {
         `switch module ${activeModule.value} -> ${next}`,
     );
     activeModule.value = next;
-    if (next === "market") {
+    if (next === "watchlist") {
         void loadHistory(true);
     }
 }
@@ -668,7 +701,9 @@ function switchModule(next: ModuleKey): void {
             @refresh="refreshQuotes()"
             @select-interval="selectHistoryInterval"
             @update:hot-market-group="hotMarketGroup = $event"
-            @add-hot-item="quickAddHotItem"
+            @hot-watch-item="openHotWatchDialog"
+            @hot-unwatch-item="unwatchHotItem"
+            @hot-open-position="openHotPositionDialog"
             @update:search="search = $event"
             @add-item="openItemDialog()"
             @edit-item="openItemDialog"
@@ -693,6 +728,7 @@ function switchModule(next: ModuleKey): void {
             :form="itemForm"
             :saving="savingItem"
             :initial-tab="itemDialogInitialTab"
+            :watch-only="itemDialogWatchOnly"
             @update:visible="itemDialogVisible = $event"
             @save="saveItem"
         />

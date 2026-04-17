@@ -117,7 +117,7 @@ func (f *FxRates) Fetch(ctx context.Context) {
 	newRates["CNY"] = 1.0
 	for currency, rate := range data.Rates {
 		if rate > 0 {
-			// rate is 1 CNY = X foreign currency, take reciprocal to get 1 foreign currency = X CNY
+			// Frankfurter returns rates as "1 CNY = X <currency>"; invert to store as "1 <currency> = X CNY".
 			newRates[currency] = 1.0 / rate
 		}
 	}

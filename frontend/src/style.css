@@ -26,6 +26,14 @@
     --radius-panel: 14px;
     --radius-control: 14px;
     --radius-micro: 14px;
+    --chart-1: #2a62aa;
+    --chart-2: #0f8860;
+    --chart-3: #b07610;
+    --chart-4: #6438ac;
+    --chart-5: #bc2e4c;
+    --chart-6: #267820;
+    --chart-7: #bc4c18;
+    --chart-8: #9c2888;
     --font-ui: "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
     --font-display: "Avenir Next", "PingFang SC", "Helvetica Neue", sans-serif;
 }
@@ -53,6 +61,14 @@
         --accent-soft: rgba(141, 181, 234, 0.22);
         --rise: #fb7185;
         --fall: #34d399;
+        --chart-1: #5ea4ec;
+        --chart-2: #35c89e;
+        --chart-3: #f2b238;
+        --chart-4: #aa7ee8;
+        --chart-5: #f06e8e;
+        --chart-6: #68cc50;
+        --chart-7: #f2904e;
+        --chart-8: #d468be;
     }
 }
 
@@ -80,6 +96,14 @@ html[data-theme="dark"] {
     --accent-soft: rgba(141, 181, 234, 0.22);
     --rise: #fb7185;
     --fall: #34d399;
+    --chart-1: #5ea4ec;
+    --chart-2: #35c89e;
+    --chart-3: #f2b238;
+    --chart-4: #aa7ee8;
+    --chart-5: #f06e8e;
+    --chart-6: #68cc50;
+    --chart-7: #f2904e;
+    --chart-8: #d468be;
 }
 
 /* Explicit appearance mode: always light (overrides OS dark preference) */
@@ -107,6 +131,14 @@ html[data-theme="light"] {
     --rise: #d14343;
     --fall: #198754;
     --warn: #d97706;
+    --chart-1: #2a62aa;
+    --chart-2: #0f8860;
+    --chart-3: #b07610;
+    --chart-4: #6438ac;
+    --chart-5: #bc2e4c;
+    --chart-6: #267820;
+    --chart-7: #bc4c18;
+    --chart-8: #9c2888;
 }
 
 html[data-color-theme="blue"] {
@@ -164,6 +196,51 @@ html[data-theme="dark"][data-color-theme="sunset"] {
     --accent-soft: rgba(240, 178, 124, 0.23);
     --selection-bg: rgba(240, 178, 124, 0.18);
 }
+/* ── Rose ── */
+html[data-color-theme="rose"] {
+    --accent: #b84c6e;
+    --accent-strong: #8a2d4e;
+    --accent-soft: rgba(184, 76, 110, 0.14);
+    --selection-bg: rgba(184, 76, 110, 0.10);
+}
+
+html[data-theme="dark"][data-color-theme="rose"] {
+    --accent: #f0a0be;
+    --accent-strong: #fdd5e5;
+    --accent-soft: rgba(240, 160, 190, 0.22);
+    --selection-bg: rgba(240, 160, 190, 0.17);
+}
+
+/* ── Violet ── */
+html[data-color-theme="violet"] {
+    --accent: #6b4fc8;
+    --accent-strong: #4a30a0;
+    --accent-soft: rgba(107, 79, 200, 0.14);
+    --selection-bg: rgba(107, 79, 200, 0.10);
+}
+
+html[data-theme="dark"][data-color-theme="violet"] {
+    --accent: #b8a0f0;
+    --accent-strong: #ddd5fa;
+    --accent-soft: rgba(184, 160, 240, 0.22);
+    --selection-bg: rgba(184, 160, 240, 0.17);
+}
+
+/* ── Amber ── */
+html[data-color-theme="amber"] {
+    --accent: #a87928;
+    --accent-strong: #7a5218;
+    --accent-soft: rgba(168, 121, 40, 0.15);
+    --selection-bg: rgba(168, 121, 40, 0.11);
+}
+
+html[data-theme="dark"][data-color-theme="amber"] {
+    --accent: #f0c96a;
+    --accent-strong: #fde8a4;
+    --accent-soft: rgba(240, 201, 106, 0.22);
+    --selection-bg: rgba(240, 201, 106, 0.17);
+}
+
 
 /* intl price color override under explicit dark mode */
 html[data-theme="dark"][data-price-color-scheme="intl"] {
@@ -265,7 +342,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: 12px;
-    overflow: hidden;
+    overflow: visible;
     padding: 0;
 }
 

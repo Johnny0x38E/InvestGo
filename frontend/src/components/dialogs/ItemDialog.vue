@@ -17,6 +17,7 @@ const props = defineProps<{
     form: ItemFormModel;
     saving: boolean;
     initialTab?: "basic" | "dca";
+    watchOnly?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -108,11 +109,11 @@ function pnlTone(value: number | null): string {
 </script>
 
 <template>
-    <Dialog v-model:visible="visibleProxy" modal :closable="false" :header="form.id ? t('dialogs.item.editTitle') : t('dialogs.item.addTitle')" :style="{ width: '1060px' }" class="desk-dialog">
+    <Dialog v-model:visible="visibleProxy" modal :closable="false" :header="props.watchOnly ? t('dialogs.item.watchTitle') : form.id ? t('dialogs.item.editTitle') : t('dialogs.item.addTitle')" :style="{ width: props.watchOnly ? '560px' : '1060px' }" class="desk-dialog">
         <!-- Tab switcher -->
         <div class="item-dialog-tabs">
             <button class="item-dialog-tab" :class="{ active: activeTab === 'basic' }" type="button" @click="activeTab = 'basic'">{{ t("dialogs.item.tabs.basic") }}</button>
-            <button class="item-dialog-tab" :class="{ active: activeTab === 'dca' }" type="button" @click="activeTab = 'dca'">
+            <button v-if="!props.watchOnly" class="item-dialog-tab" :class="{ active: activeTab === 'dca' }" type="button" @click="activeTab = 'dca'">
                 {{ t("dialogs.item.tabs.dca") }}
                 <span v-if="form.dcaEntries.length" class="dca-count-badge">{{ form.dcaEntries.length }}</span>
             </button>
@@ -138,27 +139,33 @@ function pnlTone(value: number | null): string {
             </label>
 
             <!-- Quantity is read-only when DCA records exist; otherwise it remains manually editable. -->
-            <label v-if="!hasDCA">
+            <label v-if="!hasDCA && !props.watchOnly">
                 <span>{{ t("dialogs.item.labels.quantity") }}</span>
                 <InputNumber v-model="form.quantity" :min="0" :step="0.001" :max-fraction-digits="3" fluid />
             </label>
-            <div v-else class="dca-derived-field">
+            <div v-else-if="hasDCA && !props.watchOnly" class="dca-derived-field">
                 <span>{{ t("dialogs.item.labels.quantity") }}</span>
                 <div class="dca-derived-value">{{ t("dialogs.item.derived.shares", { value: dcaSummary.totalShares.toLocaleString(resolvedLocale(), { maximumFractionDigits: 4 }) }) }}</div>
             </div>
 
             <!-- Cost price is read-only when DCA records exist; otherwise it remains manually editable. -->
-            <label v-if="!hasDCA">
+            <label v-if="!hasDCA && !props.watchOnly">
                 <span>{{ t("dialogs.item.labels.costPrice") }}</span>
                 <InputNumber v-model="form.costPrice" :min="0" :step="0.001" :max-fraction-digits="3" fluid />
             </label>
-            <div v-else class="dca-derived-field">
+            <div v-else-if="hasDCA && !props.watchOnly" class="dca-derived-field">
                 <span>{{ t("dialogs.item.labels.costPrice") }}</span>
                 <div class="dca-derived-value">{{ t("dialogs.item.derived.weightedAverage", { price: formatUnitPrice(dcaSummary.avgCost, form.currency) }) }}</div>
             </div>
 
+            <!-- Acquired date for non-DCA holdings, used as the trend chart start point. -->
+            <label v-if="!hasDCA && !props.watchOnly">
+                <span>{{ t("dialogs.item.labels.acquiredAt") }}</span>
+                <input v-model="form.acquiredAt" type="date" class="dca-date-input" />
+            </label>
+
             <!-- Show a hint when DCA records are driving the derived fields. -->
-            <p v-if="hasDCA" class="dca-derived-hint">
+            <p v-if="hasDCA && !props.watchOnly" class="dca-derived-hint">
                 <i class="pi pi-info-circle" style="margin-right: 5px" />
                 {{ t("dialogs.item.derived.hint") }}
             </p>
@@ -174,12 +181,12 @@ function pnlTone(value: number | null): string {
         </div>
 
         <!-- Tab 2: DCA records -->
-        <div v-else class="dca-panel">
+        <div v-else-if="!props.watchOnly" class="dca-panel">
             <!-- Entry table -->
             <div class="dca-table">
                 <!-- Header row -->
                 <div class="dca-table-head">
-                    <span class="dca-col-label">{{ t("dialogs.item.labels.date") }}</span>
+                    <span class="dca-col-label">{{ t("common.date") }}</span>
                     <span class="dca-col-label">{{ t("dialogs.item.labels.investedAmount") }}</span>
                     <span class="dca-col-label">{{ t("dialogs.item.labels.boughtShares") }}</span>
                     <span class="dca-col-label">{{ t("dialogs.item.labels.buyPrice") }}</span>

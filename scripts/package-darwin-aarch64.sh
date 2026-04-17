@@ -2,9 +2,9 @@
 set -euo pipefail
 
 # Usage:
-#   ./scripts/package-macos-dmg.sh
-#   VERSION=0.1.0 ./scripts/package-macos-dmg.sh
-#   VERSION=0.1.0 ./scripts/package-macos-dmg.sh --dev
+#   ./scripts/package-darwin-aarch64.sh
+#   VERSION=0.1.0 ./scripts/package-darwin-aarch64.sh
+#   VERSION=0.1.0 ./scripts/package-darwin-aarch64.sh --dev
 #
 # Notes:
 # - Version is injected at build/package time and is used for the app metadata and DMG filename.
@@ -32,14 +32,14 @@ ICONSET_DIR="$BUILD_DIR/InvestGo.iconset"
 ICNS_FILE="$BUILD_DIR/InvestGo.icns"
 PLIST_TEMPLATE="$BUILD_DIR/Info.plist.template"
 STAGING_DIR="$BUILD_DIR/dmg-staging"
-DMG_PATH="$BUILD_DIR/bin/investgo-$VERSION-macos-arm64.dmg"
+DMG_PATH="$BUILD_DIR/bin/investgo-$VERSION-darwin-aarch64.dmg"
 
 print_usage() {
   printf '%s\n' \
     'Usage:' \
-    '  ./scripts/package-macos-dmg.sh' \
-    '  VERSION=0.1.0 ./scripts/package-macos-dmg.sh' \
-    '  VERSION=0.1.0 ./scripts/package-macos-dmg.sh --dev' \
+    '  ./scripts/package-darwin-aarch64.sh' \
+    '  VERSION=0.1.0 ./scripts/package-darwin-aarch64.sh' \
+    '  VERSION=0.1.0 ./scripts/package-darwin-aarch64.sh --dev' \
     '' \
     'Notes:' \
     '  - Version is injected at build/package time and is also used in the DMG filename.' \
@@ -180,7 +180,7 @@ build_app_bundle() {
     build_args+=("--dev")
   fi
 
-  OUTPUT_FILE="$APP_EXECUTABLE" MACOS_MIN_VERSION="$MACOS_MIN_VERSION" "$ROOT_DIR/scripts/build-macos-arm64.sh" "${build_args[@]}"
+  OUTPUT_FILE="$APP_EXECUTABLE" MACOS_MIN_VERSION="$MACOS_MIN_VERSION" "$ROOT_DIR/scripts/build-darwin-aarch64.sh" "${build_args[@]}"
 
   if [[ ! -s "$ICNS_FILE" || "$ICON_SOURCE" -nt "$ICNS_FILE" ]]; then
     generate_icns

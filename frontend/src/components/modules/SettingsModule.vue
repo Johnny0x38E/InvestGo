@@ -18,6 +18,7 @@ import {
     projectMeta,
     getSettingsTabs,
     getThemeModeOptions,
+    COLOR_THEME_SWATCHES,
 } from "../../constants";
 import { formatDateTime } from "../../format";
 import { useI18n } from "../../i18n";
@@ -270,17 +271,19 @@ async function openExternal(url: string): Promise<void> {
                                     class="w-full"
                                 />
                             </label>
-                            <label>
-                                <span>{{
-                                    t("settings.labels.colorTheme")
-                                }}</span>
-                                <Select
-                                    v-model="settingsDraft.colorTheme"
-                                    :options="colorThemeOptions"
-                                    option-label="label"
-                                    option-value="value"
-                                    class="w-full"
-                                />
+                            <label class="color-theme-label">
+                                <span>{{ t("settings.labels.colorTheme") }}</span>
+                                <div class="color-theme-swatches">
+                                    <button
+                                        v-for="opt in colorThemeOptions"
+                                        :key="opt.value"
+                                        type="button"
+                                        :title="opt.label"
+                                        :class="['color-swatch-btn', { active: settingsDraft.colorTheme === opt.value }]"
+                                        :style="{ '--swatch-color': COLOR_THEME_SWATCHES[opt.value] }"
+                                        @click="settingsDraft.colorTheme = opt.value"
+                                    />
+                                </div>
                             </label>
                             <label>
                                 <span>{{
@@ -695,6 +698,44 @@ async function openExternal(url: string): Promise<void> {
     width: 100%;
 }
 
+
+.color-theme-label {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.color-theme-swatches {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 4px 0;
+}
+
+.color-swatch-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background-color: var(--swatch-color);
+    border: 2.5px solid transparent;
+    cursor: pointer;
+    padding: 0;
+    position: relative;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    outline: none;
+}
+
+.color-swatch-btn:hover {
+    transform: scale(1.15);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.color-swatch-btn.active {
+    border-color: var(--ink);
+    transform: scale(1.1);
+    box-shadow: 0 0 0 1px var(--ink), 0 2px 8px rgba(0, 0, 0, 0.2);
+}
 .settings-theme-preview {
     display: grid;
     gap: 12px;

@@ -42,7 +42,7 @@ func seedState() persistedState {
 	alerts := []AlertRule{
 		{
 			ID:        newID("alert"),
-			ItemID:    items[1].ID,
+			ItemID:    items[0].ID,
 			Name:      "阿里巴巴下破300止损",
 			Condition: AlertBelow,
 			Threshold: 300,

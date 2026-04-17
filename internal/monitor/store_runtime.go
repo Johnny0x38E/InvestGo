@@ -59,7 +59,7 @@ func (s *Store) Refresh(ctx context.Context) (StateSnapshot, error) {
 	s.runtime.QuoteSource = s.quoteProviderSummaryLocked()
 
 	if len(quotes) > 0 {
-		// Match results using normalized target keys to avoid user input format differences affecting backfill.
+		// Match results by normalized target key to handle symbol format variations between user input and provider responses.
 		for idx := range s.state.Items {
 			target, err := ResolveQuoteTarget(s.state.Items[idx])
 			if err != nil {
@@ -121,9 +121,39 @@ func (s *Store) ItemHistory(ctx context.Context, itemID string, interval History
 	for _, provider := range providers {
 		series, err := provider.Fetch(ctx, item, interval)
 		if err == nil {
+			series.Snapshot = buildMarketSnapshot(decorateItemDerived(item), series)
 			return series, nil
 		}
 		problems = append(problems, fmt.Sprintf("%s: %v", provider.Name(), err))
 	}
 	return HistorySeries{}, joinProblems(problems)
+}
+
+// OverviewAnalytics builds the overview analytics payload used by the dashboard overview module.
+func (s *Store) OverviewAnalytics(ctx context.Context) (OverviewAnalytics, error) {
+	s.mu.RLock()
+	items := append([]WatchlistItem(nil), s.state.Items...)
+	displayCurrency := s.state.Settings.DashboardCurrency
+	s.mu.RUnlock()
+
+	calculator := newOverviewCalculator(s.fxRates, displayCurrency, func(ctx context.Context, item WatchlistItem, interval HistoryInterval) (HistorySeries, error) {
+		s.mu.RLock()
+		providers := s.historyProviderCandidatesLocked(item.Market)
+		s.mu.RUnlock()
+		if len(providers) == 0 {
+			return HistorySeries{}, errors.New("History provider is not configured")
+		}
+
+		var problems []string
+		for _, provider := range providers {
+			series, err := provider.Fetch(ctx, item, interval)
+			if err == nil {
+				return series, nil
+			}
+			problems = append(problems, fmt.Sprintf("%s: %v", provider.Name(), err))
+		}
+		return HistorySeries{}, joinProblems(problems)
+	})
+
+	return calculator.Build(ctx, items)
 }

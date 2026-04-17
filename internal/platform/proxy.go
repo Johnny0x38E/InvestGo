@@ -78,7 +78,7 @@ func parseScutilProxy(data []byte) (kvs map[string]string, exceptions []string) 
 		case inExceptions:
 			parts := strings.SplitN(trimmed, " : ", 2)
 			if len(parts) == 2 {
-				for _, entry := range strings.Split(parts[1], ",") {
+				for entry := range strings.SplitSeq(parts[1], ",") {
 					if entry = strings.TrimSpace(entry); entry != "" {
 						exceptions = append(exceptions, entry)
 					}
