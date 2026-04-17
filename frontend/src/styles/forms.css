@@ -1,0 +1,59 @@
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.form-grid label {
+    display: grid;
+    gap: 7px;
+}
+
+.form-grid :is(.p-select, .p-inputnumber, .p-inputtext, .p-textarea) {
+    width: 100%;
+}
+
+.checkbox-field .checkbox-wrap {
+    min-height: 42px;
+    display: flex;
+    align-items: center;
+}
+
+.full-span {
+    grid-column: 1 / -1;
+}
+
+.settings-note {
+    margin: 0;
+    border: 1px solid var(--border);
+    background: rgba(148, 163, 184, 0.08);
+    color: var(--muted);
+    border-radius: var(--radius-panel);
+    padding: 10px 12px;
+    line-height: 1.6;
+}
+
+.settings-note kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    height: 24px;
+    margin: 0 4px;
+    padding: 0 8px;
+    border: 1px solid var(--border-strong);
+    border-bottom-width: 2px;
+    border-radius: 6px;
+    background: var(--control-bg);
+    color: var(--ink);
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+    box-shadow: 0 1px 0 rgba(8, 16, 31, 0.08);
+}
+
+@media (max-width: 1180px) {
+    .form-grid {
+        grid-template-columns: 1fr;
+    }
+}

@@ -112,3 +112,91 @@ async function handleBarDoubleClick(event: MouseEvent): Promise<void> {
         </div>
     </header>
 </template>
+
+<style scoped>
+.window-bar {
+    min-height: 40px;
+    padding: 4px 10px 2px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    cursor: default;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.window-bar-spacer {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.window-tools {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.window-status {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 4px;
+    border: none;
+    background: none;
+}
+
+.window-status-text,
+.window-status-time {
+    max-width: min(42vw, 520px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.window-status-text {
+    font-size: 10px;
+    color: var(--muted);
+}
+
+.window-status-time {
+    font-size: 10px;
+    color: var(--muted);
+}
+
+.window-status-separator {
+    font-size: 10px;
+    color: var(--muted);
+    opacity: 0.7;
+}
+
+.window-status[data-tone="error"] .window-status-text {
+    color: var(--fall);
+}
+
+.window-status[data-tone="warn"] .window-status-text {
+    color: var(--warn);
+}
+
+.window-status[data-tone="success"] .window-status-text {
+    color: var(--accent);
+}
+
+@media (max-width: 880px) {
+    .window-bar {
+        padding-left: 12px;
+    }
+
+    .window-tools {
+        align-items: flex-end;
+        flex-direction: column;
+    }
+
+    .window-status {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+}
+</style>

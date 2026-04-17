@@ -1,0 +1,124 @@
+.p-dialog-mask {
+    padding: 16px;
+    background: rgba(10, 15, 24, 0.16);
+    backdrop-filter: blur(8px);
+}
+
+.p-dialog.desk-dialog {
+    border-radius: var(--radius-shell);
+    overflow: hidden !important;
+    border: 1px solid var(--border);
+    background: var(--panel-strong);
+    background-clip: padding-box;
+    box-shadow: var(--shadow);
+}
+
+.desk-dialog .p-dialog-header {
+    padding: 14px 18px 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-strong);
+}
+
+.desk-dialog .p-dialog-content {
+    padding: 16px 18px 18px;
+    background: var(--panel-strong);
+}
+
+.desk-dialog .p-dialog-footer {
+    padding: 10px 18px 16px;
+    border-top: 1px solid var(--border);
+    background: var(--panel-strong);
+}
+
+.p-select,
+.p-inputnumber,
+.p-inputtext,
+.p-textarea {
+    border-radius: var(--radius-control);
+}
+
+.p-select,
+.p-inputnumber,
+.p-inputtext,
+.p-textarea,
+.p-inputnumber-input {
+    background: var(--control-bg);
+    border-color: var(--border-strong);
+    color: var(--ink);
+    box-shadow: none;
+}
+
+.p-select:hover,
+.p-inputnumber:hover,
+.p-inputtext:hover,
+.p-textarea:hover {
+    background: var(--control-bg-hover);
+    border-color: var(--border-strong);
+}
+
+.p-select:not(.p-disabled).p-focus,
+.p-inputnumber:focus-within,
+.p-inputtext:focus,
+.p-textarea:focus {
+    border-color: color-mix(in srgb, var(--accent) 44%, var(--border-strong));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.p-select-dropdown {
+    color: var(--muted);
+}
+
+.p-select-label,
+.p-inputnumber-input::placeholder,
+.p-inputtext::placeholder,
+.p-textarea::placeholder {
+    color: var(--muted);
+}
+
+.p-select-overlay {
+    background: var(--control-overlay);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-panel);
+    box-shadow: var(--shadow);
+    color: var(--ink);
+    backdrop-filter: blur(18px);
+}
+
+.p-select-list {
+    padding: 6px;
+}
+
+.p-select-option {
+    min-height: 34px;
+    border-radius: var(--radius-control);
+    color: var(--ink);
+}
+
+.p-select-option:not(.p-disabled).p-focus,
+.p-select-option:not(.p-disabled):hover {
+    background: color-mix(in srgb, var(--accent-soft) 46%, rgba(148, 163, 184, 0.14));
+    color: var(--ink);
+}
+
+.p-select-option.p-select-option-selected {
+    background: color-mix(in srgb, var(--accent-soft) 92%, var(--panel-strong));
+    color: var(--accent-strong);
+    font-weight: 600;
+}
+
+.p-tag-label {
+    font-size: 12px;
+}
+
+.p-dialog-title,
+.p-inputtext,
+.p-select-label,
+.p-inputnumber-input,
+.p-message-text,
+.p-tag {
+    font-size: 13px;
+}
+
+.p-tag {
+    border-radius: 999px;
+}

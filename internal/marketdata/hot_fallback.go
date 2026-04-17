@@ -115,19 +115,6 @@ func (s *HotService) fetchPoolQuotes(ctx context.Context, seeds []hotSeed) ([]mo
 	return items, nil
 }
 
-// resolvePoolSecID returns one secid for the seed instrument to be used by the batch quote API.
-func resolvePoolSecID(seed hotSeed) (string, error) {
-	target, err := monitor.ResolveQuoteTarget(monitor.WatchlistItem{
-		Symbol:   seed.Symbol,
-		Market:   seed.Market,
-		Currency: seed.Currency,
-	})
-	if err != nil {
-		return "", err
-	}
-	return resolveEastMoneySecID(target)
-}
-
 // resolveAllPoolSecIDs returns all possible secids for the seed instrument.
 // For US stocks, it returns the 105/106/107 variants to cover NASDAQ, NYSE and NYSE Arca.
 func resolveAllPoolSecIDs(seed hotSeed) ([]string, error) {

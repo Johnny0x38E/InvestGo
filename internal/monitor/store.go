@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"investgo/internal/monitor/persistence"
 )
 
 // Store is the core state manager for the monitoring module,
@@ -16,7 +18,7 @@ import (
 // 4. Lock management: Ensures safe access to state in multi-threaded environments through read-write lock mechanisms, avoiding data races and inconsistencies.
 type Store struct {
 	mu                 sync.RWMutex
-	path               string
+	repository         persistence.Repository
 	quoteProviders     map[string]QuoteProvider
 	quoteSourceOptions []QuoteSourceOption
 	historyProviders   map[string]HistoryProvider
@@ -28,8 +30,20 @@ type Store struct {
 
 // NewStore creates a Store and completes state loading and runtime dependency injection.
 func NewStore(path string, quoteProviders map[string]QuoteProvider, quoteSourceOptions []QuoteSourceOption, historyProviders map[string]HistoryProvider, logs *LogBook, appVersion string) (*Store, error) {
+	return NewStoreWithRepository(
+		persistence.NewJSONRepository(path),
+		quoteProviders,
+		quoteSourceOptions,
+		historyProviders,
+		logs,
+		appVersion,
+	)
+}
+
+// NewStoreWithRepository creates a Store with an explicit persistence backend.
+func NewStoreWithRepository(repository persistence.Repository, quoteProviders map[string]QuoteProvider, quoteSourceOptions []QuoteSourceOption, historyProviders map[string]HistoryProvider, logs *LogBook, appVersion string) (*Store, error) {
 	store := &Store{
-		path:               path,
+		repository:         repository,
 		quoteProviders:     quoteProviders,
 		quoteSourceOptions: append([]QuoteSourceOption(nil), quoteSourceOptions...),
 		historyProviders:   historyProviders,

@@ -1,8 +1,6 @@
 package main
 
 import (
-	"bufio"
-	"bytes"
 	"embed"
 	"fmt"
 	"io/fs"
@@ -10,14 +8,12 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
-	"strings"
 
 	"investgo/internal/api"
 	"investgo/internal/marketdata"
 	"investgo/internal/monitor"
+	"investgo/internal/platform"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
@@ -49,7 +45,7 @@ func main() {
 	defer func() { _ = logs.Close() }()
 
 	logs.Info("backend", "app", "starting InvestGo")
-	applySystemProxy(logs)
+	platform.ApplySystemProxy(logs)
 
 	quoteProviders, quoteSourceOptions := marketdata.DefaultQuoteSourceRegistry(nil)
 	store, err := monitor.NewStore(
@@ -101,41 +97,21 @@ func main() {
 	snapshot := store.Snapshot()
 	useNativeTitleBar := snapshot.Settings.UseNativeTitleBar
 
-	windowOptions := application.WebviewWindowOptions{
-		Name:             "main",
-		Title:            "InvestGo",
-		URL:              "/",
-		Width:            1200,
-		Height:           828,
-		MinWidth:         1180,
-		MinHeight:        828,
-		BackgroundColour: application.NewRGB(247, 243, 233),
-		Windows: application.WindowsWindow{
-			Theme: application.SystemDefault,
+	windowOptions := platform.BuildMainWindowOptions(useNativeTitleBar)
+	windowOptions.KeyBindings = map[string]func(window application.Window){
+		"F12": func(window application.Window) {
+			snapshot := store.Snapshot()
+			if !snapshot.Settings.DeveloperMode {
+				logs.Warn("system", "devtools", "ignored F12 because developer mode is disabled")
+				return
+			}
+			if !devToolsBuildEnabled() {
+				logs.Warn("system", "devtools", "ignored F12 because this binary was built without devtools support")
+				return
+			}
+			logs.Info("system", "devtools", "opening web inspector")
+			window.OpenDevTools()
 		},
-		KeyBindings: map[string]func(window application.Window){
-			"F12": func(window application.Window) {
-				snapshot := store.Snapshot()
-				if !snapshot.Settings.DeveloperMode {
-					logs.Warn("system", "devtools", "ignored F12 because developer mode is disabled")
-					return
-				}
-				if !devToolsBuildEnabled() {
-					logs.Warn("system", "devtools", "ignored F12 because this binary was built without devtools support")
-					return
-				}
-				logs.Info("system", "devtools", "opening web inspector")
-				window.OpenDevTools()
-			},
-		},
-		Mac: application.MacWindow{
-			Backdrop: application.MacBackdropTranslucent,
-		},
-	}
-
-	// Determine whether to use custom title bar based on settings
-	if !useNativeTitleBar {
-		windowOptions.Mac.TitleBar = application.MacTitleBarHiddenInsetUnified
 	}
 
 	app.Window.NewWithOptions(windowOptions)
@@ -183,94 +159,4 @@ func terminalLoggingEnabled() bool {
 // devToolsBuildEnabled returns whether the current binary has DevTools support enabled.
 func devToolsBuildEnabled() bool {
 	return defaultDevToolsBuild == "1"
-}
-
-// applySystemProxy reads system proxy settings on macOS and automatically injects them into process environment variables when not manually configured.
-// Subsequent net/http clients will transparently use the proxy via http.ProxyFromEnvironment,
-// without requiring additional "enhanced mode" / TUN mode configuration on the tool side.
-func applySystemProxy(logs *monitor.LogBook) {
-	if runtime.GOOS != "darwin" {
-		return
-	}
-	// When user has manually configured proxy, preserve explicit configuration to avoid being overridden by system settings.
-	if os.Getenv("HTTPS_PROXY") != "" || os.Getenv("HTTP_PROXY") != "" ||
-		os.Getenv("https_proxy") != "" || os.Getenv("http_proxy") != "" {
-		logs.Info("backend", "proxy", "HTTPS_PROXY already set, skipping system proxy detection")
-		return
-	}
-
-	out, err := exec.Command("scutil", "--proxy").Output()
-	if err != nil {
-		return
-	}
-
-	settings, exceptions := parseScutilProxy(out)
-
-	// Synchronize exception list to NO_PROXY to prevent LAN and localhost traffic from erroneously going through proxy.
-	if len(exceptions) > 0 && os.Getenv("NO_PROXY") == "" && os.Getenv("no_proxy") == "" {
-		noProxy := strings.Join(exceptions, ",")
-		_ = os.Setenv("NO_PROXY", noProxy)
-		logs.Info("backend", "proxy", "NO_PROXY set from system exceptions: "+noProxy)
-	}
-
-	// Prefer HTTPS proxy, then fallback to HTTP proxy.
-	applyEntry := func(hostKey, portKey, enableKey, defaultPort string) bool {
-		if settings[enableKey] != "1" {
-			return false
-		}
-		host := settings[hostKey]
-		if host == "" {
-			return false
-		}
-		port := settings[portKey]
-		if port == "" {
-			port = defaultPort
-		}
-		proxyURL := "http://" + host + ":" + port
-		_ = os.Setenv("HTTPS_PROXY", proxyURL)
-		_ = os.Setenv("HTTP_PROXY", proxyURL)
-		logs.Info("backend", "proxy", "system proxy applied: "+proxyURL)
-		return true
-	}
-
-	if applyEntry("HTTPSProxy", "HTTPSPort", "HTTPSEnable", "443") {
-		return
-	}
-	applyEntry("HTTPProxy", "HTTPPort", "HTTPEnable", "8080")
-}
-
-// parseScutilProxy parses the output of scutil --proxy into a key-value mapping and an exception list.
-// Normal lines have the format "  Key : Value"; each array item in the ExceptionsList section is collected into exceptions.
-func parseScutilProxy(data []byte) (kvs map[string]string, exceptions []string) {
-	kvs = make(map[string]string)
-	scanner := bufio.NewScanner(bytes.NewReader(data))
-	inExceptions := false
-
-	for scanner.Scan() {
-		line := scanner.Text()
-		trimmed := strings.TrimSpace(line)
-
-		switch {
-		case strings.HasPrefix(trimmed, "ExceptionsList : <array>"):
-			inExceptions = true
-		case inExceptions && trimmed == "}":
-			inExceptions = false
-		case inExceptions:
-			// Array entry format: "N : value" (value may itself be comma-separated multiple entries)
-			parts := strings.SplitN(trimmed, " : ", 2)
-			if len(parts) == 2 {
-				for _, entry := range strings.Split(parts[1], ",") {
-					if entry = strings.TrimSpace(entry); entry != "" {
-						exceptions = append(exceptions, entry)
-					}
-				}
-			}
-		default:
-			parts := strings.SplitN(trimmed, " : ", 2)
-			if len(parts) == 2 {
-				kvs[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
-			}
-		}
-	}
-	return kvs, exceptions
 }

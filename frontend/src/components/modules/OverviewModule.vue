@@ -45,3 +45,45 @@ const { t } = useI18n();
         </div>
     </section>
 </template>
+
+<style scoped>
+.overview-meta-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.overview-note-card {
+    min-height: 118px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-panel);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--panel-soft) 92%, var(--accent-soft)) 0%, var(--panel-strong) 100%);
+    padding: 14px;
+    display: grid;
+    align-content: start;
+    gap: 6px;
+}
+
+.overview-note-card strong {
+    font: 500 15px/1.2 var(--font-display);
+}
+
+.overview-note-label {
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.overview-note-card span:last-child {
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.6;
+}
+
+@media (max-width: 1180px) {
+    .overview-meta-grid {
+        grid-template-columns: 1fr;
+    }
+}
+</style>

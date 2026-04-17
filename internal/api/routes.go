@@ -2,7 +2,6 @@ package api
 
 import (
 	"net/http"
-	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -50,7 +49,7 @@ func (h *Handler) registerRoutes() []route {
 	}
 }
 
-// handleOpenExternal opens an external link using the system default browser on macOS.
+// handleOpenExternal opens an external link using the platform default browser.
 func (h *Handler) handleOpenExternal(writer http.ResponseWriter, request *http.Request, _ routeParams) {
 	var payload openExternalRequest
 	if err := decodeJSON(request, &payload); err != nil {
@@ -64,7 +63,7 @@ func (h *Handler) handleOpenExternal(writer http.ResponseWriter, request *http.R
 		return
 	}
 
-	if err := exec.Command("open", targetURL).Start(); err != nil {
+	if err := openExternalURL(targetURL); err != nil {
 		writeError(writer, request, http.StatusInternalServerError, &apiError{message: "Failed to open external URL"})
 		return
 	}

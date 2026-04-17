@@ -1,0 +1,145 @@
+.table-shell {
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow: auto;
+    border-radius: var(--radius-panel);
+    border: 1px solid var(--border);
+    background: var(--panel-strong);
+    box-shadow: var(--shadow-soft);
+}
+
+.table-meta-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.watch-table,
+.hot-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+.watch-table th,
+.hot-table th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding: 9px 12px;
+    background: var(--panel-soft);
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+    text-align: left;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.watch-table td,
+.hot-table td {
+    padding: 10px 12px;
+    border-top: 1px solid var(--border);
+    vertical-align: middle;
+    background: var(--panel-strong);
+}
+
+.watch-table td.watch-table-cell-dca,
+.watch-table td.table-action-cell,
+.hot-table td.table-action-cell {
+    padding-left: 6px;
+    padding-right: 6px;
+}
+
+.watch-table-sticky,
+.hot-table-sticky {
+    position: sticky;
+    z-index: 2;
+    background: inherit;
+}
+
+.watch-table th.watch-table-sticky,
+.hot-table th.hot-table-sticky {
+    z-index: 4;
+    background: var(--panel-soft);
+}
+
+.watch-table td.watch-table-sticky,
+.hot-table td.hot-table-sticky {
+    z-index: 3;
+}
+
+.watch-table tbody tr,
+.hot-table tbody tr {
+    transition: background 160ms ease;
+}
+
+.watch-table tbody tr:hover,
+.hot-table tbody tr:hover {
+    background: rgba(148, 163, 184, 0.09);
+}
+
+.item-block,
+.value-stack {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+}
+
+.item-block strong,
+.value-stack strong {
+    font-size: 13px;
+    color: var(--ink);
+}
+
+.item-block span,
+.value-stack span {
+    font-size: 11px;
+    color: var(--muted);
+}
+
+.item-block strong,
+.item-block span,
+.value-stack strong,
+.value-stack span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tag-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.action-stack {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.table-action-stack {
+    gap: 4px;
+}
+
+.table-action-stack .is-pinned-action {
+    color: var(--accent);
+}
+
+.table-action-stack-centered {
+    display: inline-flex;
+    min-height: 100%;
+}
+
+.empty-row {
+    padding: 18px;
+    text-align: center;
+    color: var(--muted);
+}

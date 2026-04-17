@@ -270,3 +270,196 @@ function pnlTone(value: number | null): string {
         </template>
     </Dialog>
 </template>
+
+<style scoped>
+.item-dialog-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0;
+}
+
+.item-dialog-tab {
+    padding: 6px 14px 8px;
+    font: 600 12px/1 var(--font-ui);
+    color: var(--muted);
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    margin-bottom: -1px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: color 0.12s;
+}
+
+.item-dialog-tab:hover {
+    color: var(--ink);
+}
+
+.item-dialog-tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+
+.dca-count-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 8px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font: 600 10px/1 var(--font-ui);
+}
+
+.dca-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    min-height: 200px;
+}
+
+.dca-table {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.dca-table-head,
+.dca-entry-row {
+    display: grid;
+    grid-template-columns: 120px 1fr 1fr 1fr 90px 1.2fr 32px;
+    gap: 6px;
+    align-items: center;
+}
+
+.dca-table-head {
+    padding: 0 4px 6px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 2px;
+}
+
+.dca-col-label {
+    font: 600 11px/1 var(--font-ui);
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+.dca-entry-row {
+    padding: 2px 0;
+}
+
+.dca-entry-row input[type="date"],
+.dca-entry-row :deep(.p-inputnumber),
+.dca-entry-row :deep(.p-inputtext) {
+    height: 32px;
+    font-size: 12px;
+}
+
+input[type="date"].dca-date-input {
+    width: 100%;
+    height: 32px;
+    padding: 0 8px;
+    font: 13px var(--font-ui);
+    color: var(--ink);
+    background: var(--control-bg);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-control);
+    outline: none;
+    box-sizing: border-box;
+    color-scheme: light dark;
+}
+
+input[type="date"].dca-date-input:focus {
+    border-color: var(--accent);
+}
+
+.dca-add-row {
+    padding: 8px 0 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.dca-empty-hint {
+    padding: 24px 0 8px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.7;
+}
+
+.dca-summary-bar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-control);
+    overflow: hidden;
+    margin-top: 16px;
+}
+
+.dca-summary-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 10px 14px;
+    background: var(--panel-strong);
+}
+
+.dca-summary-label {
+    font: 500 10px/1 var(--font-ui);
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.dca-summary-value {
+    font: 400 13px/1.2 var(--font-display);
+    color: var(--ink);
+    white-space: nowrap;
+}
+
+.dca-summary-value.tone-rise {
+    color: var(--rise);
+}
+
+.dca-summary-value.tone-fall {
+    color: var(--fall);
+}
+
+.dca-derived-hint {
+    font-size: 11px;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 4px;
+    padding: 6px 10px;
+    margin-top: -4px;
+    grid-column: span 2;
+    line-height: 1.5;
+}
+
+.dca-derived-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.dca-derived-value {
+    height: 36px;
+    padding: 0 12px;
+    background: var(--panel-soft);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-control);
+    font: 600 13px/36px var(--font-display);
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+}
+</style>

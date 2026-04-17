@@ -175,3 +175,132 @@ function pnlTone(v: number | null): string {
         </template>
     </Dialog>
 </template>
+
+<style scoped>
+.dca-summary-bar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-control);
+    overflow: hidden;
+    margin-top: 16px;
+}
+
+.dca-summary-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 10px 14px;
+    background: var(--panel-strong);
+}
+
+.dca-summary-label {
+    font: 500 10px/1 var(--font-ui);
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.dca-summary-value {
+    font: 400 13px/1.2 var(--font-display);
+    color: var(--ink);
+    white-space: nowrap;
+}
+
+.dca-summary-value.tone-rise {
+    color: var(--rise);
+}
+
+.dca-summary-value.tone-fall {
+    color: var(--fall);
+}
+
+.dca-empty-hint {
+    padding: 24px 0 8px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.7;
+}
+
+.dca-detail-table {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-control);
+    overflow: hidden;
+}
+
+.dca-detail-head,
+.dca-detail-row {
+    display: grid;
+    grid-template-columns: 44px 148px minmax(126px, 1.05fr) minmax(118px, 0.95fr) minmax(118px, 0.95fr) minmax(118px, 0.9fr) minmax(144px, 1.2fr);
+    gap: 0;
+    padding: 0 4px;
+}
+
+.dca-detail-head {
+    padding: 7px 4px;
+    background: var(--panel-soft);
+    border-bottom: 1px solid var(--border);
+}
+
+.dca-col-label {
+    font: 600 11px/1 var(--font-ui);
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+.dca-detail-head .dca-col-label {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 0 8px;
+    text-align: left;
+}
+
+.dca-detail-row {
+    border-bottom: 1px solid var(--border);
+}
+
+.dca-detail-row:last-child {
+    border-bottom: none;
+}
+
+.dca-detail-row:hover {
+    background: var(--selection-bg);
+}
+
+.dca-detail-cell {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 9px 8px;
+    font: 500 13px/1.2 var(--font-display);
+    color: var(--ink);
+    text-align: left;
+}
+
+.dca-seq-col {
+    justify-content: flex-start;
+}
+
+.dca-num-col {
+    justify-content: flex-start;
+    text-align: left;
+}
+
+.dca-seq {
+    font: 500 11px/1 var(--font-ui);
+    color: var(--muted);
+}
+
+.dca-note-col {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 400;
+    overflow-wrap: anywhere;
+}
+</style>
