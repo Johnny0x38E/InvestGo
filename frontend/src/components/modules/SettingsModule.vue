@@ -123,6 +123,18 @@ async function openExternal(url: string): Promise<void> {
                                 <Select v-model="settingsDraft.usQuoteSource" :options="usQuoteSources" option-label="name" option-value="id" class="w-full" />
                             </label>
 
+                            <label v-if="settingsDraft.usQuoteSource === 'alpha-vantage'" class="full-span">
+                                <span>{{ t("settings.labels.alphaVantageApiKey") }}</span>
+                                <InputText v-model.trim="settingsDraft.alphaVantageApiKey" type="password" autocomplete="new-password" class="w-full" />
+                                <small class="settings-note">{{ t("settings.labels.apiKeyHelp") }}</small>
+                            </label>
+
+                            <label v-if="settingsDraft.usQuoteSource === 'twelve-data'" class="full-span">
+                                <span>{{ t("settings.labels.twelveDataApiKey") }}</span>
+                                <InputText v-model.trim="settingsDraft.twelveDataApiKey" type="password" autocomplete="new-password" class="w-full" />
+                                <small class="settings-note">{{ t("settings.labels.apiKeyHelp") }}</small>
+                            </label>
+
                             <label>
                                 <span>{{ t("settings.labels.refreshInterval") }}</span>
                                 <InputNumber v-model="settingsDraft.refreshIntervalSeconds" :min="10" :step="10" fluid />

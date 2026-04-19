@@ -129,6 +129,8 @@ type AppSettings struct {
 	Locale                 string `json:"locale"`
 	ProxyMode              string `json:"proxyMode"`
 	ProxyURL               string `json:"proxyURL"`
+	AlphaVantageAPIKey     string `json:"alphaVantageApiKey"`
+	TwelveDataAPIKey       string `json:"twelveDataApiKey"`
 	DeveloperMode          bool   `json:"developerMode"`
 	DashboardCurrency      string `json:"dashboardCurrency"`
 	UseNativeTitleBar      bool   `json:"useNativeTitleBar"`

@@ -31,6 +31,16 @@ type XueqiuQuoteProvider struct {
 	client *http.Client
 }
 
+type AlphaVantageQuoteProvider struct {
+	client   *http.Client
+	settings func() monitor.AppSettings
+}
+
+type TwelveDataQuoteProvider struct {
+	client   *http.Client
+	settings func() monitor.AppSettings
+}
+
 type eastMoneyQuoteResponse struct {
 	RC   int                `json:"rc"`
 	Data EastMoneyQuoteData `json:"data"`
@@ -71,11 +81,13 @@ type xueqiuQuoteResponse struct {
 }
 
 // DefaultQuoteSourceRegistry returns the default quote source registry and its frontend display options.
-func DefaultQuoteSourceRegistry(client *http.Client) (map[string]monitor.QuoteProvider, []monitor.QuoteSourceOption) {
+func DefaultQuoteSourceRegistry(client *http.Client, settings func() monitor.AppSettings) (map[string]monitor.QuoteProvider, []monitor.QuoteSourceOption) {
 	eastMoney := NewEastMoneyQuoteProvider(client)
 	yahoo := NewYahooQuoteProvider(client)
 	sina := NewSinaQuoteProvider(client)
 	xueqiu := NewXueqiuQuoteProvider(client)
+	alphaVantage := NewAlphaVantageQuoteProvider(client, settings)
+	twelveData := NewTwelveDataQuoteProvider(client, settings)
 
 	options := []monitor.QuoteSourceOption{
 		{
@@ -102,13 +114,27 @@ func DefaultQuoteSourceRegistry(client *http.Client) (map[string]monitor.QuotePr
 			Description:      "Quote source exposed across China, Hong Kong, and US selections for direct comparison.",
 			SupportedMarkets: []string{"CN-A", "CN-GEM", "CN-STAR", "CN-ETF", "HK-MAIN", "HK-GEM", "HK-ETF", "US-STOCK", "US-ETF"},
 		},
+		{
+			ID:               "alpha-vantage",
+			Name:             "Alpha Vantage",
+			Description:      "API-based US stock and ETF source with both live quote and history support.",
+			SupportedMarkets: []string{"US-STOCK", "US-ETF"},
+		},
+		{
+			ID:               "twelve-data",
+			Name:             "Twelve Data",
+			Description:      "API-based US stock and ETF source suited for using the same provider across quote and history flows.",
+			SupportedMarkets: []string{"US-STOCK", "US-ETF"},
+		},
 	}
 
 	return map[string]monitor.QuoteProvider{
-		"eastmoney": eastMoney,
-		"yahoo":     yahoo,
-		"sina":      sina,
-		"xueqiu":    xueqiu,
+		"eastmoney":     eastMoney,
+		"yahoo":         yahoo,
+		"sina":          sina,
+		"xueqiu":        xueqiu,
+		"alpha-vantage": alphaVantage,
+		"twelve-data":   twelveData,
 	}, options
 }
 

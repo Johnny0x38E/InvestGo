@@ -3,18 +3,21 @@ package datasource
 import "net/url"
 
 const (
-	EastMoneyQuoteAPI    = "https://push2.eastmoney.com/api/qt/ulist.np/get"
-	EastMoneyHotAPI      = "https://push2.eastmoney.com/api/qt/clist/get"
-	EastMoneyHistoryAPI  = "https://push2his.eastmoney.com/api/qt/stock/kline/get"
-	EastMoneyWebReferer  = "https://quote.eastmoney.com/"
-	YahooFinanceDomain   = "finance.yahoo.com"
-	YahooFinanceOrigin   = "https://finance.yahoo.com"
-	YahooFinanceReferer  = "https://finance.yahoo.com/"
-	YahooSearchPath      = "/v1/finance/search"
-	YahooScreenerListAPI = "https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved"
-	YahooScreenerAPI     = "https://query2.finance.yahoo.com/v1/finance/screener"
-	YahooChartPathPrefix = "/v8/finance/chart/"
-	FrankfurterAPI       = "https://api.frankfurter.dev/v1/latest" // European Central Bank (ECB) data providing multi-currency FX rates
+	EastMoneyQuoteAPI       = "https://push2.eastmoney.com/api/qt/ulist.np/get"
+	EastMoneyHotAPI         = "https://push2.eastmoney.com/api/qt/clist/get"
+	EastMoneyHistoryAPI     = "https://push2his.eastmoney.com/api/qt/stock/kline/get"
+	EastMoneyWebReferer     = "https://quote.eastmoney.com/"
+	AlphaVantageAPI         = "https://www.alphavantage.co/query"
+	TwelveDataQuoteAPI      = "https://api.twelvedata.com/quote"
+	TwelveDataTimeSeriesAPI = "https://api.twelvedata.com/time_series"
+	YahooFinanceDomain      = "finance.yahoo.com"
+	YahooFinanceOrigin      = "https://finance.yahoo.com"
+	YahooFinanceReferer     = "https://finance.yahoo.com/"
+	YahooSearchPath         = "/v1/finance/search"
+	YahooScreenerListAPI    = "https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved"
+	YahooScreenerAPI        = "https://query2.finance.yahoo.com/v1/finance/screener"
+	YahooChartPathPrefix    = "/v8/finance/chart/"
+	FrankfurterAPI          = "https://api.frankfurter.dev/v1/latest" // European Central Bank (ECB) data providing multi-currency FX rates
 )
 
 var YahooChartHosts = [...]string{

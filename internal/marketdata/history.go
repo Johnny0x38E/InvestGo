@@ -288,8 +288,10 @@ func NewSmartHistoryProvider(client *http.Client, settings func() monitor.AppSet
 		settings = func() monitor.AppSettings { return monitor.AppSettings{} }
 	}
 	providers := map[string]monitor.HistoryProvider{
-		"eastmoney": NewEastMoneyChartProvider(client),
-		"yahoo":     NewYahooChartProvider(client),
+		"eastmoney":     NewEastMoneyChartProvider(client),
+		"yahoo":         NewYahooChartProvider(client),
+		"alpha-vantage": NewAlphaVantageHistoryProvider(client, settings),
+		"twelve-data":   NewTwelveDataHistoryProvider(client, settings),
 	}
 	return NewHistoryRouter(providers, settings)
 }

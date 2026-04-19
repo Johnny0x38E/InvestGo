@@ -80,6 +80,8 @@ func seedState() persistedState {
 			Locale:                 "system",
 			ProxyMode:              "system",
 			ProxyURL:               "",
+			AlphaVantageAPIKey:     "",
+			TwelveDataAPIKey:       "",
 			DeveloperMode:          false,
 			DashboardCurrency:      "CNY",
 			UseNativeTitleBar:      false,

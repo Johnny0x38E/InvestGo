@@ -189,7 +189,7 @@ func localizeQuoteSourceOptions(locale string, options []monitor.QuoteSourceOpti
 }
 
 func localizeQuoteSourceSummary(locale, summary string) string {
-	replacements := []string{"EastMoney", "Yahoo Finance", "Sina Finance", "Xueqiu"}
+	replacements := []string{"EastMoney", "Yahoo Finance", "Sina Finance", "Xueqiu", "Alpha Vantage", "Twelve Data"}
 	for _, name := range replacements {
 		summary = strings.ReplaceAll(summary, name, localizeQuoteSourceName(locale, name))
 	}
@@ -207,6 +207,10 @@ func localizeQuoteSourceName(locale, name string) string {
 			return "新浪财经"
 		case "Xueqiu":
 			return "雪球"
+		case "Alpha Vantage":
+			return "Alpha Vantage"
+		case "Twelve Data":
+			return "Twelve Data"
 		}
 	}
 	return name
@@ -226,6 +230,10 @@ func localizeQuoteSourceDescription(locale, sourceID, fallback string) string {
 		return "A 股与境内 ETF 刷新较快，适合国内市场盯盘。"
 	case "xueqiu":
 		return "覆盖 A 股和港股，适合作为社区型补充来源。"
+	case "alpha-vantage":
+		return "适合美股和美股 ETF 的 API 型数据源，实时与历史都可走同一来源。"
+	case "twelve-data":
+		return "较稳定的美股与美股 ETF API 型数据源，适合统一实时和历史链路。"
 	default:
 		return fallback
 	}

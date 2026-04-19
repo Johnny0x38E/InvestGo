@@ -57,6 +57,12 @@ func sanitiseSettings(input AppSettings, current AppSettings, quoteProviders map
 	if input.ProxyURL != "" || strings.TrimSpace(current.ProxyURL) != "" {
 		settings.ProxyURL = strings.TrimSpace(input.ProxyURL)
 	}
+	if input.AlphaVantageAPIKey != "" || strings.TrimSpace(current.AlphaVantageAPIKey) != "" {
+		settings.AlphaVantageAPIKey = strings.TrimSpace(input.AlphaVantageAPIKey)
+	}
+	if input.TwelveDataAPIKey != "" || strings.TrimSpace(current.TwelveDataAPIKey) != "" {
+		settings.TwelveDataAPIKey = strings.TrimSpace(input.TwelveDataAPIKey)
+	}
 	if strings.TrimSpace(input.DashboardCurrency) != "" {
 		settings.DashboardCurrency = strings.ToUpper(strings.TrimSpace(input.DashboardCurrency))
 	}
@@ -83,6 +89,16 @@ func sanitiseSettings(input AppSettings, current AppSettings, quoteProviders map
 		}
 		if _, ok := quoteProviders[settings.USQuoteSource]; !ok {
 			return AppSettings{}, errors.New("US quote source is invalid")
+		}
+	}
+	switch settings.USQuoteSource {
+	case "alpha-vantage":
+		if settings.AlphaVantageAPIKey == "" {
+			return AppSettings{}, errors.New("Alpha Vantage API key is required")
+		}
+	case "twelve-data":
+		if settings.TwelveDataAPIKey == "" {
+			return AppSettings{}, errors.New("Twelve Data API key is required")
 		}
 	}
 	switch settings.FontPreset {
@@ -203,6 +219,8 @@ func quoteSourceSupportsMarketForSettings(sourceID, market string) bool {
 	switch sourceID {
 	case "eastmoney", "yahoo", "sina", "xueqiu":
 		return market != "CN-BJ"
+	case "alpha-vantage", "twelve-data":
+		return market == "US-STOCK" || market == "US-ETF"
 	default:
 		return false
 	}

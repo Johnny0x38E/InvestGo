@@ -124,6 +124,8 @@ export interface AppSettings {
     locale: "system" | "zh-CN" | "en-US";
     proxyMode: "none" | "system" | "custom";
     proxyURL: string;
+    alphaVantageApiKey: string;
+    twelveDataApiKey: string;
     developerMode: boolean;
     dashboardCurrency: string;
     useNativeTitleBar: boolean;
