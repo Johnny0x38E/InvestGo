@@ -1,23 +1,8 @@
 import type { AppSettings, HistoryInterval } from "./types";
 import { translate } from "./i18n";
+import { defaultSettings } from "./forms";
 
-let settings: AppSettings = {
-    refreshIntervalSeconds: 60,
-    cnQuoteSource: "tencent",
-    hkQuoteSource: "eastmoney",
-    usQuoteSource: "yahoo",
-    hotUSSource: "eastmoney",
-    themeMode: "system",
-    colorTheme: "blue",
-    fontPreset: "system",
-    amountDisplay: "full",
-    currencyDisplay: "symbol",
-    priceColorScheme: "cn",
-    locale: "system",
-    developerMode: false,
-    dashboardCurrency: "CNY",
-    useNativeTitleBar: false,
-};
+let settings: AppSettings = { ...defaultSettings };
 
 const currencySymbolMap: Record<string, string> = {
     CNY: "¥",
@@ -125,6 +110,13 @@ export function formatHistoryTick(value: string, interval: HistoryInterval): str
     }
 
     return new Intl.DateTimeFormat(resolvedLocale(), options).format(new Date(value));
+}
+
+// Return the localized display label for a market identifier.
+// Falls back to the raw market string if no translation is found.
+export function formatMarket(market: string): string {
+    const label = translate(`options.market.${market}`);
+    return label || market;
 }
 
 export function resolvedLocale(): string {

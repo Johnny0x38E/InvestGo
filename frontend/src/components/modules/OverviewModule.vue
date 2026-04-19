@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import Chart from "primevue/chart";
+import Button from "primevue/button";
 import Skeleton from "primevue/skeleton";
 
 import SummaryStrip from "../SummaryStrip.vue";
@@ -14,6 +15,10 @@ const props = defineProps<{
     itemCount: number;
     livePriceCount: number;
     generatedAt: string;
+}>();
+
+defineEmits<{
+    (event: "refresh"): void;
 }>();
 
 const { t } = useI18n();
@@ -336,6 +341,9 @@ async function loadOverview(): Promise<void> {
         <div class="panel-header panel-header-stack">
             <div>
                 <h3 class="title">{{ t("modules.overview") }}</h3>
+            </div>
+            <div class="toolbar-row">
+                <Button size="small" text icon="pi pi-refresh" :label="t('watchlist.refresh')" @click="$emit('refresh')" />
             </div>
         </div>
 

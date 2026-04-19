@@ -274,11 +274,22 @@ func parseEastMoneyKlines(klines []string, intraday bool) []monitor.HistoryPoint
 	return points
 }
 
-// NewSmartHistoryProvider creates a map containing both EastMoney and Yahoo historical quote providers,
-// for use by monitor.NewStore. When client is nil, each provider uses its own default timeout.
-func NewSmartHistoryProvider(client *http.Client) map[string]monitor.HistoryProvider {
-	return map[string]monitor.HistoryProvider{
+// NewSmartHistoryProvider creates a HistoryRouter that routes every history
+// request through the market-aware dispatch layer.
+//
+//   - client is the shared HTTP client used by both underlying providers; pass
+//     nil to use each provider default timeout.
+//   - settings is called on every Fetch to read the current user preferences
+//     (CNQuoteSource / HKQuoteSource / USQuoteSource).  Pass
+//     store.CurrentSettings after the Store has been initialised; pass nil to
+//     fall back to market defaults (EastMoney for CN/HK, Yahoo for US).
+func NewSmartHistoryProvider(client *http.Client, settings func() monitor.AppSettings) monitor.HistoryProvider {
+	if settings == nil {
+		settings = func() monitor.AppSettings { return monitor.AppSettings{} }
+	}
+	providers := map[string]monitor.HistoryProvider{
 		"eastmoney": NewEastMoneyChartProvider(client),
 		"yahoo":     NewYahooChartProvider(client),
 	}
+	return NewHistoryRouter(providers, settings)
 }

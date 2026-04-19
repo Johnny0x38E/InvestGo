@@ -21,7 +21,7 @@ type Store struct {
 	repository         persistence.Repository
 	quoteProviders     map[string]QuoteProvider
 	quoteSourceOptions []QuoteSourceOption
-	historyProviders   map[string]HistoryProvider
+	historyProvider    HistoryProvider
 	logs               *LogBook
 	state              persistedState
 	runtime            RuntimeStatus
@@ -29,24 +29,24 @@ type Store struct {
 }
 
 // NewStore creates a Store and completes state loading and runtime dependency injection.
-func NewStore(path string, quoteProviders map[string]QuoteProvider, quoteSourceOptions []QuoteSourceOption, historyProviders map[string]HistoryProvider, logs *LogBook, appVersion string) (*Store, error) {
+func NewStore(path string, quoteProviders map[string]QuoteProvider, quoteSourceOptions []QuoteSourceOption, historyProvider HistoryProvider, logs *LogBook, appVersion string) (*Store, error) {
 	return NewStoreWithRepository(
 		persistence.NewJSONRepository(path),
 		quoteProviders,
 		quoteSourceOptions,
-		historyProviders,
+		historyProvider,
 		logs,
 		appVersion,
 	)
 }
 
 // NewStoreWithRepository creates a Store with an explicit persistence backend.
-func NewStoreWithRepository(repository persistence.Repository, quoteProviders map[string]QuoteProvider, quoteSourceOptions []QuoteSourceOption, historyProviders map[string]HistoryProvider, logs *LogBook, appVersion string) (*Store, error) {
+func NewStoreWithRepository(repository persistence.Repository, quoteProviders map[string]QuoteProvider, quoteSourceOptions []QuoteSourceOption, historyProvider HistoryProvider, logs *LogBook, appVersion string) (*Store, error) {
 	store := &Store{
 		repository:         repository,
 		quoteProviders:     quoteProviders,
 		quoteSourceOptions: append([]QuoteSourceOption(nil), quoteSourceOptions...),
-		historyProviders:   historyProviders,
+		historyProvider:    historyProvider,
 		logs:               logs,
 		fxRates:            NewFxRates(nil),
 		runtime:            RuntimeStatus{AppVersion: appVersion},

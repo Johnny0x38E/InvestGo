@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"investgo/internal/marketdata"
 	"investgo/internal/monitor"
 )
 
@@ -181,13 +182,32 @@ func (h *Handler) handleHot(writer http.ResponseWriter, request *http.Request, _
 	keyword := strings.TrimSpace(request.URL.Query().Get("q"))
 	page, _ := strconv.Atoi(strings.TrimSpace(request.URL.Query().Get("page")))
 	pageSize, _ := strconv.Atoi(strings.TrimSpace(request.URL.Query().Get("pageSize")))
-	list, err := h.hot.List(request.Context(), category, sortBy, keyword, page, pageSize)
+	options := marketdata.HotListOptions{}
+	if h.store != nil {
+		settings := h.store.CurrentSettings()
+		options.CNQuoteSource = settings.CNQuoteSource
+		options.HKQuoteSource = settings.HKQuoteSource
+		options.USQuoteSource = settings.USQuoteSource
+		options.CacheTTL = time.Duration(settings.HotCacheTTLSeconds) * time.Second
+	}
+	options.BypassCache = parseBoolQuery(request.URL.Query().Get("force"))
+
+	list, err := h.hot.List(request.Context(), category, sortBy, keyword, page, pageSize, options)
 	if err != nil {
 		writeError(writer, request, http.StatusBadRequest, err)
 		return
 	}
 
-	writeJSON(writer, http.StatusOK, list)
+	writeJSON(writer, http.StatusOK, localizeHotList(requestLocale(request), list))
+}
+
+func parseBoolQuery(raw string) bool {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "1", "true", "yes", "y", "on":
+		return true
+	default:
+		return false
+	}
 }
 
 // handleHistory returns historical quotes for the given instrument and time range.
@@ -204,7 +224,7 @@ func (h *Handler) handleHistory(writer http.ResponseWriter, request *http.Reques
 		return
 	}
 
-	writeJSON(writer, http.StatusOK, series)
+	writeJSON(writer, http.StatusOK, localizeHistorySeries(series, requestLocale(request)))
 }
 
 // handleRefresh triggers a full quote refresh.
@@ -230,6 +250,9 @@ func (h *Handler) handleUpdateSettings(writer http.ResponseWriter, request *http
 	if err != nil {
 		writeError(writer, request, http.StatusBadRequest, err)
 		return
+	}
+	if h.proxyTransport != nil {
+		h.proxyTransport.Update(snapshot.Settings.ProxyMode, snapshot.Settings.ProxyURL)
 	}
 
 	writeJSON(writer, http.StatusOK, localizeSnapshot(snapshot, requestLocale(request)))

@@ -8,14 +8,16 @@ import (
 
 	"investgo/internal/marketdata"
 	"investgo/internal/monitor"
+	"investgo/internal/platform"
 )
 
 // Handler handles `/api/*` requests and coordinates backend services.
 type Handler struct {
-	store  *monitor.Store
-	hot    *marketdata.HotService
-	logs   *monitor.LogBook
-	routes []route
+	store          *monitor.Store
+	hot            *marketdata.HotService
+	logs           *monitor.LogBook
+	proxyTransport *platform.ProxyTransport
+	routes         []route
 }
 
 const localeHeader = "X-InvestGo-Locale"
@@ -37,11 +39,12 @@ type pinItemRequest struct {
 }
 
 // NewHandler returns the unified API handler.
-func NewHandler(store *monitor.Store, hot *marketdata.HotService, logs *monitor.LogBook) *Handler {
+func NewHandler(store *monitor.Store, hot *marketdata.HotService, logs *monitor.LogBook, proxyTransport *platform.ProxyTransport) *Handler {
 	handler := &Handler{
-		store: store,
-		hot:   hot,
-		logs:  logs,
+		store:          store,
+		hot:            hot,
+		logs:           logs,
+		proxyTransport: proxyTransport,
 	}
 	handler.routes = handler.registerRoutes()
 	return handler
@@ -156,7 +159,76 @@ func requestLocale(request *http.Request) string {
 func localizeSnapshot(snapshot monitor.StateSnapshot, locale string) monitor.StateSnapshot {
 	snapshot.Runtime.LastQuoteError = monitor.LocalizeErrorMessage(locale, snapshot.Runtime.LastQuoteError)
 	snapshot.Runtime.LastFxError = monitor.LocalizeErrorMessage(locale, snapshot.Runtime.LastFxError)
+	snapshot.Runtime.QuoteSource = localizeQuoteSourceSummary(locale, snapshot.Runtime.QuoteSource)
+	snapshot.QuoteSources = localizeQuoteSourceOptions(locale, snapshot.QuoteSources)
+	for index := range snapshot.Items {
+		snapshot.Items[index].QuoteSource = localizeQuoteSourceName(locale, snapshot.Items[index].QuoteSource)
+	}
 	return snapshot
+}
+
+func localizeHistorySeries(series monitor.HistorySeries, locale string) monitor.HistorySeries {
+	series.Source = localizeQuoteSourceName(locale, series.Source)
+	return series
+}
+
+func localizeHotList(locale string, list monitor.HotListResponse) monitor.HotListResponse {
+	for index := range list.Items {
+		list.Items[index].QuoteSource = localizeQuoteSourceName(locale, list.Items[index].QuoteSource)
+	}
+	return list
+}
+
+func localizeQuoteSourceOptions(locale string, options []monitor.QuoteSourceOption) []monitor.QuoteSourceOption {
+	localized := append([]monitor.QuoteSourceOption(nil), options...)
+	for index := range localized {
+		localized[index].Name = localizeQuoteSourceName(locale, localized[index].Name)
+		localized[index].Description = localizeQuoteSourceDescription(locale, localized[index].ID, localized[index].Description)
+	}
+	return localized
+}
+
+func localizeQuoteSourceSummary(locale, summary string) string {
+	replacements := []string{"EastMoney", "Yahoo Finance", "Sina Finance", "Xueqiu"}
+	for _, name := range replacements {
+		summary = strings.ReplaceAll(summary, name, localizeQuoteSourceName(locale, name))
+	}
+	return summary
+}
+
+func localizeQuoteSourceName(locale, name string) string {
+	if strings.EqualFold(locale, "zh-CN") || strings.HasPrefix(strings.ToLower(locale), "zh") {
+		switch name {
+		case "EastMoney":
+			return "东方财富"
+		case "Yahoo Finance":
+			return "雅虎财经"
+		case "Sina Finance":
+			return "新浪财经"
+		case "Xueqiu":
+			return "雪球"
+		}
+	}
+	return name
+}
+
+func localizeQuoteSourceDescription(locale, sourceID, fallback string) string {
+	if !(strings.EqualFold(locale, "zh-CN") || strings.HasPrefix(strings.ToLower(locale), "zh")) {
+		return fallback
+	}
+
+	switch strings.ToLower(strings.TrimSpace(sourceID)) {
+	case "eastmoney":
+		return "覆盖 A 股、港股和美股，字段最完整，适合作为默认综合行情源。"
+	case "yahoo":
+		return "港股和美股覆盖较稳定，适合以海外市场为主的组合。"
+	case "sina":
+		return "A 股与境内 ETF 刷新较快，适合国内市场盯盘。"
+	case "xueqiu":
+		return "覆盖 A 股和港股，适合作为社区型补充来源。"
+	default:
+		return fallback
+	}
 }
 
 // apiError represents a response error constructed internally by the API layer.

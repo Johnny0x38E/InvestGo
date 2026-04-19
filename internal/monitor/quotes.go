@@ -12,9 +12,9 @@ import (
 const DefaultQuoteSourceID = "eastmoney"
 
 const (
-	DefaultCNQuoteSourceID = "eastmoney"
-	DefaultHKQuoteSourceID = "eastmoney"
-	DefaultUSQuoteSourceID = "eastmoney"
+	DefaultCNQuoteSourceID = "sina"
+	DefaultHKQuoteSourceID = "xueqiu"
+	DefaultUSQuoteSourceID = "yahoo"
 )
 
 // Quote holds real-time market data for one instrument, shared between quote providers and the frontend.
@@ -56,6 +56,25 @@ type QuoteTarget struct {
 	Currency      string
 }
 
+type quoteAffixRule struct {
+	token    string
+	exchange string
+}
+
+var quotePrefixRules = []quoteAffixRule{
+	{token: "HK", exchange: "HK"},
+	{token: "SH", exchange: "SH"},
+	{token: "SZ", exchange: "SZ"},
+	{token: "BJ", exchange: "BJ"},
+}
+
+var quoteSuffixRules = []quoteAffixRule{
+	{token: ".HK", exchange: "HK"},
+	{token: ".SH", exchange: "SH"},
+	{token: ".SZ", exchange: "SZ"},
+	{token: ".BJ", exchange: "BJ"},
+}
+
 // ResolveQuoteTarget resolves a WatchlistItem into its canonical QuoteTarget.
 func ResolveQuoteTarget(item WatchlistItem) (QuoteTarget, error) {
 	return resolveQuoteTarget(item.Symbol, item.Market, item.Currency)
@@ -72,38 +91,67 @@ func resolveQuoteTarget(symbol, market, currency string) (QuoteTarget, error) {
 	rawSymbol = strings.ReplaceAll(rawSymbol, " ", "")
 
 	// Normalize the many input formats a user may provide to a small set of canonical forms before dispatching.
-	switch {
-	case strings.HasPrefix(rawSymbol, "GB_"):
-		ticker := strings.TrimPrefix(rawSymbol, "GB_")
-		return buildUSTarget(ticker, market, currency)
-	case strings.HasPrefix(rawSymbol, "HK") && isDigits(rawSymbol[2:]):
-		return buildHKTarget(rawSymbol[2:], resolveHKMarket(market), currency)
-	case strings.HasPrefix(rawSymbol, "SH") && isDigits(rawSymbol[2:]):
-		num := rawSymbol[2:]
-		return buildCNTarget(num, "SH", resolveCNMarket(num, market), currency)
-	case strings.HasPrefix(rawSymbol, "SZ") && isDigits(rawSymbol[2:]):
-		num := rawSymbol[2:]
-		return buildCNTarget(num, "SZ", resolveCNMarket(num, market), currency)
-	case strings.HasPrefix(rawSymbol, "BJ") && isDigits(rawSymbol[2:]):
-		return buildBJTarget(rawSymbol[2:], currency)
-	case strings.HasSuffix(rawSymbol, ".HK") && isDigits(strings.TrimSuffix(rawSymbol, ".HK")):
-		return buildHKTarget(strings.TrimSuffix(rawSymbol, ".HK"), resolveHKMarket(market), currency)
-	case strings.HasSuffix(rawSymbol, ".SH") && isDigits(strings.TrimSuffix(rawSymbol, ".SH")):
-		num := strings.TrimSuffix(rawSymbol, ".SH")
-		return buildCNTarget(num, "SH", resolveCNMarket(num, market), currency)
-	case strings.HasSuffix(rawSymbol, ".SZ") && isDigits(strings.TrimSuffix(rawSymbol, ".SZ")):
-		num := strings.TrimSuffix(rawSymbol, ".SZ")
-		return buildCNTarget(num, "SZ", resolveCNMarket(num, market), currency)
-	case strings.HasSuffix(rawSymbol, ".BJ") && isDigits(strings.TrimSuffix(rawSymbol, ".BJ")):
-		return buildBJTarget(strings.TrimSuffix(rawSymbol, ".BJ"), currency)
-	case isDigits(rawSymbol):
+	if target, ok, err := resolveExplicitQuoteTarget(rawSymbol, market, currency); ok {
+		return target, err
+	}
+
+	if isDigits(rawSymbol) {
 		return buildNumericTarget(rawSymbol, market, currency)
-	case isUSSymbol(rawSymbol):
+	}
+	if isUSSymbol(rawSymbol) {
 		return buildUSTarget(rawSymbol, market, currency)
-	case strings.HasPrefix(rawSymbol, "US") && isUSSymbol(rawSymbol[2:]):
+	}
+	if strings.HasPrefix(rawSymbol, "US") && isUSSymbol(rawSymbol[2:]) {
 		return buildUSTarget(rawSymbol[2:], market, currency)
+	}
+
+	return QuoteTarget{}, fmt.Errorf("Unrecognized symbol: %s", rawSymbol)
+}
+
+func resolveExplicitQuoteTarget(rawSymbol, market, currency string) (QuoteTarget, bool, error) {
+	if ticker, ok := strings.CutPrefix(rawSymbol, "GB_"); ok && isUSSymbol(ticker) {
+		target, err := buildUSTarget(ticker, market, currency)
+		return target, true, err
+	}
+
+	if target, ok, err := resolveAffixedQuoteTarget(rawSymbol, market, currency, quotePrefixRules, strings.CutPrefix); ok {
+		return target, true, err
+	}
+	if target, ok, err := resolveAffixedQuoteTarget(rawSymbol, market, currency, quoteSuffixRules, strings.CutSuffix); ok {
+		return target, true, err
+	}
+
+	return QuoteTarget{}, false, nil
+}
+
+func resolveAffixedQuoteTarget(
+	rawSymbol, market, currency string,
+	rules []quoteAffixRule,
+	trim func(string, string) (string, bool),
+) (QuoteTarget, bool, error) {
+	for _, rule := range rules {
+		code, ok := trim(rawSymbol, rule.token)
+		if !ok || !isDigits(code) {
+			continue
+		}
+
+		target, err := buildExchangeTarget(code, rule.exchange, market, currency)
+		return target, true, err
+	}
+
+	return QuoteTarget{}, false, nil
+}
+
+func buildExchangeTarget(rawSymbol, exchange, market, currency string) (QuoteTarget, error) {
+	switch exchange {
+	case "HK":
+		return buildHKTarget(rawSymbol, resolveHKMarket(market), currency)
+	case "SH", "SZ":
+		return buildCNTarget(rawSymbol, exchange, resolveCNMarket(rawSymbol, market), currency)
+	case "BJ":
+		return buildBJTarget(rawSymbol, currency)
 	default:
-		return QuoteTarget{}, fmt.Errorf("Unrecognized symbol: %s", rawSymbol)
+		return QuoteTarget{}, fmt.Errorf("Unsupported exchange: %s", exchange)
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"sort"
@@ -20,21 +21,38 @@ import (
 const (
 	hotDefaultPageSize = 20
 	hotSearchFetchSize = 200
-	hotSearchCacheTTL  = 45 * time.Second
+	defaultHotCacheTTL = 60 * time.Second
 )
 
+// HotListOptions carries request-scoped settings that affect hot list quote fetching.
+type HotListOptions struct {
+	CNQuoteSource string
+	HKQuoteSource string
+	USQuoteSource string
+	CacheTTL      time.Duration
+	BypassCache   bool
+}
+
 // HotService handles real-time data fetching and pagination for hot lists.
-// CN-A/HK markets use the EastMoney clist API and fall back to the data pool;
-// ETF and US categories always use the data pool + real-time quotes.
+// CN-A/HK hot membership currently comes from the EastMoney list API.
+// ETF and US categories still rely on provider-independent symbol pools, while
+// displayed quote data should follow the configured market quote source.
 type HotService struct {
-	client *http.Client
-	mu     sync.RWMutex
-	cache  map[string]cachedHotPage
+	client        *http.Client
+	log           *slog.Logger
+	mu            sync.RWMutex
+	searchCache   map[string]cachedHotPage
+	responseCache map[string]cachedHotResponse
 }
 
 type cachedHotPage struct {
 	items     []monitor.HotItem
 	total     int
+	expiresAt time.Time
+}
+
+type cachedHotResponse struct {
+	response  monitor.HotListResponse
 	expiresAt time.Time
 }
 
@@ -68,68 +86,84 @@ type yahooSearchResponse struct {
 }
 
 // NewHotService creates a hot list service.
-func NewHotService(client *http.Client) *HotService {
+func NewHotService(client *http.Client, logger *slog.Logger) *HotService {
 	if client == nil {
 		client = &http.Client{Timeout: 12 * time.Second}
 	}
+	if logger == nil {
+		logger = slog.Default()
+	}
 	return &HotService{
-		client: client,
-		cache:  make(map[string]cachedHotPage),
+		client:        client,
+		log:           logger,
+		searchCache:   make(map[string]cachedHotPage),
+		responseCache: make(map[string]cachedHotResponse),
 	}
 }
 
 // List returns the hot list for the given category and sort order.
-func (s *HotService) List(ctx context.Context, category monitor.HotCategory, sortBy monitor.HotSort, keyword string, page, pageSize int) (monitor.HotListResponse, error) {
+func (s *HotService) List(ctx context.Context, category monitor.HotCategory, sortBy monitor.HotSort, keyword string, page, pageSize int, options HotListOptions) (monitor.HotListResponse, error) {
 	category = normaliseHotCategory(category)
 	sortBy = normaliseHotSort(sortBy)
 	keyword = normaliseHotKeyword(keyword)
+	options = normaliseHotListOptions(options)
 	page = maxInt(page, 1)
 	if pageSize <= 0 {
 		pageSize = hotDefaultPageSize
 	}
-	if keyword != "" {
-		return s.search(ctx, category, sortBy, keyword, page, pageSize)
+	cacheKey := hotResponseCacheKey(category, sortBy, keyword, page, pageSize, options)
+	if !options.BypassCache {
+		if response, ok := s.loadCachedResponse(cacheKey); ok {
+			return response, nil
+		}
 	}
 
-	switch {
-	case category == monitor.HotCategoryCNA:
-		// CN-A: prefer EastMoney clist API, fallback to data pool on failure
-		list, err := s.listEastMoney(ctx, category, sortBy, page, pageSize)
-		if err == nil {
-			return list, nil
+	var response monitor.HotListResponse
+	var err error
+	if keyword != "" {
+		response, err = s.search(ctx, category, sortBy, keyword, page, pageSize, options)
+	} else {
+		switch {
+		case category == monitor.HotCategoryCNA,
+			category == monitor.HotCategoryCNETF,
+			category == monitor.HotCategoryHK,
+			category == monitor.HotCategoryHKETF:
+			response, err = s.listConfiguredCategory(ctx, category, sortBy, page, pageSize, options)
+		case isUSHotCategory(category):
+			response, err = s.listFromPool(ctx, category, sortBy, page, pageSize, options)
+		default:
+			err = fmt.Errorf("Hot category is unsupported: %s", category)
 		}
-		return s.listFromPool(ctx, category, sortBy, page, pageSize)
-	case category == monitor.HotCategoryHK:
-		// HK: prefer EastMoney clist API, fallback to data pool on failure
-		list, err := s.listEastMoney(ctx, category, sortBy, page, pageSize)
-		if err == nil {
-			return list, nil
-		}
-		return s.listFromPool(ctx, category, sortBy, page, pageSize)
-	case category == monitor.HotCategoryCNETF || category == monitor.HotCategoryHKETF || isUSHotCategory(category):
-		// ETF and US categories use data pool + real-time quotes directly
-		return s.listFromPool(ctx, category, sortBy, page, pageSize)
-	default:
-		return monitor.HotListResponse{}, fmt.Errorf("Hot category is unsupported: %s", category)
 	}
+	if err != nil {
+		return monitor.HotListResponse{}, err
+	}
+
+	response.Cached = false
+	expiresAt := s.storeCachedResponse(cacheKey, response, options.CacheTTL)
+	response.CacheExpiresAt = ptrTime(expiresAt)
+	return response, nil
 }
 
 // search filters the data pool by keyword and handles the US ETF category specially:
 // filter from the pool first, then call the Yahoo Finance search API for more matches,
 // merge and deduplicate, and fetch real-time quotes.
-func (s *HotService) search(ctx context.Context, category monitor.HotCategory, sortBy monitor.HotSort, keyword string, page, pageSize int) (monitor.HotListResponse, error) {
+func (s *HotService) search(ctx context.Context, category monitor.HotCategory, sortBy monitor.HotSort, keyword string, page, pageSize int, options HotListOptions) (monitor.HotListResponse, error) {
 	if category == monitor.HotCategoryUSETF {
-		return s.searchUSETFs(ctx, sortBy, keyword, page, pageSize)
+		return s.searchUSETFs(ctx, sortBy, keyword, page, pageSize, options)
 	}
 
-	items, err := s.listAllSearchableItems(ctx, category, sortBy)
+	items, err := s.listAllSearchableItems(ctx, category, sortBy, options)
 	if err != nil {
 		return monitor.HotListResponse{}, err
 	}
 
 	filtered := filterHotItems(items, keyword)
 	start, end := paginateHotItems(len(filtered), page, pageSize)
-	pageItems := filtered[start:end]
+	pageItems, err := s.applyConfiguredQuotes(ctx, category, filtered[start:end], options)
+	if err != nil {
+		return monitor.HotListResponse{}, err
+	}
 
 	return monitor.HotListResponse{
 		Category:    category,
@@ -146,7 +180,7 @@ func (s *HotService) search(ctx context.Context, category monitor.HotCategory, s
 // searchUSETFs handles US ETF search specially:
 // filter from the pool first, then call the Yahoo Finance search API for more matches,
 // merge and deduplicate, and fetch real-time quotes.
-func (s *HotService) searchUSETFs(ctx context.Context, sortBy monitor.HotSort, keyword string, page, pageSize int) (monitor.HotListResponse, error) {
+func (s *HotService) searchUSETFs(ctx context.Context, sortBy monitor.HotSort, keyword string, page, pageSize int, options HotListOptions) (monitor.HotListResponse, error) {
 	seeds := filterHotSeeds(hotConstituents[monitor.HotCategoryUSETF], keyword)
 
 	remoteSeeds, err := s.searchYahooUSSeeds(ctx, keyword)
@@ -154,7 +188,7 @@ func (s *HotService) searchUSETFs(ctx context.Context, sortBy monitor.HotSort, k
 		seeds = mergeHotSeeds(seeds, remoteSeeds)
 	}
 
-	items, err := s.loadHotItemsForSeeds(ctx, seeds, "Yahoo Finance Search")
+	items, err := s.loadHotItemsForSeeds(ctx, seeds, resolveHotQuoteSource(monitor.HotCategoryUSETF, options))
 	if err != nil {
 		return monitor.HotListResponse{}, err
 	}
@@ -176,10 +210,12 @@ func (s *HotService) searchUSETFs(ctx context.Context, sortBy monitor.HotSort, k
 // listAllSearchableItems lists all searchable instruments for the given category, used for full-match search.
 // For categories supported by EastMoney, prefer the clist API to fetch the full list and cache it;
 // for others, use the data pool directly.
-func (s *HotService) listAllSearchableItems(ctx context.Context, category monitor.HotCategory, sortBy monitor.HotSort) ([]monitor.HotItem, error) {
-	cacheKey := hotSearchCacheKey(category, sortBy)
-	if items, ok := s.loadCachedItems(cacheKey); ok {
-		return items, nil
+func (s *HotService) listAllSearchableItems(ctx context.Context, category monitor.HotCategory, sortBy monitor.HotSort, options HotListOptions) ([]monitor.HotItem, error) {
+	cacheKey := hotSearchCacheKey(category, sortBy, resolveHotQuoteSource(category, options))
+	if !options.BypassCache {
+		if items, ok := s.loadCachedItems(cacheKey); ok {
+			return items, nil
+		}
 	}
 
 	var (
@@ -188,15 +224,15 @@ func (s *HotService) listAllSearchableItems(ctx context.Context, category monito
 	)
 
 	switch {
-	case category == monitor.HotCategoryCNA || category == monitor.HotCategoryHK:
+	case category == monitor.HotCategoryCNA ||
+		category == monitor.HotCategoryCNETF ||
+		category == monitor.HotCategoryHK ||
+		category == monitor.HotCategoryHKETF:
 		items, err = s.fetchAllHotPages(ctx, func(ctx context.Context, page, pageSize int) (monitor.HotListResponse, error) {
-			return s.listEastMoney(ctx, category, sortBy, page, pageSize)
+			return s.listConfiguredCategory(ctx, category, sortBy, page, pageSize, options)
 		})
-		if err != nil {
-			items, err = s.loadPoolItems(ctx, category, sortBy)
-		}
-	case category == monitor.HotCategoryCNETF || category == monitor.HotCategoryHKETF || isUSHotCategory(category):
-		items, err = s.loadPoolItems(ctx, category, sortBy)
+	case isUSHotCategory(category):
+		items, err = s.loadPoolItems(ctx, category, sortBy, options)
 	default:
 		err = fmt.Errorf("Hot category is unsupported: %s", category)
 	}
@@ -206,7 +242,7 @@ func (s *HotService) listAllSearchableItems(ctx context.Context, category monito
 	}
 
 	sortHotItems(items, sortBy)
-	s.storeCachedItems(cacheKey, items)
+	s.storeCachedItems(cacheKey, items, options.CacheTTL)
 	return cloneHotItems(items), nil
 }
 
@@ -229,7 +265,7 @@ func (s *HotService) fetchAllHotPages(ctx context.Context, loadPage func(context
 // returns false if cache is missing or expired.
 func (s *HotService) loadCachedItems(key string) ([]monitor.HotItem, bool) {
 	s.mu.RLock()
-	cached, ok := s.cache[key]
+	cached, ok := s.searchCache[key]
 	s.mu.RUnlock()
 	if !ok || time.Now().After(cached.expiresAt) {
 		return nil, false
@@ -238,14 +274,49 @@ func (s *HotService) loadCachedItems(key string) ([]monitor.HotItem, bool) {
 }
 
 // storeCachedItems stores the hot instrument list into cache and sets an expiration time.
-func (s *HotService) storeCachedItems(key string, items []monitor.HotItem) {
+func (s *HotService) storeCachedItems(key string, items []monitor.HotItem, ttl time.Duration) {
+	if ttl <= 0 {
+		ttl = defaultHotCacheTTL
+	}
 	s.mu.Lock()
-	s.cache[key] = cachedHotPage{
+	s.searchCache[key] = cachedHotPage{
 		items:     cloneHotItems(items),
 		total:     len(items),
-		expiresAt: time.Now().Add(hotSearchCacheTTL),
+		expiresAt: time.Now().Add(ttl),
 	}
 	s.mu.Unlock()
+}
+
+func (s *HotService) loadCachedResponse(key string) (monitor.HotListResponse, bool) {
+	s.mu.RLock()
+	cached, ok := s.responseCache[key]
+	s.mu.RUnlock()
+	if !ok || time.Now().After(cached.expiresAt) {
+		return monitor.HotListResponse{}, false
+	}
+	response := cloneHotListResponse(cached.response)
+	response.Cached = true
+	response.CacheExpiresAt = ptrTime(cached.expiresAt)
+	return response, true
+}
+
+func (s *HotService) storeCachedResponse(key string, response monitor.HotListResponse, ttl time.Duration) time.Time {
+	if ttl <= 0 {
+		ttl = defaultHotCacheTTL
+	}
+	expiresAt := time.Now().Add(ttl)
+	cached := cloneHotListResponse(response)
+	cached.Cached = false
+	cached.CacheExpiresAt = ptrTime(expiresAt)
+
+	s.mu.Lock()
+	s.responseCache[key] = cachedHotResponse{
+		response:  cached,
+		expiresAt: expiresAt,
+	}
+	s.mu.Unlock()
+
+	return expiresAt
 }
 
 // listEastMoney calls the EastMoney clist API, applicable to CN-A and HK categories.
@@ -333,8 +404,8 @@ func (s *HotService) listEastMoney(ctx context.Context, category monitor.HotCate
 }
 
 // listFromPool returns paginated hot list results using the predefined data pool + real-time quotes.
-func (s *HotService) listFromPool(ctx context.Context, category monitor.HotCategory, sortBy monitor.HotSort, page, pageSize int) (monitor.HotListResponse, error) {
-	items, err := s.loadPoolItems(ctx, category, sortBy)
+func (s *HotService) listFromPool(ctx context.Context, category monitor.HotCategory, sortBy monitor.HotSort, page, pageSize int, options HotListOptions) (monitor.HotListResponse, error) {
+	items, err := s.loadPoolItems(ctx, category, sortBy, options)
 	if err != nil {
 		return monitor.HotListResponse{}, err
 	}
@@ -352,14 +423,31 @@ func (s *HotService) listFromPool(ctx context.Context, category monitor.HotCateg
 	}, nil
 }
 
+func (s *HotService) listConfiguredCategory(ctx context.Context, category monitor.HotCategory, sortBy monitor.HotSort, page, pageSize int, options HotListOptions) (monitor.HotListResponse, error) {
+	sourceID := resolveHotQuoteSource(category, options)
+
+	switch sourceID {
+	case "eastmoney":
+		return s.listEastMoney(ctx, category, sortBy, page, pageSize)
+	case "xueqiu":
+		return s.listXueqiu(ctx, category, sortBy, page, pageSize)
+	case "sina":
+		return s.listSina(ctx, category, sortBy, page, pageSize)
+	case "yahoo":
+		return monitor.HotListResponse{}, fmt.Errorf("Yahoo hot list is unsupported for category: %s", category)
+	default:
+		return monitor.HotListResponse{}, fmt.Errorf("Hot quote source is unsupported: %s", sourceID)
+	}
+}
+
 // loadPoolItems loads instruments from the predefined data pool and fetches real-time quotes.
-func (s *HotService) loadPoolItems(ctx context.Context, category monitor.HotCategory, sortBy monitor.HotSort) ([]monitor.HotItem, error) {
+func (s *HotService) loadPoolItems(ctx context.Context, category monitor.HotCategory, sortBy monitor.HotSort, options HotListOptions) ([]monitor.HotItem, error) {
 	pool := hotConstituents[category]
 	if len(pool) == 0 {
 		return nil, fmt.Errorf("No available hot pool for category: %s", category)
 	}
 
-	items, err := s.loadHotItemsForSeeds(ctx, pool, "Preset Pool")
+	items, err := s.loadHotItemsForSeeds(ctx, pool, resolveHotQuoteSource(category, options))
 	if err != nil {
 		return nil, err
 	}
@@ -368,18 +456,13 @@ func (s *HotService) loadPoolItems(ctx context.Context, category monitor.HotCate
 	return items, nil
 }
 
-// loadHotItemsForSeeds fetches real-time quotes for the given hotSeed list and builds a HotItem list.
-func (s *HotService) loadHotItemsForSeeds(ctx context.Context, seeds []hotSeed, fallbackSource string) ([]monitor.HotItem, error) {
+// loadHotItemsForSeeds fetches real-time quotes for the given hotSeed list and returns only rows backed by live data.
+func (s *HotService) loadHotItemsForSeeds(ctx context.Context, seeds []hotSeed, quoteSourceID string) ([]monitor.HotItem, error) {
 	if len(seeds) == 0 {
 		return []monitor.HotItem{}, nil
 	}
 
-	items, err := s.fetchPoolQuotes(ctx, seeds)
-	if err != nil {
-		return buildFallbackHotItems(seeds, fallbackSource), nil
-	}
-
-	return mergeHotItemsWithSeeds(items, seeds, fallbackSource), nil
+	return s.fetchPoolQuotes(ctx, seeds, quoteSourceID)
 }
 
 // resolveEastMoneyHotFilter maps HotCategory to EastMoney clist fs parameter, market label and currency.
@@ -428,6 +511,134 @@ func isUSHotCategory(c monitor.HotCategory) bool {
 		return true
 	}
 	return false
+}
+
+func normaliseHotListOptions(options HotListOptions) HotListOptions {
+	options.CNQuoteSource = normaliseHotQuoteSourceID(options.CNQuoteSource)
+	options.HKQuoteSource = normaliseHotQuoteSourceID(options.HKQuoteSource)
+	options.USQuoteSource = normaliseHotQuoteSourceID(options.USQuoteSource)
+	if options.CacheTTL <= 0 {
+		options.CacheTTL = defaultHotCacheTTL
+	}
+	return options
+}
+
+func normaliseHotQuoteSourceID(sourceID string) string {
+	switch strings.ToLower(strings.TrimSpace(sourceID)) {
+	case "yahoo":
+		return "yahoo"
+	case "sina":
+		return "sina"
+	case "xueqiu":
+		return "xueqiu"
+	default:
+		return "eastmoney"
+	}
+}
+
+func resolveHotQuoteSource(category monitor.HotCategory, options HotListOptions) string {
+	if isCNHotCategory(category) {
+		return options.CNQuoteSource
+	}
+	if isHKHotCategory(category) {
+		return options.HKQuoteSource
+	}
+	if isUSHotCategory(category) {
+		return options.USQuoteSource
+	}
+	return "eastmoney"
+}
+
+func (s *HotService) applyConfiguredQuotes(ctx context.Context, category monitor.HotCategory, items []monitor.HotItem, options HotListOptions) ([]monitor.HotItem, error) {
+	sourceID := resolveHotQuoteSource(category, options)
+	if sourceID == "eastmoney" {
+		return cloneHotItems(items), nil
+	}
+	if sourceID == "xueqiu" && hotItemsAlreadyUseSource(items, "Xueqiu") {
+		return cloneHotItems(items), nil
+	}
+	if sourceID == "sina" && hotItemsAlreadyUseSource(items, "Sina") {
+		return cloneHotItems(items), nil
+	}
+
+	switch sourceID {
+	case "yahoo":
+		if hotItemsAlreadyUseSource(items, "Yahoo Finance") {
+			return cloneHotItems(items), nil
+		}
+		return s.applyYahooQuotes(ctx, items)
+	default:
+		return nil, fmt.Errorf("Hot quote source is unsupported: %s", sourceID)
+	}
+}
+
+func (s *HotService) applyYahooQuotes(ctx context.Context, items []monitor.HotItem) ([]monitor.HotItem, error) {
+	if len(items) == 0 {
+		return []monitor.HotItem{}, nil
+	}
+
+	watchItems := make([]monitor.WatchlistItem, 0, len(items))
+	for _, item := range items {
+		watchItems = append(watchItems, monitor.WatchlistItem{
+			Symbol:   item.Symbol,
+			Name:     item.Name,
+			Market:   item.Market,
+			Currency: item.Currency,
+		})
+	}
+
+	quotes, err := NewYahooQuoteProvider(s.client).Fetch(ctx, watchItems)
+	if err != nil {
+		return nil, err
+	}
+
+	enriched := make([]monitor.HotItem, 0, len(items))
+	for _, item := range items {
+		target, err := monitor.ResolveQuoteTarget(monitor.WatchlistItem{
+			Symbol:   item.Symbol,
+			Name:     item.Name,
+			Market:   item.Market,
+			Currency: item.Currency,
+		})
+		if err != nil {
+			continue
+		}
+
+		quote, ok := quotes[target.Key]
+		if !ok {
+			continue
+		}
+
+		item.Name = firstNonEmpty(quote.Name, item.Name)
+		item.Currency = firstNonEmpty(quote.Currency, item.Currency)
+		item.CurrentPrice = quote.CurrentPrice
+		item.Change = quote.Change
+		item.ChangePercent = quote.ChangePercent
+		item.QuoteSource = quote.Source
+		if !quote.UpdatedAt.IsZero() {
+			item.UpdatedAt = quote.UpdatedAt
+		}
+		enriched = append(enriched, item)
+	}
+
+	if len(enriched) == 0 {
+		return nil, fmt.Errorf("No live hot quotes are available from Yahoo Finance")
+	}
+
+	return enriched, nil
+}
+
+func hotItemsAlreadyUseSource(items []monitor.HotItem, source string) bool {
+	if len(items) == 0 {
+		return true
+	}
+
+	for _, item := range items {
+		if strings.TrimSpace(item.QuoteSource) != source {
+			return false
+		}
+	}
+	return true
 }
 
 // normaliseHotCategory falls back missing or invalid categories to the default value.
@@ -547,8 +758,8 @@ func paginateHotItems(total, page, pageSize int) (start, end int) {
 }
 
 // hotSearchCacheKey generates the cache key for hot search based on category and sort order.
-func hotSearchCacheKey(category monitor.HotCategory, sortBy monitor.HotSort) string {
-	return string(category) + "|" + string(sortBy)
+func hotSearchCacheKey(category monitor.HotCategory, sortBy monitor.HotSort, sourceID string) string {
+	return string(category) + "|" + string(sortBy) + "|" + strings.TrimSpace(sourceID)
 }
 
 // mergeHotSeeds merges two hotSeed slices and returns a deduplicated new list.
@@ -570,52 +781,16 @@ func mergeHotSeeds(base, extra []hotSeed) []hotSeed {
 	return merged
 }
 
-// mergeHotItemsWithSeeds merges items from a hotSeed list into a monitor.HotItem list, deduplicating and returning a new list.
-// If a hotSeed has no corresponding monitor.HotItem, a new monitor.HotItem is built from the hotSeed info with quoteSource set to fallbackSource.
-func mergeHotItemsWithSeeds(items []monitor.HotItem, seeds []hotSeed, fallbackSource string) []monitor.HotItem {
-	merged := cloneHotItems(items)
-	seen := make(map[string]struct{}, len(items))
-	for _, item := range items {
-		seen[item.Market+"|"+strings.ToUpper(item.Symbol)] = struct{}{}
-	}
-
-	now := time.Now()
-	for _, seed := range seeds {
-		key := seed.Market + "|" + strings.ToUpper(seed.Symbol)
-		if _, ok := seen[key]; ok {
-			continue
-		}
-		seen[key] = struct{}{}
-		merged = append(merged, monitor.HotItem{
-			Symbol:      seed.Symbol,
-			Name:        seed.Name,
-			Market:      seed.Market,
-			Currency:    seed.Currency,
-			QuoteSource: fallbackSource,
-			UpdatedAt:   now,
-		})
-	}
-	return merged
-}
-
-func buildFallbackHotItems(seeds []hotSeed, source string) []monitor.HotItem {
-	items := make([]monitor.HotItem, 0, len(seeds))
-	now := time.Now()
-	for _, seed := range seeds {
-		items = append(items, monitor.HotItem{
-			Symbol:      seed.Symbol,
-			Name:        seed.Name,
-			Market:      seed.Market,
-			Currency:    seed.Currency,
-			QuoteSource: source,
-			UpdatedAt:   now,
-		})
-	}
-	return items
-}
-
 func cloneHotItems(items []monitor.HotItem) []monitor.HotItem {
 	return append([]monitor.HotItem(nil), items...)
+}
+
+func cloneHotListResponse(response monitor.HotListResponse) monitor.HotListResponse {
+	response.Items = cloneHotItems(response.Items)
+	if response.CacheExpiresAt != nil {
+		response.CacheExpiresAt = ptrTime(*response.CacheExpiresAt)
+	}
+	return response
 }
 
 // sortHotItems sorts the hot instrument list in place according to the specified sort order.
@@ -641,6 +816,22 @@ func maxInt(a, b int) int {
 		return a
 	}
 	return b
+}
+
+func hotResponseCacheKey(category monitor.HotCategory, sortBy monitor.HotSort, keyword string, page, pageSize int, options HotListOptions) string {
+	return strings.Join([]string{
+		string(category),
+		string(sortBy),
+		keyword,
+		strconv.Itoa(page),
+		strconv.Itoa(pageSize),
+		resolveHotQuoteSource(category, options),
+	}, "|")
+}
+
+func ptrTime(value time.Time) *time.Time {
+	copy := value
+	return &copy
 }
 
 // searchYahooUSSeeds fetches a list of US ETF instruments matching the keyword and filters for those likely listed on US exchanges.
