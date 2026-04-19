@@ -3,10 +3,10 @@ import type { AlertFormModel, AlertRule, AppSettings, DCAEntry, DCAEntryRow, Hot
 // Default settings used during frontend initialization; must stay in sync with backend defaults.
 export const defaultSettings: AppSettings = {
     refreshIntervalSeconds: 60,
-    cnQuoteSource: "tencent",
-    hkQuoteSource: "eastmoney",
+    hotCacheTTLSeconds: 60,
+    cnQuoteSource: "sina",
+    hkQuoteSource: "xueqiu",
     usQuoteSource: "yahoo",
-    hotUSSource: "eastmoney",
     themeMode: "system",
     colorTheme: "blue",
     fontPreset: "system",
@@ -14,10 +14,35 @@ export const defaultSettings: AppSettings = {
     currencyDisplay: "symbol",
     priceColorScheme: "cn",
     locale: "system",
+    proxyMode: "system",
+    proxyURL: "",
     developerMode: false,
     dashboardCurrency: "CNY",
     useNativeTitleBar: false,
 };
+
+// Normalize a backend settings snapshot into the frontend-owned settings shape.
+export function normaliseSettings(input: Partial<AppSettings> | null | undefined): AppSettings {
+    return {
+        refreshIntervalSeconds: input?.refreshIntervalSeconds ?? defaultSettings.refreshIntervalSeconds,
+        hotCacheTTLSeconds: input?.hotCacheTTLSeconds ?? defaultSettings.hotCacheTTLSeconds,
+        cnQuoteSource: input?.cnQuoteSource ?? defaultSettings.cnQuoteSource,
+        hkQuoteSource: input?.hkQuoteSource ?? defaultSettings.hkQuoteSource,
+        usQuoteSource: input?.usQuoteSource ?? defaultSettings.usQuoteSource,
+        themeMode: input?.themeMode ?? defaultSettings.themeMode,
+        colorTheme: input?.colorTheme ?? defaultSettings.colorTheme,
+        fontPreset: input?.fontPreset ?? defaultSettings.fontPreset,
+        amountDisplay: input?.amountDisplay ?? defaultSettings.amountDisplay,
+        currencyDisplay: input?.currencyDisplay ?? defaultSettings.currencyDisplay,
+        priceColorScheme: input?.priceColorScheme ?? defaultSettings.priceColorScheme,
+        locale: input?.locale ?? defaultSettings.locale,
+        proxyMode: input?.proxyMode ?? defaultSettings.proxyMode,
+        proxyURL: input?.proxyURL ?? defaultSettings.proxyURL,
+        developerMode: input?.developerMode ?? defaultSettings.developerMode,
+        dashboardCurrency: input?.dashboardCurrency ?? defaultSettings.dashboardCurrency,
+        useNativeTitleBar: input?.useNativeTitleBar ?? defaultSettings.useNativeTitleBar,
+    };
+}
 
 // Return an empty form model for creating a new watchlist item.
 export function emptyItemForm(): ItemFormModel {

@@ -101,7 +101,9 @@ func (s *Store) Refresh(ctx context.Context) (StateSnapshot, error) {
 	return s.snapshotLocked(), nil
 }
 
-// ItemHistory queries historical trend for the specified item and delegates to history provider implementation.
+// ItemHistory queries historical price data for the specified item.
+// Routing to the appropriate data source is handled by the historyProvider (HistoryRouter),
+// which selects and sequences providers based on the item market and user settings.
 func (s *Store) ItemHistory(ctx context.Context, itemID string, interval HistoryInterval) (HistorySeries, error) {
 	s.mu.RLock()
 	index := s.findItemIndexLocked(itemID)
@@ -110,23 +112,18 @@ func (s *Store) ItemHistory(ctx context.Context, itemID string, interval History
 		return HistorySeries{}, fmt.Errorf("Item not found: %s", itemID)
 	}
 	item := s.state.Items[index]
-	providers := s.historyProviderCandidatesLocked(item.Market)
 	s.mu.RUnlock()
 
-	if len(providers) == 0 {
+	if s.historyProvider == nil {
 		return HistorySeries{}, errors.New("History provider is not configured")
 	}
 
-	var problems []string
-	for _, provider := range providers {
-		series, err := provider.Fetch(ctx, item, interval)
-		if err == nil {
-			series.Snapshot = buildMarketSnapshot(decorateItemDerived(item), series)
-			return series, nil
-		}
-		problems = append(problems, fmt.Sprintf("%s: %v", provider.Name(), err))
+	series, err := s.historyProvider.Fetch(ctx, item, interval)
+	if err != nil {
+		return HistorySeries{}, err
 	}
-	return HistorySeries{}, joinProblems(problems)
+	series.Snapshot = buildMarketSnapshot(decorateItemDerived(item), series)
+	return series, nil
 }
 
 // OverviewAnalytics builds the overview analytics payload used by the dashboard overview module.
@@ -137,22 +134,10 @@ func (s *Store) OverviewAnalytics(ctx context.Context) (OverviewAnalytics, error
 	s.mu.RUnlock()
 
 	calculator := newOverviewCalculator(s.fxRates, displayCurrency, func(ctx context.Context, item WatchlistItem, interval HistoryInterval) (HistorySeries, error) {
-		s.mu.RLock()
-		providers := s.historyProviderCandidatesLocked(item.Market)
-		s.mu.RUnlock()
-		if len(providers) == 0 {
+		if s.historyProvider == nil {
 			return HistorySeries{}, errors.New("History provider is not configured")
 		}
-
-		var problems []string
-		for _, provider := range providers {
-			series, err := provider.Fetch(ctx, item, interval)
-			if err == nil {
-				return series, nil
-			}
-			problems = append(problems, fmt.Sprintf("%s: %v", provider.Name(), err))
-		}
-		return HistorySeries{}, joinProblems(problems)
+		return s.historyProvider.Fetch(ctx, item, interval)
 	})
 
 	return calculator.Build(ctx, items)

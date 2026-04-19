@@ -114,6 +114,7 @@ type AlertRule struct {
 // AppSettings represents application settings.
 type AppSettings struct {
 	RefreshIntervalSeconds int    `json:"refreshIntervalSeconds"`
+	HotCacheTTLSeconds     int    `json:"hotCacheTTLSeconds"`
 	QuoteSource            string `json:"quoteSource"`
 	CNQuoteSource          string `json:"cnQuoteSource"`
 	HKQuoteSource          string `json:"hkQuoteSource"`
@@ -126,6 +127,8 @@ type AppSettings struct {
 	CurrencyDisplay        string `json:"currencyDisplay"`
 	PriceColorScheme       string `json:"priceColorScheme"`
 	Locale                 string `json:"locale"`
+	ProxyMode              string `json:"proxyMode"`
+	ProxyURL               string `json:"proxyURL"`
 	DeveloperMode          bool   `json:"developerMode"`
 	DashboardCurrency      string `json:"dashboardCurrency"`
 	UseNativeTitleBar      bool   `json:"useNativeTitleBar"`
@@ -226,12 +229,14 @@ type HotItem struct {
 
 // HotListResponse represents paginated results returned by the hot list API.
 type HotListResponse struct {
-	Category    HotCategory `json:"category"`
-	Sort        HotSort     `json:"sort"`
-	Page        int         `json:"page"`
-	PageSize    int         `json:"pageSize"`
-	Total       int         `json:"total"`
-	HasMore     bool        `json:"hasMore"`
-	Items       []HotItem   `json:"items"`
-	GeneratedAt time.Time   `json:"generatedAt"`
+	Category       HotCategory `json:"category"`
+	Sort           HotSort     `json:"sort"`
+	Page           int         `json:"page"`
+	PageSize       int         `json:"pageSize"`
+	Total          int         `json:"total"`
+	HasMore        bool        `json:"hasMore"`
+	Items          []HotItem   `json:"items"`
+	Cached         bool        `json:"cached"`
+	CacheExpiresAt *time.Time  `json:"cacheExpiresAt,omitempty"`
+	GeneratedAt    time.Time   `json:"generatedAt"`
 }

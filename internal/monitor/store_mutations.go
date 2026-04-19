@@ -245,12 +245,12 @@ func (s *Store) UpdateSettings(input AppSettings) (StateSnapshot, error) {
 	s.logInfo(
 		"settings",
 		fmt.Sprintf(
-			"updated settings: cn=%s hk=%s us=%s hotUS=%s refresh=%ds theme=%s color=%s developerMode=%t",
+			"updated settings: cn=%s hk=%s us=%s refresh=%ds hotCacheTTL=%ds theme=%s color=%s developerMode=%t",
 			settings.CNQuoteSource,
 			settings.HKQuoteSource,
 			settings.USQuoteSource,
-			settings.HotUSSource,
 			settings.RefreshIntervalSeconds,
+			settings.HotCacheTTLSeconds,
 			settings.ThemeMode,
 			settings.ColorTheme,
 			settings.DeveloperMode,

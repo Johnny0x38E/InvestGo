@@ -188,10 +188,8 @@ func derefFloat(value *float64) float64 {
 	return *value
 }
 
-// DefaultHistorySourceRegistry returns the default historical quote source registry.
-func DefaultHistorySourceRegistry(client *http.Client) map[string]monitor.HistoryProvider {
-	return map[string]monitor.HistoryProvider{
-		"eastmoney": NewEastMoneyChartProvider(client),
-		"yahoo":     NewYahooChartProvider(client),
-	}
+// DefaultHistorySourceRegistry returns the default history provider.
+// Deprecated: use NewSmartHistoryProvider instead.
+func DefaultHistorySourceRegistry(client *http.Client) monitor.HistoryProvider {
+	return NewSmartHistoryProvider(client, nil)
 }

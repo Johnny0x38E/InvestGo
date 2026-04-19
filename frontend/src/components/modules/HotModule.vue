@@ -34,6 +34,8 @@ const items = ref<HotItem[]>([]);
 const page = ref(1);
 const total = ref(0);
 const hasMore = ref(true);
+const cached = ref(false);
+const cacheExpiresAt = ref("");
 const loading = ref(false);
 const loadingMore = ref(false);
 const error = ref("");
@@ -93,6 +95,8 @@ const updatedAtSummary = computed(() => {
     }
     return timestamps.reduce((latest, current) => (new Date(current).getTime() > new Date(latest).getTime() ? current : latest));
 });
+
+const cacheSummary = computed(() => (cached.value ? t("hot.cacheHit") : t("hot.cacheMiss")));
 
 function handleSort(field: SortField): void {
     if (sortField.value === field) {
@@ -216,24 +220,30 @@ function selectCategory(next: HotCategory): void {
 }
 
 async function resetAndLoad(): Promise<void> {
+    await resetAndLoadWithOptions(false);
+}
+
+async function resetAndLoadWithOptions(forceRefresh: boolean): Promise<void> {
     // Reset to page one whenever any filter changes so stale pagination results are not reused.
     cancelInflightRequest(true);
     items.value = [];
     page.value = 1;
     total.value = 0;
     hasMore.value = true;
+    cached.value = false;
+    cacheExpiresAt.value = "";
     error.value = "";
-    await loadPage(1, false);
+    await loadPage(1, false, forceRefresh);
 }
 
 async function ensureInitialLoad(): Promise<void> {
     if (items.value.length || loading.value || loadingMore.value) {
         return;
     }
-    await loadPage(1, false);
+    await loadPage(1, false, false);
 }
 
-async function loadPage(nextPage: number, append: boolean): Promise<void> {
+async function loadPage(nextPage: number, append: boolean, forceRefresh: boolean): Promise<void> {
     if ((loading.value && !append) || (loadingMore.value && append)) {
         return;
     }
@@ -256,6 +266,9 @@ async function loadPage(nextPage: number, append: boolean): Promise<void> {
         if (activeKeyword.value) {
             params.set("q", activeKeyword.value);
         }
+        if (forceRefresh) {
+            params.set("force", "1");
+        }
 
         const payload = await api<HotListResponse>(`/api/hot?${params.toString()}`, {
             signal: controller.signal,
@@ -269,6 +282,8 @@ async function loadPage(nextPage: number, append: boolean): Promise<void> {
         page.value = payload.page;
         total.value = payload.total;
         hasMore.value = payload.hasMore;
+        cached.value = payload.cached;
+        cacheExpiresAt.value = payload.cacheExpiresAt ?? "";
         error.value = "";
     } catch (requestError) {
         if (requestError instanceof ApiAbortError) {
@@ -288,7 +303,11 @@ async function loadMore(): Promise<void> {
     if (!hasMore.value || loading.value || loadingMore.value) {
         return;
     }
-    await loadPage(page.value + 1, true);
+    await loadPage(page.value + 1, true, false);
+}
+
+async function refreshHot(forceRefresh = false): Promise<void> {
+    await resetAndLoadWithOptions(forceRefresh);
 }
 
 function bindObserver(): void {
@@ -327,6 +346,9 @@ function unbindObserver(): void {
                 <h3 class="title">{{ t("hot.title") }}</h3>
             </div>
             <div class="hot-toolbar">
+                <div class="hot-actions">
+                    <Button size="small" text icon="pi pi-refresh" :label="t('hot.refresh')" @click="refreshHot(true)" />
+                </div>
                 <div class="hot-category-tabs" role="tablist" :aria-label="t('hot.ariaCategoryTabs')">
                     <button
                         v-for="entry in categoryOptions"
@@ -350,6 +372,8 @@ function unbindObserver(): void {
             <span v-else>{{ t("hot.loadedSummary", { count: items.length, total }) }}</span>
             <span>{{ t("hot.meta.source", { source: sourceSummary }) }}</span>
             <span>{{ t("hot.meta.updatedAt", { time: updatedAtSummary ? formatDateTime(updatedAtSummary) : t("common.notAvailable") }) }}</span>
+            <span>{{ t("hot.meta.cache", { state: cacheSummary }) }}</span>
+            <span v-if="cacheExpiresAt">{{ t("hot.meta.cacheFreshUntil", { time: formatDateTime(cacheExpiresAt) }) }}</span>
         </div>
 
         <div class="hot-table-shell">
@@ -475,6 +499,22 @@ function unbindObserver(): void {
     justify-content: flex-end;
     flex-wrap: nowrap;
     min-width: 0;
+}
+
+.hot-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 auto;
+}
+
+.hot-actions :deep(.p-button) {
+    flex-wrap: nowrap;
+    white-space: nowrap;
+}
+
+.hot-actions :deep(.p-button-label) {
+    white-space: nowrap;
 }
 
 .hot-toolbar .search-input {

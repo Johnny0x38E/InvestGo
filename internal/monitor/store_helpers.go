@@ -5,6 +5,7 @@ import (
 	"strings"
 )
 
+// joinProblems combines multiple validation problems into a single error, removing duplicates and empty messages.
 func joinProblems(problems []string) error {
 	if len(problems) == 0 {
 		return nil

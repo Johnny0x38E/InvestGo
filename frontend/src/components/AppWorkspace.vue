@@ -82,6 +82,7 @@ defineEmits<{
         :item-count="itemCount"
         :live-price-count="livePriceCount"
         :generated-at="generatedAt"
+        @refresh="$emit('refresh')"
     />
 
     <WatchlistModule

@@ -45,21 +45,51 @@ func main() {
 	defer func() { _ = logs.Close() }()
 
 	logs.Info("backend", "app", "starting InvestGo")
-	platform.ApplySystemProxy(logs)
 
-	quoteProviders, quoteSourceOptions := marketdata.DefaultQuoteSourceRegistry(nil)
+	// Bootstrap the shared HTTP transport with the "system" default so that
+	// HTTP clients are available before the Store is initialised. The transport
+	// will be updated to the actual persisted setting once the Store is ready.
+	proxyTransport := platform.NewProxyTransport("system", "")
+	httpClient := platform.NewHTTPClient(proxyTransport)
+
+	quoteProviders, quoteSourceOptions := marketdata.DefaultQuoteSourceRegistry(httpClient)
+
+	// historySettings is a lazy getter that returns the Store's current settings.
+	// It is initialised to a safe default and wired to the real store below so
+	// that HistoryRouter always sees up-to-date per-market preferences without
+	// creating an initialisation cycle.
+	var historySettings func() monitor.AppSettings = func() monitor.AppSettings { return monitor.AppSettings{} }
+
 	store, err := monitor.NewStore(
 		defaultStatePath(),
 		quoteProviders,
 		quoteSourceOptions,
-		marketdata.NewSmartHistoryProvider(nil),
+		marketdata.NewSmartHistoryProvider(httpClient, func() monitor.AppSettings { return historySettings() }),
 		logs,
 		appVersion,
 	)
 	if err != nil {
 		log.Fatalf("initialise store: %v", err)
 	}
-	hotService := marketdata.NewHotService(nil)
+
+	// Wire the real settings getter now that the Store is ready.
+	historySettings = store.CurrentSettings
+
+	// The Store is now loaded — sync the proxy transport with the persisted
+	// settings. ApplySystemProxy sets process-wide env vars so that
+	// http.ProxyFromEnvironment works correctly for "system" mode.
+	snapshot := store.Snapshot()
+	proxyMode := snapshot.Settings.ProxyMode
+	proxyURL := snapshot.Settings.ProxyURL
+	logs.Info("backend", "proxy", fmt.Sprintf("proxy mode: %s", proxyMode))
+	if proxyMode == "system" {
+		platform.ApplySystemProxy(logs)
+	} else if proxyMode == "custom" && proxyURL != "" {
+		logs.Info("backend", "proxy", fmt.Sprintf("custom proxy: %s", proxyURL))
+	}
+	proxyTransport.Update(proxyMode, proxyURL)
+
+	hotService := marketdata.NewHotService(httpClient, logs.NewSlogLogger("hot", slog.LevelInfo))
 
 	frontendFS, err := fs.Sub(frontendAssets, "frontend/dist")
 	if err != nil {
@@ -67,7 +97,7 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
-	mux.Handle("/api/", api.NewHandler(store, hotService, logs))
+	mux.Handle("/api/", api.NewHandler(store, hotService, logs, proxyTransport))
 	mux.Handle("/", application.BundledAssetFileServer(frontendFS))
 
 	app := application.New(application.Options{
@@ -93,10 +123,7 @@ func main() {
 		},
 	})
 
-	// First fetch a snapshot to read settings
-	snapshot := store.Snapshot()
 	useNativeTitleBar := snapshot.Settings.UseNativeTitleBar
-
 	windowOptions := platform.BuildMainWindowOptions(useNativeTitleBar)
 	windowOptions.KeyBindings = map[string]func(window application.Window){
 		"F12": func(window application.Window) {

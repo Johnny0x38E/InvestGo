@@ -38,16 +38,16 @@ export function getHistoryRangeOptions(): OptionItem<HistoryInterval>[] {
 }
 
 export function getMarketOptions(): OptionItem<MarketType>[] {
+    // Only the six canonical user-facing categories are offered in forms.
+    // Sub-markets (CN-GEM, CN-STAR, CN-BJ, HK-GEM) are handled by the backend
+    // automatically via symbol-prefix inference and are not exposed as choices.
     return [
-        { label: translate("options.market.CN-A"), value: "CN-A" },
-        { label: translate("options.market.CN-GEM"), value: "CN-GEM" },
-        { label: translate("options.market.CN-STAR"), value: "CN-STAR" },
-        { label: translate("options.market.CN-ETF"), value: "CN-ETF" },
-        { label: translate("options.market.HK-MAIN"), value: "HK-MAIN" },
-        { label: translate("options.market.HK-GEM"), value: "HK-GEM" },
-        { label: translate("options.market.HK-ETF"), value: "HK-ETF" },
+        { label: translate("options.market.CN-A"),     value: "CN-A" },
+        { label: translate("options.market.CN-ETF"),   value: "CN-ETF" },
+        { label: translate("options.market.HK-MAIN"),  value: "HK-MAIN" },
+        { label: translate("options.market.HK-ETF"),   value: "HK-ETF" },
         { label: translate("options.market.US-STOCK"), value: "US-STOCK" },
-        { label: translate("options.market.US-ETF"), value: "US-ETF" },
+        { label: translate("options.market.US-ETF"),   value: "US-ETF" },
     ];
 }
 
@@ -174,5 +174,13 @@ export function getDashboardCurrencyOptions(): OptionItem[] {
         { label: translate("options.dashboardCurrency.CNY"), value: "CNY" },
         { label: translate("options.dashboardCurrency.HKD"), value: "HKD" },
         { label: translate("options.dashboardCurrency.USD"), value: "USD" },
+    ];
+}
+
+export function getProxyModeOptions(): OptionItem<AppSettings["proxyMode"]>[] {
+    return [
+        { label: translate("options.proxyMode.none"), value: "none" },
+        { label: translate("options.proxyMode.system"), value: "system" },
+        { label: translate("options.proxyMode.custom"), value: "custom" },
     ];
 }

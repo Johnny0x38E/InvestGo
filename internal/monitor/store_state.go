@@ -46,6 +46,9 @@ func (s *Store) normaliseLocked() {
 	if s.state.Settings.RefreshIntervalSeconds <= 0 {
 		s.state.Settings.RefreshIntervalSeconds = 60
 	}
+	if s.state.Settings.HotCacheTTLSeconds <= 0 {
+		s.state.Settings.HotCacheTTLSeconds = 60
+	}
 	legacySource := strings.ToLower(strings.TrimSpace(s.state.Settings.QuoteSource))
 	if s.state.Settings.CNQuoteSource == "" {
 		s.state.Settings.CNQuoteSource = legacySource
@@ -85,15 +88,13 @@ func (s *Store) normaliseLocked() {
 	if s.state.Settings.Locale == "" {
 		s.state.Settings.Locale = "system"
 	}
+	if s.state.Settings.ProxyMode == "" {
+		s.state.Settings.ProxyMode = "system"
+	}
 	if s.state.Settings.DashboardCurrency == "" {
 		s.state.Settings.DashboardCurrency = "CNY"
 	}
-	switch s.state.Settings.HotUSSource {
-	case "eastmoney", "yahoo":
-		// valid
-	default:
-		s.state.Settings.HotUSSource = "eastmoney"
-	}
+	s.state.Settings.HotUSSource = s.state.Settings.USQuoteSource
 
 	// Items in historical states may be missing ID, name, or update time; here we complete them.
 	for idx := range s.state.Items {
@@ -379,49 +380,6 @@ func (s *Store) activeQuoteSourceIDLocked(market string) string {
 	return s.quoteSourceIDForMarketLocked(market)
 }
 
-// historyProviderCandidatesLocked returns a list of historical data provider candidates for the given market, with priority:
-// 1. Current quote source (if it also provides historical data)
-// 2. Other default quote sources in the same market group (if user-set quote source does not support historical data, fall back to same market group default)
-// 3. Other available quote sources in the same market group (if same market group default does not support historical data, fall back to other options in same market group)
-// 4. Default quote sources in other market groups (if no options in same market group support historical data, fall back to other market group defaults)
-// 5. Available quote sources in other market groups (if other market group default does not support historical data, fall back to other options in other market groups)
-// 6. First available option in quote source list that provides historical data
-// 7. Built-in default DefaultQuoteSourceID (if it provides historical data)
-func (s *Store) historyProviderCandidatesLocked(market string) []HistoryProvider {
-	if len(s.historyProviders) == 0 {
-		return nil
-	}
-
-	preferredSource := s.quoteSourceIDForMarketLocked(market)
-	candidates := make([]HistoryProvider, 0, 3)
-	seen := make(map[string]struct{}, 3)
-	appendProvider := func(id string) {
-		if id == "" {
-			return
-		}
-		if _, ok := seen[id]; ok {
-			return
-		}
-		provider, ok := s.historyProviders[id]
-		if !ok {
-			return
-		}
-		seen[id] = struct{}{}
-		candidates = append(candidates, provider)
-	}
-
-	appendProvider(preferredSource)
-	switch marketGroupForMarket(market) {
-	case "us":
-		appendProvider("yahoo")
-		appendProvider("eastmoney")
-	default:
-		appendProvider("eastmoney")
-		appendProvider("yahoo")
-	}
-
-	return candidates
-}
 
 // buildDashboard builds dashboard summary data based on items, alerts, and FX rate information.
 func buildDashboard(items []WatchlistItem, alerts []AlertRule, fx *FxRates, displayCurrency string) DashboardSummary {

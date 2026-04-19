@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import Button from "primevue/button";
+import InputText from "primevue/inputtext";
 import InputNumber from "primevue/inputnumber";
 import Select from "primevue/select";
 import ToggleSwitch from "primevue/toggleswitch";
@@ -15,6 +16,7 @@ import {
     getFontPresetOptions,
     getLocaleOptions,
     getPriceColorOptions,
+    getProxyModeOptions,
     projectMeta,
     getSettingsTabs,
     getThemeModeOptions,
@@ -68,6 +70,22 @@ const currencyDisplayOptions = computed(() => getCurrencyDisplayOptions());
 const priceColorOptions = computed(() => getPriceColorOptions());
 const dashboardCurrencyOptions = computed(() => getDashboardCurrencyOptions());
 const localeOptions = computed(() => getLocaleOptions());
+const proxyModeOptions = computed(() => getProxyModeOptions());
+const cnQuoteSources = computed(() =>
+    props.quoteSources.filter((option) =>
+        option.supportedMarkets.some((market) => market.startsWith("CN-")),
+    ),
+);
+const hkQuoteSources = computed(() =>
+    props.quoteSources.filter((option) =>
+        option.supportedMarkets.some((market) => market.startsWith("HK-")),
+    ),
+);
+const usQuoteSources = computed(() =>
+    props.quoteSources.filter((option) =>
+        option.supportedMarkets.some((market) => market.startsWith("US-")),
+    ),
+);
 
 async function openExternal(url: string): Promise<void> {
     await api("/api/open-external", {
@@ -133,7 +151,7 @@ async function openExternal(url: string): Promise<void> {
                                 }}</span>
                                 <Select
                                     v-model="settingsDraft.cnQuoteSource"
-                                    :options="quoteSources"
+                                    :options="cnQuoteSources"
                                     option-label="name"
                                     option-value="id"
                                     class="w-full"
@@ -145,7 +163,7 @@ async function openExternal(url: string): Promise<void> {
                                 }}</span>
                                 <Select
                                     v-model="settingsDraft.hkQuoteSource"
-                                    :options="quoteSources"
+                                    :options="hkQuoteSources"
                                     option-label="name"
                                     option-value="id"
                                     class="w-full"
@@ -157,7 +175,7 @@ async function openExternal(url: string): Promise<void> {
                                 }}</span>
                                 <Select
                                     v-model="settingsDraft.usQuoteSource"
-                                    :options="quoteSources"
+                                    :options="usQuoteSources"
                                     option-label="name"
                                     option-value="id"
                                     class="w-full"
@@ -171,6 +189,19 @@ async function openExternal(url: string): Promise<void> {
                                 <InputNumber
                                     v-model="
                                         settingsDraft.refreshIntervalSeconds
+                                    "
+                                    :min="10"
+                                    :step="10"
+                                    fluid
+                                />
+                            </label>
+                            <label>
+                                <span>{{
+                                    t("settings.labels.hotCacheTTL")
+                                }}</span>
+                                <InputNumber
+                                    v-model="
+                                        settingsDraft.hotCacheTTLSeconds
                                     "
                                     :min="10"
                                     :step="10"
@@ -423,6 +454,30 @@ async function openExternal(url: string): Promise<void> {
                                     option-label="label"
                                     option-value="value"
                                     class="w-full"
+                                />
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <h4>{{ t("settings.sections.network") }}</h4>
+                        <div class="settings-grid">
+                            <label>
+                                <span>{{ t("settings.labels.proxyMode") }}</span>
+                                <Select
+                                    v-model="settingsDraft.proxyMode"
+                                    :options="proxyModeOptions"
+                                    option-label="label"
+                                    option-value="value"
+                                    class="w-full"
+                                />
+                            </label>
+                            <label v-if="settingsDraft.proxyMode === 'custom'">
+                                <span>{{ t("settings.labels.proxyURL") }}</span>
+                                <InputText
+                                    v-model="settingsDraft.proxyURL"
+                                    class="w-full"
+                                    placeholder="http://127.0.0.1:7890"
                                 />
                             </label>
                         </div>

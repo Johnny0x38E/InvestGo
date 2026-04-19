@@ -111,10 +111,10 @@ export interface AlertRule {
 
 export interface AppSettings {
     refreshIntervalSeconds: number;
+    hotCacheTTLSeconds: number;
     cnQuoteSource: string;
     hkQuoteSource: string;
     usQuoteSource: string;
-    hotUSSource: string;
     themeMode: ThemeMode;
     colorTheme: ColorTheme;
     fontPreset: "system" | "compact" | "reading";
@@ -122,6 +122,8 @@ export interface AppSettings {
     currencyDisplay: "symbol" | "code";
     priceColorScheme: "cn" | "intl";
     locale: "system" | "zh-CN" | "en-US";
+    proxyMode: "none" | "system" | "custom";
+    proxyURL: string;
     developerMode: boolean;
     dashboardCurrency: string;
     useNativeTitleBar: boolean;
@@ -346,5 +348,7 @@ export interface HotListResponse {
     total: number;
     hasMore: boolean;
     items: HotItem[];
+    cached: boolean;
+    cacheExpiresAt?: string;
     generatedAt: string;
 }

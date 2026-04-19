@@ -2,6 +2,7 @@ package monitor
 
 import (
 	"errors"
+	"net/url"
 	"strings"
 )
 
@@ -10,6 +11,9 @@ func sanitiseSettings(input AppSettings, current AppSettings, quoteProviders map
 	settings := current
 	if input.RefreshIntervalSeconds > 0 {
 		settings.RefreshIntervalSeconds = input.RefreshIntervalSeconds
+	}
+	if input.HotCacheTTLSeconds > 0 {
+		settings.HotCacheTTLSeconds = input.HotCacheTTLSeconds
 	}
 	if strings.TrimSpace(input.QuoteSource) != "" {
 		settings.QuoteSource = strings.ToLower(strings.TrimSpace(input.QuoteSource))
@@ -47,6 +51,12 @@ func sanitiseSettings(input AppSettings, current AppSettings, quoteProviders map
 	if strings.TrimSpace(input.Locale) != "" {
 		settings.Locale = strings.TrimSpace(input.Locale)
 	}
+	if strings.TrimSpace(input.ProxyMode) != "" {
+		settings.ProxyMode = strings.ToLower(strings.TrimSpace(input.ProxyMode))
+	}
+	if input.ProxyURL != "" || strings.TrimSpace(current.ProxyURL) != "" {
+		settings.ProxyURL = strings.TrimSpace(input.ProxyURL)
+	}
 	if strings.TrimSpace(input.DashboardCurrency) != "" {
 		settings.DashboardCurrency = strings.ToUpper(strings.TrimSpace(input.DashboardCurrency))
 	}
@@ -56,9 +66,13 @@ func sanitiseSettings(input AppSettings, current AppSettings, quoteProviders map
 	if settings.RefreshIntervalSeconds < 10 {
 		return AppSettings{}, errors.New("Refresh interval must be at least 10 seconds")
 	}
+	if settings.HotCacheTTLSeconds < 10 {
+		return AppSettings{}, errors.New("Hot cache TTL must be at least 10 seconds")
+	}
 	settings.CNQuoteSource = normaliseQuoteSourceIDForSettings(settings.CNQuoteSource, settings.QuoteSource, "CN-A", quoteProviders)
 	settings.HKQuoteSource = normaliseQuoteSourceIDForSettings(settings.HKQuoteSource, settings.QuoteSource, "HK-MAIN", quoteProviders)
 	settings.USQuoteSource = normaliseQuoteSourceIDForSettings(settings.USQuoteSource, settings.QuoteSource, "US-STOCK", quoteProviders)
+	settings.HotUSSource = settings.USQuoteSource
 	settings.QuoteSource = DefaultQuoteSourceID
 	if len(quoteProviders) > 0 {
 		if _, ok := quoteProviders[settings.CNQuoteSource]; !ok {
@@ -120,6 +134,26 @@ func sanitiseSettings(input AppSettings, current AppSettings, quoteProviders map
 	default:
 		return AppSettings{}, errors.New("Locale must be one of: system / zh-CN / en-US")
 	}
+	switch settings.ProxyMode {
+	case "":
+		settings.ProxyMode = "system"
+		settings.ProxyURL = ""
+	case "none":
+		settings.ProxyMode = "none"
+		settings.ProxyURL = ""
+	case "system":
+		settings.ProxyURL = ""
+	case "custom":
+		if settings.ProxyURL == "" {
+			return AppSettings{}, errors.New("Custom proxy URL is required")
+		}
+		parsed, err := url.Parse(settings.ProxyURL)
+		if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+			return AppSettings{}, errors.New("Custom proxy URL is invalid")
+		}
+	default:
+		return AppSettings{}, errors.New("Proxy mode must be one of: none / system / custom")
+	}
 	switch settings.DashboardCurrency {
 	case "", "CNY":
 		settings.DashboardCurrency = "CNY"
@@ -127,14 +161,6 @@ func sanitiseSettings(input AppSettings, current AppSettings, quoteProviders map
 	default:
 		return AppSettings{}, errors.New("Dashboard currency must be one of: CNY / HKD / USD")
 	}
-	switch settings.HotUSSource {
-	case "", "eastmoney":
-		settings.HotUSSource = "eastmoney"
-	case "yahoo":
-	default:
-		return AppSettings{}, errors.New("US hot source must be one of: eastmoney / yahoo")
-	}
-
 	return settings, nil
 }
 
@@ -172,9 +198,10 @@ func normaliseQuoteSourceIDForSettings(sourceID, legacySource, market string, pr
 	return DefaultQuoteSourceID
 }
 
+// quoteSourceSupportsMarketForSettings returns whether the given quote source supports the specified market for the purpose of validating user settings.
 func quoteSourceSupportsMarketForSettings(sourceID, market string) bool {
 	switch sourceID {
-	case "eastmoney", "yahoo":
+	case "eastmoney", "yahoo", "sina", "xueqiu":
 		return market != "CN-BJ"
 	default:
 		return false

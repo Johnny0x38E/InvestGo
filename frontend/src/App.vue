@@ -26,6 +26,7 @@ import {
     hotItemToPositionForm,
     mapAlertToForm,
     mapItemToForm,
+    normaliseSettings,
     serialiseItemForm,
 } from "./forms";
 import { setFormatterSettings } from "./format";
@@ -171,6 +172,18 @@ watch(activeModule, (module) => {
     }
 });
 
+watch(activeModule, (module, previous) => {
+    if (!shouldAutoRefreshModule(module)) {
+        window.clearTimeout(refreshTimer);
+        return;
+    }
+    if (module !== previous) {
+        void refreshQuotes(true, module === "watchlist");
+        return;
+    }
+    scheduleAutoRefresh();
+});
+
 const {
     historyInterval,
     historySeries,
@@ -242,6 +255,10 @@ function applyResolvedTheme(themeMode: AppSettings["themeMode"]): void {
     document.documentElement.classList.toggle("app-dark", nextTheme === "dark");
 }
 
+function shouldAutoRefreshModule(module: ModuleKey): boolean {
+    return module === "overview" || module === "watchlist";
+}
+
 // Fetch the full backend snapshot for initial load and manual refresh flows.
 async function loadState(silent = false): Promise<void> {
     if (!silent) {
@@ -269,8 +286,8 @@ function applySnapshot(snapshot: StateSnapshot): void {
     dashboard.value = snapshot.dashboard;
     items.value = snapshot.items ?? [];
     alerts.value = snapshot.alerts ?? [];
-    settings.value = snapshot.settings;
-    setI18nLocale(snapshot.settings.locale);
+    settings.value = normaliseSettings(snapshot.settings);
+    setI18nLocale(settings.value.locale);
     runtime.value = snapshot.runtime;
     quoteSources.value = snapshot.quoteSources ?? [];
     storagePath.value = snapshot.storagePath;
@@ -330,6 +347,9 @@ async function refreshQuotes(
 // Schedule the next automatic sync using the configured interval so every chart range stays up to date.
 function scheduleAutoRefresh(): void {
     window.clearTimeout(refreshTimer);
+    if (!shouldAutoRefreshModule(activeModule.value)) {
+        return;
+    }
     const intervalMs =
         Math.max(settings.value.refreshIntervalSeconds || 60, 10) * 1000;
 

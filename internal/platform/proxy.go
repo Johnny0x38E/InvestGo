@@ -11,8 +11,10 @@ import (
 	"investgo/internal/monitor"
 )
 
-// ApplySystemProxy reads system proxy settings on macOS and injects them into process environment variables when not manually configured.
-// Subsequent net/http clients will transparently use the proxy via http.ProxyFromEnvironment.
+// ApplySystemProxy reads system proxy settings on macOS and injects them into
+// process environment variables. Subsequent net/http clients will transparently
+// use the proxy via http.ProxyFromEnvironment.
+// Only call this when the configured proxy mode is "system".
 func ApplySystemProxy(logs *monitor.LogBook) {
 	if runtime.GOOS != "darwin" {
 		return
