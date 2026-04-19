@@ -8,7 +8,7 @@ type StatusReporter = (message: string, tone: StatusTone) => void;
 
 // Cache historical data locally by item and interval to avoid re-fetching the same data when users switch intervals or items.
 export function useHistorySeries(items: Ref<WatchlistItem[]>, selectedItem: ComputedRef<WatchlistItem | null>, activeModule: Ref<ModuleKey>, setStatus: StatusReporter) {
-    const historyInterval = ref<HistoryInterval>("1h");
+    const historyInterval = ref<HistoryInterval>("1d");
     const historySeries = ref<HistorySeries | null>(null);
     const historyLoading = ref(false);
     const historyError = ref("");

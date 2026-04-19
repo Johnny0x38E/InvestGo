@@ -148,8 +148,9 @@ func (r *HistoryRouter) preferredSourceID(market string, settings monitor.AppSet
 //
 // CN and HK: EastMoney K-line is preferred (richer candlestick granularity for
 // domestic and Hong Kong markets).
-// US: Yahoo Finance is preferred (broader and more reliable US coverage;
-// EastMoney US K-line only covers NASDAQ-listed tickers via secid 105).
+// US: user-selected API-backed providers are respected when configured; the
+// default chain still falls back to Yahoo Finance and then EastMoney so startup
+// does not require API-key-backed sources.
 func defaultHistoryChain(market string) []string {
 	switch historyMarketGroup(market) {
 	case "us":

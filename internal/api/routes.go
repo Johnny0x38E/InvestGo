@@ -42,6 +42,7 @@ func (h *Handler) registerRoutes() []route {
 		{method: http.MethodPost, pattern: "/open-external", handler: h.handleOpenExternal},
 		{method: http.MethodPut, pattern: "/settings", handler: h.handleUpdateSettings},
 		{method: http.MethodPost, pattern: "/items", handler: h.handleCreateItem},
+		{method: http.MethodPost, pattern: "/items/{id}/refresh", handler: h.handleRefreshItem},
 		{method: http.MethodPut, pattern: "/items/{id}", handler: h.handleUpdateItem},
 		{method: http.MethodPut, pattern: "/items/{id}/pin", handler: h.handlePinItem},
 		{method: http.MethodDelete, pattern: "/items/{id}", handler: h.handleDeleteItem},
@@ -188,6 +189,8 @@ func (h *Handler) handleHot(writer http.ResponseWriter, request *http.Request, _
 		options.CNQuoteSource = settings.CNQuoteSource
 		options.HKQuoteSource = settings.HKQuoteSource
 		options.USQuoteSource = settings.USQuoteSource
+		options.AlphaVantageAPIKey = settings.AlphaVantageAPIKey
+		options.TwelveDataAPIKey = settings.TwelveDataAPIKey
 		options.CacheTTL = time.Duration(settings.HotCacheTTLSeconds) * time.Second
 	}
 	options.BypassCache = parseBoolQuery(request.URL.Query().Get("force"))
@@ -232,6 +235,17 @@ func (h *Handler) handleRefresh(writer http.ResponseWriter, request *http.Reques
 	snapshot, err := h.store.Refresh(request.Context())
 	if err != nil {
 		writeError(writer, request, http.StatusInternalServerError, err)
+		return
+	}
+
+	writeJSON(writer, http.StatusOK, localizeSnapshot(snapshot, requestLocale(request)))
+}
+
+// handleRefreshItem refreshes only the specified tracked item so view-local quote updates do not batch the entire watchlist.
+func (h *Handler) handleRefreshItem(writer http.ResponseWriter, request *http.Request, params routeParams) {
+	snapshot, err := h.store.RefreshItem(request.Context(), params.Value("id"))
+	if err != nil {
+		writeError(writer, request, http.StatusBadRequest, err)
 		return
 	}
 

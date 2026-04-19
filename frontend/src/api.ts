@@ -1,4 +1,4 @@
-import { appendClientLog } from "./devlog";
+import { appendClientLog, redactSensitiveText } from "./devlog";
 import { getI18nLocale, translate } from "./i18n";
 
 const defaultTimeoutMs = 15000;
@@ -76,7 +76,7 @@ export async function api<T>(path: string, init?: ApiRequestInit): Promise<T> {
         }
         if (error instanceof Error) {
             const debugMessage = "debugMessage" in error && typeof error.debugMessage === "string" ? error.debugMessage : error.message;
-            appendClientLog("error", "api", `${requestInit.method || "GET"} ${path} -> ${debugMessage}`);
+            appendClientLog("error", "api", redactSensitiveText(`${requestInit.method || "GET"} ${path} -> ${debugMessage}`));
         }
         throw error;
     } finally {

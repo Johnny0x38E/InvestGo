@@ -52,7 +52,8 @@ func main() {
 	proxyTransport := platform.NewProxyTransport("system", "")
 	httpClient := platform.NewHTTPClient(proxyTransport)
 
-	quoteProviders, quoteSourceOptions := marketdata.DefaultQuoteSourceRegistry(httpClient)
+	var quoteSettings func() monitor.AppSettings = func() monitor.AppSettings { return monitor.AppSettings{} }
+	quoteProviders, quoteSourceOptions := marketdata.DefaultQuoteSourceRegistry(httpClient, func() monitor.AppSettings { return quoteSettings() })
 
 	// historySettings is a lazy getter that returns the Store's current settings.
 	// It is initialised to a safe default and wired to the real store below so
@@ -74,6 +75,7 @@ func main() {
 
 	// Wire the real settings getter now that the Store is ready.
 	historySettings = store.CurrentSettings
+	quoteSettings = store.CurrentSettings
 
 	// The Store is now loaded — sync the proxy transport with the persisted
 	// settings. ApplySystemProxy sets process-wide env vars so that

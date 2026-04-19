@@ -177,12 +177,17 @@ watch(activeModule, (module) => {
 watch(activeModule, (module, previous) => {
     if (!shouldAutoRefreshModule(module)) {
         window.clearTimeout(refreshTimer);
+        if (module !== previous && module === "watchlist") {
+            // Entering the watchlist should refresh only the visible
+            // instrument so upstream providers are not hit with the whole list.
+            void refreshSelectedItem(true, false);
+        }
         return;
     }
     if (module !== previous) {
-        // Module switches should feel fresh immediately instead of waiting for
-        // the next scheduled refresh tick.
-        void refreshQuotes(true, module === "watchlist");
+        // Overview aggregates the whole portfolio, so it still gets a full
+        // refresh when users switch back into that module.
+        void refreshQuotes(true, false);
         return;
     }
     scheduleAutoRefresh();
@@ -260,7 +265,7 @@ function applyResolvedTheme(themeMode: AppSettings["themeMode"]): void {
 }
 
 function shouldAutoRefreshModule(module: ModuleKey): boolean {
-    return module === "overview" || module === "watchlist";
+    return module === "overview";
 }
 
 // Fetch the full backend snapshot for initial load and manual refresh flows.
@@ -327,6 +332,58 @@ async function refreshQuotes(
             // Quote refresh changes the chart-side market snapshot, so refresh
             // the active series in the background to keep the side panel and
             // chart overlays aligned with the latest live quote.
+            await loadHistory(true, true);
+        }
+        if (snapshot.runtime.lastQuoteError) {
+            setStatus(snapshot.runtime.lastQuoteError, "error");
+        } else if (snapshot.runtime.lastFxError) {
+            setStatus(
+                translate("app.quotesSyncedFxFailed", {
+                    error: snapshot.runtime.lastFxError,
+                }),
+                "warn",
+            );
+        } else if (!silent) {
+            setStatus(translate("app.quotesSynced"), "success");
+        }
+    } catch (error) {
+        setStatus(
+            error instanceof Error
+                ? error.message
+                : translate("app.refreshFailed"),
+            "error",
+        );
+    } finally {
+        scheduleAutoRefresh();
+    }
+}
+
+// Refresh only the selected watchlist item so the market view follows the active instrument instead of batching the whole watchlist.
+async function refreshSelectedItem(
+    silent = false,
+    refreshHistory = true,
+): Promise<void> {
+    const currentItem = selectedItem.value;
+    if (!currentItem) {
+        return;
+    }
+
+    try {
+        if (!silent) {
+            setStatus(translate("app.syncingQuotes"), "success");
+        }
+        const snapshot = await api<StateSnapshot>(
+            `/api/items/${encodeURIComponent(currentItem.id)}/refresh`,
+            {
+                method: "POST",
+            },
+        );
+        applySnapshot(snapshot);
+        if (
+            refreshHistory &&
+            activeModule.value === "watchlist" &&
+            selectedItem.value?.id === currentItem.id
+        ) {
             await loadHistory(true, true);
         }
         if (snapshot.runtime.lastQuoteError) {
@@ -674,7 +731,7 @@ async function confirmDelete(): Promise<void> {
     }
 }
 
-// Switch the active module and eagerly load the current chart when entering the market module.
+// Switch the active module; watchlist data loading is handled by the module watcher so it can choose single-item refreshes.
 function switchModule(next: ModuleKey): void {
     appendClientLog(
         "info",
@@ -682,9 +739,6 @@ function switchModule(next: ModuleKey): void {
         `switch module ${activeModule.value} -> ${next}`,
     );
     activeModule.value = next;
-    if (next === "watchlist") {
-        void loadHistory(true);
-    }
 }
 </script>
 
@@ -729,7 +783,7 @@ function switchModule(next: ModuleKey): void {
             :developer-logs="developerLogs"
             :saving-settings="savingSettings"
             :loading-logs="loadingLogs"
-            @refresh="refreshQuotes()"
+            @refresh="activeModule === 'watchlist' ? refreshSelectedItem() : refreshQuotes()"
             @select-interval="selectHistoryInterval"
             @update:hot-market-group="hotMarketGroup = $event"
             @hot-watch-item="openHotWatchDialog"

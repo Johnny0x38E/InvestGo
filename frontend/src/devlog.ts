@@ -57,7 +57,7 @@ export function installClientLogCapture(): void {
 }
 
 export function appendClientLog(level: DeveloperLogLevel, scope: string, message: string, source: DeveloperLogSource = frontendSource): void {
-    const clean = message.trim();
+    const clean = redactSensitiveText(message).trim();
     if (!clean) {
         return;
     }
@@ -114,8 +114,21 @@ function formatValue(value: unknown): string {
     }
 
     try {
-        return JSON.stringify(value);
+        return redactSensitiveText(JSON.stringify(value));
     } catch {
-        return String(value);
+        return redactSensitiveText(String(value));
     }
+}
+
+export function redactSensitiveText(message: string): string {
+    return message
+        .replace(/(alphaVantageApiKey|twelveDataApiKey)\s*[:=]\s*["']?[^"'\s,;]+["']?/gi, "$1: ***")
+        .replace(/([?&](?:apikey|api_key|key)=)[^&\s]+/gi, "$1***")
+        .replace(/\b(?:apikey|api_key|key)=([^&\s]+)/gi, (match, _value, offset, input) => {
+            const prefix = input.slice(Math.max(0, offset - 1), offset);
+            if (prefix === "?" || prefix === "&") {
+                return match;
+            }
+            return match.split("=")[0] + "=***";
+        });
 }

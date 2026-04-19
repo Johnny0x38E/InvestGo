@@ -30,10 +30,18 @@ type hotSeed struct {
 }
 
 // fetchPoolQuotes requests real-time quotes in batch for the predefined hot category constituent pool and returns them in a unified format.
-func (s *HotService) fetchPoolQuotes(ctx context.Context, seeds []hotSeed, sourceID string) ([]monitor.HotItem, error) {
+func (s *HotService) fetchPoolQuotes(ctx context.Context, seeds []hotSeed, sourceID string, options HotListOptions) ([]monitor.HotItem, error) {
 	switch sourceID {
 	case "yahoo":
 		return s.fetchPoolQuotesYahoo(ctx, seeds)
+	case "alpha-vantage":
+		return s.fetchPoolQuotesWithProvider(ctx, seeds, NewAlphaVantageQuoteProvider(s.client, func() monitor.AppSettings {
+			return monitor.AppSettings{AlphaVantageAPIKey: options.AlphaVantageAPIKey}
+		}))
+	case "twelve-data":
+		return s.fetchPoolQuotesWithProvider(ctx, seeds, NewTwelveDataQuoteProvider(s.client, func() monitor.AppSettings {
+			return monitor.AppSettings{TwelveDataAPIKey: options.TwelveDataAPIKey}
+		}))
 	case "sina":
 		return s.fetchPoolQuotesWithProvider(ctx, seeds, NewSinaQuoteProvider(s.client))
 	case "xueqiu":

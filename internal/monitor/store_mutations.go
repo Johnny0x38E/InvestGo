@@ -4,11 +4,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
 	"investgo/internal/monitor/validation"
 )
+
+var sensitiveLogPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`(?i)(alphaVantageApiKey|twelveDataApiKey)\s*[:=]\s*["']?[^"'\s,;]+["']?`),
+	regexp.MustCompile(`(?i)(apikey|api_key|key)=([^&\s]+)`),
+}
 
 // UpsertItem saves or updates a tracked item and fetches a fresh quote when a live provider is available.
 func (s *Store) UpsertItem(input WatchlistItem) (StateSnapshot, error) {
@@ -321,20 +327,38 @@ func sanitiseAlert(input AlertRule) (AlertRule, error) {
 // logInfo writes info level logs when logbook is available.
 func (s *Store) logInfo(scope, message string) {
 	if s.logs != nil {
-		s.logs.Info("backend", scope, message)
+		s.logs.Info("backend", scope, redactSensitiveLogText(message))
 	}
 }
 
 // logWarn writes warn level logs when logbook is available.
 func (s *Store) logWarn(scope, message string) {
 	if s.logs != nil {
-		s.logs.Warn("backend", scope, message)
+		s.logs.Warn("backend", scope, redactSensitiveLogText(message))
 	}
 }
 
 // logError writes error level logs when logbook is available.
 func (s *Store) logError(scope, message string) {
 	if s.logs != nil {
-		s.logs.Error("backend", scope, message)
+		s.logs.Error("backend", scope, redactSensitiveLogText(message))
 	}
+}
+
+func redactSensitiveLogText(message string) string {
+	redacted := message
+	for _, pattern := range sensitiveLogPatterns {
+		redacted = pattern.ReplaceAllStringFunc(redacted, func(segment string) string {
+			if strings.Contains(segment, "=") {
+				parts := strings.SplitN(segment, "=", 2)
+				return parts[0] + "=***"
+			}
+			if strings.Contains(segment, ":") {
+				parts := strings.SplitN(segment, ":", 2)
+				return parts[0] + ": ***"
+			}
+			return "***"
+		})
+	}
+	return redacted
 }

@@ -26,11 +26,13 @@ const (
 
 // HotListOptions carries request-scoped settings that affect hot list quote fetching.
 type HotListOptions struct {
-	CNQuoteSource string
-	HKQuoteSource string
-	USQuoteSource string
-	CacheTTL      time.Duration
-	BypassCache   bool
+	CNQuoteSource      string
+	HKQuoteSource      string
+	USQuoteSource      string
+	AlphaVantageAPIKey string
+	TwelveDataAPIKey   string
+	CacheTTL           time.Duration
+	BypassCache        bool
 }
 
 // HotService handles real-time data fetching and pagination for hot lists.
@@ -190,7 +192,7 @@ func (s *HotService) searchUSETFs(ctx context.Context, sortBy monitor.HotSort, k
 		seeds = mergeHotSeeds(seeds, remoteSeeds)
 	}
 
-	items, err := s.loadHotItemsForSeeds(ctx, seeds, resolveHotQuoteSource(monitor.HotCategoryUSETF, options))
+	items, err := s.loadHotItemsForSeeds(ctx, seeds, options)
 	if err != nil {
 		return monitor.HotListResponse{}, err
 	}
@@ -449,7 +451,7 @@ func (s *HotService) loadPoolItems(ctx context.Context, category monitor.HotCate
 		return nil, fmt.Errorf("No available hot pool for category: %s", category)
 	}
 
-	items, err := s.loadHotItemsForSeeds(ctx, pool, resolveHotQuoteSource(category, options))
+	items, err := s.loadHotItemsForSeeds(ctx, pool, options)
 	if err != nil {
 		return nil, err
 	}
@@ -459,17 +461,33 @@ func (s *HotService) loadPoolItems(ctx context.Context, category monitor.HotCate
 }
 
 // loadHotItemsForSeeds fetches real-time quotes for the given hotSeed list and returns only rows backed by live data.
-func (s *HotService) loadHotItemsForSeeds(ctx context.Context, seeds []hotSeed, quoteSourceID string) ([]monitor.HotItem, error) {
+func (s *HotService) loadHotItemsForSeeds(ctx context.Context, seeds []hotSeed, options HotListOptions) ([]monitor.HotItem, error) {
 	if len(seeds) == 0 {
 		return []monitor.HotItem{}, nil
 	}
 
-	items, err := s.fetchPoolQuotes(ctx, seeds, quoteSourceID)
+	items, err := s.fetchPoolQuotes(ctx, seeds, resolveHotQuoteSource(categoryForHotSeeds(seeds), options), options)
 	if err != nil {
 		return nil, err
 	}
 
 	return s.enrichUSHotItemsWithEastMoneyNames(ctx, items)
+}
+
+func categoryForHotSeeds(seeds []hotSeed) monitor.HotCategory {
+	if len(seeds) == 0 {
+		return monitor.HotCategoryCNA
+	}
+	switch seeds[0].Market {
+	case "US-STOCK":
+		return monitor.HotCategoryUSSP500
+	case "US-ETF":
+		return monitor.HotCategoryUSETF
+	case "HK-MAIN", "HK-GEM", "HK-ETF":
+		return monitor.HotCategoryHK
+	default:
+		return monitor.HotCategoryCNA
+	}
 }
 
 // resolveEastMoneyHotFilter maps HotCategory to EastMoney clist fs parameter, market label and currency.
@@ -534,6 +552,10 @@ func normaliseHotQuoteSourceID(sourceID string) string {
 	switch strings.ToLower(strings.TrimSpace(sourceID)) {
 	case "yahoo":
 		return "yahoo"
+	case "alpha-vantage":
+		return "alpha-vantage"
+	case "twelve-data":
+		return "twelve-data"
 	case "sina":
 		return "sina"
 	case "xueqiu":
@@ -574,9 +596,61 @@ func (s *HotService) applyConfiguredQuotes(ctx context.Context, category monitor
 			return cloneHotItems(items), nil
 		}
 		return s.applyYahooQuotes(ctx, items)
+	case "alpha-vantage":
+		return s.applyProviderQuotes(ctx, items, NewAlphaVantageQuoteProvider(s.client, func() monitor.AppSettings {
+			return monitor.AppSettings{AlphaVantageAPIKey: options.AlphaVantageAPIKey}
+		}))
+	case "twelve-data":
+		return s.applyProviderQuotes(ctx, items, NewTwelveDataQuoteProvider(s.client, func() monitor.AppSettings {
+			return monitor.AppSettings{TwelveDataAPIKey: options.TwelveDataAPIKey}
+		}))
 	default:
 		return nil, fmt.Errorf("Hot quote source is unsupported: %s", sourceID)
 	}
+}
+
+func (s *HotService) applyProviderQuotes(ctx context.Context, items []monitor.HotItem, provider monitor.QuoteProvider) ([]monitor.HotItem, error) {
+	if len(items) == 0 {
+		return []monitor.HotItem{}, nil
+	}
+	watchItems := make([]monitor.WatchlistItem, 0, len(items))
+	for _, item := range items {
+		watchItems = append(watchItems, monitor.WatchlistItem{
+			Symbol:   item.Symbol,
+			Name:     item.Name,
+			Market:   item.Market,
+			Currency: item.Currency,
+		})
+	}
+	quotes, err := provider.Fetch(ctx, watchItems)
+	if err != nil {
+		return nil, err
+	}
+	enriched := make([]monitor.HotItem, 0, len(items))
+	for _, item := range items {
+		target, err := monitor.ResolveQuoteTarget(monitor.WatchlistItem{Symbol: item.Symbol, Name: item.Name, Market: item.Market, Currency: item.Currency})
+		if err != nil {
+			continue
+		}
+		quote, ok := quotes[target.Key]
+		if !ok {
+			continue
+		}
+		item.Name = firstNonEmpty(quote.Name, item.Name)
+		item.Currency = firstNonEmpty(quote.Currency, item.Currency)
+		item.CurrentPrice = quote.CurrentPrice
+		item.Change = quote.Change
+		item.ChangePercent = quote.ChangePercent
+		item.QuoteSource = quote.Source
+		if !quote.UpdatedAt.IsZero() {
+			item.UpdatedAt = quote.UpdatedAt
+		}
+		enriched = append(enriched, item)
+	}
+	if len(enriched) == 0 {
+		return nil, fmt.Errorf("No live hot quotes are available from %s", provider.Name())
+	}
+	return enriched, nil
 }
 
 func (s *HotService) applyYahooQuotes(ctx context.Context, items []monitor.HotItem) ([]monitor.HotItem, error) {
