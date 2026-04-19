@@ -7,7 +7,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/cookiejar"
 	"net/url"
+	"sync"
+	"time"
 
 	"investgo/internal/datasource"
 )
@@ -37,15 +40,80 @@ type yahooChartResponse struct {
 	} `json:"chart"`
 }
 
+var yahooCookieJarOnce sync.Once
+var yahooCookieJar http.CookieJar
+
+func getYahooCookieJar() http.CookieJar {
+	yahooCookieJarOnce.Do(func() {
+		jar, err := cookiejar.New(nil)
+		if err == nil {
+			yahooCookieJar = jar
+		}
+	})
+	return yahooCookieJar
+}
+
+func cloneYahooClient(client *http.Client) *http.Client {
+	cloned := *client
+	if cloned.Timeout == 0 {
+		cloned.Timeout = 10 * time.Second
+	}
+	if cloned.Jar == nil {
+		cloned.Jar = getYahooCookieJar()
+	}
+	return &cloned
+}
+
+func setYahooBrowserHeaders(request *http.Request, host string) {
+	request.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15")
+	request.Header.Set("Accept", "application/json,text/plain,*/*")
+	request.Header.Set("Accept-Language", "en-US,en;q=0.9")
+	request.Header.Set("Origin", datasource.YahooFinanceOrigin)
+	request.Header.Set("Referer", datasource.YahooFinanceReferer)
+	request.Header.Set("Sec-Fetch-Site", "same-site")
+	request.Header.Set("Sec-Fetch-Mode", "cors")
+	request.Header.Set("Sec-Fetch-Dest", "empty")
+	request.Header.Set("Cache-Control", "no-cache")
+	request.Header.Set("Pragma", "no-cache")
+	request.Header.Set("Connection", "keep-alive")
+	request.Host = host
+}
+
+func primeYahooSession(ctx context.Context, client *http.Client) error {
+	if client == nil {
+		return errors.New("client is nil")
+	}
+	if client.Jar == nil {
+		return errors.New("cookie jar is not configured")
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, datasource.YahooFinanceOrigin, nil)
+	if err != nil {
+		return err
+	}
+	setYahooBrowserHeaders(req, datasource.YahooFinanceDomain)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, resp.Body)
+	return nil
+}
+
 // fetchYahooChart polls multiple Yahoo Finance hosts for quote data, returning the first successful response or a combined error message.
 func fetchYahooChart(ctx context.Context, client *http.Client, symbol string, params url.Values) (yahooChartResponse, error) {
 	if client == nil {
-		client = &http.Client{}
+		client = &http.Client{Timeout: 10 * time.Second}
 	}
+
+	primedClient := cloneYahooClient(client)
+	_ = primeYahooSession(ctx, primedClient)
 
 	problems := make([]string, 0, len(datasource.YahooChartHosts))
 	for _, host := range datasource.YahooChartHosts {
-		parsed, err := fetchYahooChartFromHost(ctx, client, host, symbol, params)
+		parsed, err := fetchYahooChartFromHost(ctx, primedClient, host, symbol, params)
 		if err == nil {
 			return parsed, nil
 		}
@@ -74,9 +142,7 @@ func fetchYahooChartFromHost(ctx context.Context, client *http.Client, host, sym
 	if err != nil {
 		return yahooChartResponse{}, err
 	}
-	request.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36")
-	request.Header.Set("Origin", datasource.YahooFinanceOrigin)
-	request.Header.Set("Referer", datasource.YahooFinanceReferer)
+	setYahooBrowserHeaders(request, host)
 
 	response, err := client.Do(request)
 	if err != nil {

@@ -168,6 +168,8 @@ watch(
 
 watch(activeModule, (module) => {
     if (module === "settings") {
+        // Seed the draft only when entering settings so unsaved edits remain
+        // isolated from the persisted application state.
         Object.assign(settingsDraft, settings.value);
     }
 });
@@ -178,6 +180,8 @@ watch(activeModule, (module, previous) => {
         return;
     }
     if (module !== previous) {
+        // Module switches should feel fresh immediately instead of waiting for
+        // the next scheduled refresh tick.
         void refreshQuotes(true, module === "watchlist");
         return;
     }
@@ -294,6 +298,8 @@ function applySnapshot(snapshot: StateSnapshot): void {
     generatedAt.value = snapshot.generatedAt;
 
     if (!items.value.some((item) => item.id === selectedItemId.value)) {
+        // Preserve the current selection when possible, but repair it after a
+        // snapshot update so list-driven modules never point at a deleted item.
         selectedItemId.value = items.value[0]?.id ?? "";
     }
 
@@ -318,6 +324,9 @@ async function refreshQuotes(
             activeModule.value === "watchlist" &&
             selectedItem.value
         ) {
+            // Quote refresh changes the chart-side market snapshot, so refresh
+            // the active series in the background to keep the side panel and
+            // chart overlays aligned with the latest live quote.
             await loadHistory(true, true);
         }
         if (snapshot.runtime.lastQuoteError) {
@@ -353,6 +362,8 @@ function scheduleAutoRefresh(): void {
     const intervalMs =
         Math.max(settings.value.refreshIntervalSeconds || 60, 10) * 1000;
 
+    // Use setTimeout instead of setInterval so every cycle re-reads the latest
+    // settings and does not queue overlapping refresh requests.
     refreshTimer = window.setTimeout(() => {
         void refreshQuotes(true);
     }, intervalMs);

@@ -81,6 +81,9 @@ export function useHistorySeries(items: Ref<WatchlistItem[]>, selectedItem: Comp
             if (error instanceof ApiAbortError) {
                 return;
             }
+            // Silent refresh failures should not blank out the chart the user is
+            // already reading. Keep the previous series until an explicit load
+            // replaces it with a fresh result.
             if (keepCurrentSeries) {
                 return;
             }

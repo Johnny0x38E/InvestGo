@@ -15,6 +15,13 @@ import (
 	"investgo/internal/monitor"
 )
 
+// fetchYahooQuotesConcurrent fetches Yahoo quotes for a list of items using concurrent goroutines.
+// Up to yahooHotConcurrency requests run in parallel, with results merged into a single map.
+const yahooHotConcurrency = 10
+
+// eastMoneyHotDiff represents the subset of fields returned by the EastMoney quote diff API used for hot fallback quotes and naming enrichment.
+const eastMoneyHotBatchSize = 180
+
 type hotSeed struct {
 	Symbol   string
 	Name     string
@@ -38,6 +45,85 @@ func (s *HotService) fetchPoolQuotes(ctx context.Context, seeds []hotSeed, sourc
 	}
 }
 
+func (s *HotService) enrichUSHotItemsWithEastMoneyNames(ctx context.Context, items []monitor.HotItem) ([]monitor.HotItem, error) {
+	if len(items) == 0 {
+		return []monitor.HotItem{}, nil
+	}
+
+	// EastMoney naming is used as a best-effort display enrichment for US rows.
+	// It should not change the configured quote source or make the hot list fail
+	// when the auxiliary naming lookup is unavailable.
+	seeds := make([]hotSeed, 0, len(items))
+	for _, item := range items {
+		if item.Market != "US-STOCK" && item.Market != "US-ETF" {
+			continue
+		}
+		seeds = append(seeds, hotSeed{
+			Symbol:   item.Symbol,
+			Name:     item.Name,
+			Market:   item.Market,
+			Currency: firstNonEmpty(item.Currency, "USD"),
+		})
+	}
+
+	if len(seeds) == 0 {
+		return items, nil
+	}
+
+	names, err := s.fetchEastMoneyPoolNames(ctx, seeds)
+	if err != nil {
+		return items, nil
+	}
+
+	enriched := append([]monitor.HotItem(nil), items...)
+	for index := range enriched {
+		key := enriched[index].Market + "|" + strings.ToUpper(enriched[index].Symbol)
+		if name := strings.TrimSpace(names[key]); name != "" {
+			enriched[index].Name = name
+		}
+	}
+	return enriched, nil
+}
+
+func (s *HotService) fetchEastMoneyPoolNames(ctx context.Context, seeds []hotSeed) (map[string]string, error) {
+	secids := make([]string, 0, len(seeds)*2)
+	indexBySecID := make(map[string]hotSeed, len(seeds)*2)
+	for _, seed := range seeds {
+		ids, err := resolveAllPoolSecIDs(seed)
+		if err != nil {
+			continue
+		}
+		for _, secid := range ids {
+			secids = append(secids, secid)
+			indexBySecID[secid] = seed
+		}
+	}
+
+	if len(secids) == 0 {
+		return nil, fmt.Errorf("No quote symbols are available in the hot fallback pool")
+	}
+
+	diffs, err := s.fetchEastMoneyHotDiffs(ctx, secids, "f12,f13,f14")
+	if err != nil {
+		return nil, err
+	}
+
+	names := make(map[string]string, len(diffs))
+	for _, item := range diffs {
+		secid := fmt.Sprintf("%d.%s", item.MarketID, normaliseEastMoneyCode(item.Code, item.MarketID))
+		seed, ok := indexBySecID[secid]
+		if !ok {
+			continue
+		}
+		name := strings.TrimSpace(item.Name)
+		if name == "" {
+			continue
+		}
+		names[seed.Market+"|"+strings.ToUpper(seed.Symbol)] = name
+	}
+	return names, nil
+}
+
 func (s *HotService) fetchPoolQuotesEastMoney(ctx context.Context, seeds []hotSeed) ([]monitor.HotItem, error) {
 	secids := make([]string, 0, len(seeds)*2)
 	indexBySecID := make(map[string]hotSeed, len(seeds)*2)
@@ -56,47 +142,17 @@ func (s *HotService) fetchPoolQuotesEastMoney(ctx context.Context, seeds []hotSe
 		return nil, fmt.Errorf("No quote symbols are available in the hot fallback pool")
 	}
 
-	params := url.Values{}
-	params.Set("fltt", "2")
-	params.Set("invt", "2")
-	params.Set("np", "1")
-	params.Set("ut", "bd1d9ddb04089700cf9c27f6f7426281")
-	params.Set("fields", "f2,f3,f4,f5,f12,f13,f14,f20")
-	params.Set("secids", strings.Join(secids, ","))
-
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, datasource.URLWithQuery(datasource.EastMoneyQuoteAPI, params), nil)
-	if err != nil {
-		return nil, err
-	}
-	request.Header.Set("Referer", datasource.EastMoneyWebReferer)
-	request.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36")
-
-	response, err := s.client.Do(request)
-	if err != nil {
-		return nil, err
-	}
-	defer response.Body.Close()
-
-	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Hot fallback quote request failed: status %d", response.StatusCode)
-	}
-
-	payload, err := io.ReadAll(response.Body)
+	// US pools expand quickly because each ticker fans out to several exchange
+	// guesses. Chunking keeps the request URL below the point where EastMoney
+	// starts returning upstream 502 responses.
+	diffs, err := s.fetchEastMoneyHotDiffs(ctx, secids, "f2,f3,f4,f5,f12,f13,f14,f20")
 	if err != nil {
 		return nil, err
 	}
 
-	var parsed eastMoneyHotResponse
-	if err := json.Unmarshal(payload, &parsed); err != nil {
-		return nil, err
-	}
-	if parsed.RC != 0 {
-		return nil, fmt.Errorf("Hot fallback quote response returned rc=%d", parsed.RC)
-	}
-
-	items := make([]monitor.HotItem, 0, len(parsed.Data.Diff))
-	seen := make(map[string]struct{}, len(parsed.Data.Diff))
-	for _, item := range parsed.Data.Diff {
+	items := make([]monitor.HotItem, 0, len(diffs))
+	seen := make(map[string]struct{}, len(diffs))
+	for _, item := range diffs {
 		secid := fmt.Sprintf("%d.%s", item.MarketID, normaliseEastMoneyCode(item.Code, item.MarketID))
 		seed, ok := indexBySecID[secid]
 		if !ok {
@@ -129,6 +185,74 @@ func (s *HotService) fetchPoolQuotesEastMoney(ctx context.Context, seeds []hotSe
 	}
 
 	return items, nil
+}
+
+func (s *HotService) fetchEastMoneyHotDiffs(ctx context.Context, secids []string, fields string) ([]eastMoneyHotDiff, error) {
+	diffs := make([]eastMoneyHotDiff, 0, len(secids))
+	for _, batch := range chunkSecIDs(secids, eastMoneyHotBatchSize) {
+		batchDiffs, err := s.fetchEastMoneyHotDiffBatch(ctx, batch, fields)
+		if err != nil {
+			return nil, err
+		}
+		diffs = append(diffs, batchDiffs...)
+	}
+	return diffs, nil
+}
+
+func chunkSecIDs(secids []string, batchSize int) [][]string {
+	if len(secids) == 0 {
+		return nil
+	}
+
+	chunks := make([][]string, 0, (len(secids)+batchSize-1)/batchSize)
+	for start := 0; start < len(secids); start += batchSize {
+		end := min(start+batchSize, len(secids))
+		chunks = append(chunks, secids[start:end])
+	}
+	return chunks
+}
+
+func (s *HotService) fetchEastMoneyHotDiffBatch(ctx context.Context, secids []string, fields string) ([]eastMoneyHotDiff, error) {
+	// Keep the single-batch request focused on transport and decoding so the
+	// caller can reason about chunking and aggregation separately.
+	params := url.Values{}
+	params.Set("fltt", "2")
+	params.Set("invt", "2")
+	params.Set("np", "1")
+	params.Set("ut", "bd1d9ddb04089700cf9c27f6f7426281")
+	params.Set("fields", fields)
+	params.Set("secids", strings.Join(secids, ","))
+
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, datasource.URLWithQuery(datasource.EastMoneyQuoteAPI, params), nil)
+	if err != nil {
+		return nil, err
+	}
+	request.Header.Set("Referer", datasource.EastMoneyWebReferer)
+	request.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36")
+
+	response, err := s.client.Do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+
+	payload, err := io.ReadAll(response.Body)
+	if err != nil {
+		return nil, err
+	}
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("Hot fallback quote request failed: status %d", response.StatusCode)
+	}
+
+	var parsed eastMoneyHotResponse
+	if err := json.Unmarshal(payload, &parsed); err != nil {
+		return nil, err
+	}
+	if parsed.RC != 0 {
+		return nil, fmt.Errorf("Hot fallback quote response returned rc=%d", parsed.RC)
+	}
+
+	return parsed.Data.Diff, nil
 }
 
 func (s *HotService) fetchPoolQuotesYahoo(ctx context.Context, seeds []hotSeed) ([]monitor.HotItem, error) {
@@ -264,10 +388,6 @@ func (s *HotService) fetchPoolQuotesWithProvider(ctx context.Context, seeds []ho
 
 	return hotItems, nil
 }
-
-// fetchYahooQuotesConcurrent fetches Yahoo quotes for a list of items using concurrent goroutines.
-// Up to yahooHotConcurrency requests run in parallel, with results merged into a single map.
-const yahooHotConcurrency = 20
 
 func (s *HotService) fetchYahooQuotesConcurrent(ctx context.Context, items []monitor.WatchlistItem) (map[string]monitor.Quote, error) {
 	provider := NewYahooQuoteProvider(s.client)

@@ -35,6 +35,8 @@ func newOverviewCalculator(fx *FxRates, displayCurrency string, loadHistory over
 }
 
 func (c overviewCalculator) Build(ctx context.Context, items []WatchlistItem) (OverviewAnalytics, error) {
+	// Breakdown and trend intentionally share the same normalized display
+	// currency so the overview surface never mixes converted and raw values.
 	breakdown := c.buildBreakdown(items)
 	trend, err := c.buildTrend(ctx, items)
 	if err != nil {
@@ -53,6 +55,8 @@ func (c overviewCalculator) buildBreakdown(items []WatchlistItem) []OverviewHold
 	var total float64
 
 	for _, item := range items {
+		// Zero-value holdings do not add signal in the overview donut and would
+		// only make the legend noisier.
 		value := c.convertValue(item.MarketValue(), item.Currency)
 		if value <= 0 {
 			continue
@@ -112,6 +116,9 @@ func (c overviewCalculator) buildTrend(ctx context.Context, items []WatchlistIte
 			continue
 		}
 
+		// Choose a history window from the holding start date so each asset loads
+		// enough data for its own timeline instead of forcing the whole overview
+		// onto one fixed interval.
 		historyInterval := overviewHistoryIntervalFor(firstBuy)
 		history, err := c.loadHistory(ctx, item, historyInterval)
 		if err != nil {
@@ -233,6 +240,8 @@ func (c overviewCalculator) buildTrendValues(item WatchlistItem, dates []time.Ti
 	var heldShares float64
 	var lastClose float64
 
+	// Replay DCA entries across the normalized day axis so the overview trend
+	// reflects accumulated share count instead of a single synthetic entry.
 	for index, day := range dates {
 		for entryIndex < len(entries) && !normalizeTrendDay(entries[entryIndex].Date).After(day) {
 			heldShares += entries[entryIndex].Shares

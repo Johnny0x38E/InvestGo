@@ -59,18 +59,20 @@ type cachedHotResponse struct {
 type eastMoneyHotResponse struct {
 	RC   int `json:"rc"`
 	Data struct {
-		Total int `json:"total"`
-		Diff  []struct {
-			MarketID      int     `json:"f13"`
-			Code          string  `json:"f12"`
-			Name          string  `json:"f14"`
-			CurrentPrice  emFloat `json:"f2"`
-			ChangePercent emFloat `json:"f3"`
-			Change        emFloat `json:"f4"`
-			Volume        emFloat `json:"f5"`
-			MarketCap     emFloat `json:"f20"`
-		} `json:"diff"`
+		Total int                `json:"total"`
+		Diff  []eastMoneyHotDiff `json:"diff"`
 	} `json:"data"`
+}
+
+type eastMoneyHotDiff struct {
+	MarketID      int     `json:"f13"`
+	Code          string  `json:"f12"`
+	Name          string  `json:"f14"`
+	CurrentPrice  emFloat `json:"f2"`
+	ChangePercent emFloat `json:"f3"`
+	Change        emFloat `json:"f4"`
+	Volume        emFloat `json:"f5"`
+	MarketCap     emFloat `json:"f20"`
 }
 
 type yahooSearchResponse struct {
@@ -181,7 +183,7 @@ func (s *HotService) search(ctx context.Context, category monitor.HotCategory, s
 // filter from the pool first, then call the Yahoo Finance search API for more matches,
 // merge and deduplicate, and fetch real-time quotes.
 func (s *HotService) searchUSETFs(ctx context.Context, sortBy monitor.HotSort, keyword string, page, pageSize int, options HotListOptions) (monitor.HotListResponse, error) {
-	seeds := filterHotSeeds(hotConstituents[monitor.HotCategoryUSETF], keyword)
+	seeds := filterHotSeeds(normalizedUSHotSeeds(monitor.HotCategoryUSETF, hotConstituents[monitor.HotCategoryUSETF]), keyword)
 
 	remoteSeeds, err := s.searchYahooUSSeeds(ctx, keyword)
 	if err == nil {
@@ -442,7 +444,7 @@ func (s *HotService) listConfiguredCategory(ctx context.Context, category monito
 
 // loadPoolItems loads instruments from the predefined data pool and fetches real-time quotes.
 func (s *HotService) loadPoolItems(ctx context.Context, category monitor.HotCategory, sortBy monitor.HotSort, options HotListOptions) ([]monitor.HotItem, error) {
-	pool := hotConstituents[category]
+	pool := normalizedUSHotSeeds(category, hotConstituents[category])
 	if len(pool) == 0 {
 		return nil, fmt.Errorf("No available hot pool for category: %s", category)
 	}
@@ -462,7 +464,12 @@ func (s *HotService) loadHotItemsForSeeds(ctx context.Context, seeds []hotSeed, 
 		return []monitor.HotItem{}, nil
 	}
 
-	return s.fetchPoolQuotes(ctx, seeds, quoteSourceID)
+	items, err := s.fetchPoolQuotes(ctx, seeds, quoteSourceID)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.enrichUSHotItemsWithEastMoneyNames(ctx, items)
 }
 
 // resolveEastMoneyHotFilter maps HotCategory to EastMoney clist fs parameter, market label and currency.
