@@ -1,4 +1,4 @@
-// provider_finnhub.go â Finnhub quote and history provider (US only, API key required).
+// provider_finnhub.go - Finnhub quote and history provider (US only, API key required).
 package marketdata
 
 import (

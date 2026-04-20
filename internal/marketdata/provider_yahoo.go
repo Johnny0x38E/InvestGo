@@ -1,4 +1,4 @@
-// provider_yahoo.go — Yahoo Finance quote and history provider.
+// provider_yahoo.go - Yahoo Finance quote and history provider.
 package marketdata
 
 import (

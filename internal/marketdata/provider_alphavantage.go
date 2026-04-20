@@ -1,4 +1,4 @@
-// provider_alphavantage.go â Alpha Vantage quote and history provider (US only, API key required).
+// provider_alphavantage.go - Alpha Vantage quote and history provider (US only, API key required).
 package marketdata
 
 import (

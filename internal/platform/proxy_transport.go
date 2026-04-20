@@ -2,6 +2,7 @@ package platform
 
 import (
 	"context"
+	"crypto/tls"
 	"net"
 	"net/http"
 	"net/url"
@@ -55,6 +56,7 @@ func NewProxyTransport(mode, rawURL string) *ProxyTransport {
 		MaxIdleConnsPerHost:   8,
 		IdleConnTimeout:       60 * time.Second,
 		ResponseHeaderTimeout: 12 * time.Second,
+		TLSClientConfig:       &tls.Config{MinVersion: tls.VersionTLS12},
 		// ForceAttemptHTTP2 is intentionally omitted: DialTLSContext
 		// bypasses Go's built-in HTTP/2 negotiation. HTTP/1.1 is
 		// sufficient for every upstream API this app communicates with.
