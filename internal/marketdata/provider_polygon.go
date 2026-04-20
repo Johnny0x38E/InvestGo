@@ -1,4 +1,4 @@
-// provider_polygon.go â Polygon.io quote and history provider (US only, API key required).
+// provider_polygon.go - Polygon.io quote and history provider (US only, API key required).
 package marketdata
 
 import (

@@ -134,8 +134,6 @@ func (r *HistoryRouter) preferredSourceID(market string, settings monitor.AppSet
 // used when the user preferred source has no history capability, or as the
 // fallback tail after the preferred source.
 //
-// CN and HK: EastMoney K-line is preferred (richer candlestick granularity for
-// domestic and Hong Kong markets).
 // US: user-selected API-backed providers are respected when configured; the
 // default chain still falls back to Yahoo Finance, then Finnhub, Polygon, and
 // finally EastMoney so startup does not require API-key-backed sources.

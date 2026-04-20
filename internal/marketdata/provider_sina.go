@@ -1,4 +1,3 @@
-// provider_sina.go — Sina Finance quote provider.
 package marketdata
 
 import (

@@ -1,4 +1,4 @@
-// provider_twelvedata.go â Twelve Data quote and history provider (US only, API key required).
+// provider_twelvedata.go - Twelve Data quote and history provider (US only, API key required).
 package marketdata
 
 import (

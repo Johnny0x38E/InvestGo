@@ -1,4 +1,4 @@
-// provider_eastmoney.go — EastMoney quote and history provider.
+// provider_eastmoney.go - EastMoney quote and history provider.
 package marketdata
 
 import (
@@ -76,7 +76,6 @@ func NewEastMoneyQuoteProvider(client *http.Client) *EastMoneyQuoteProvider {
 func (p *EastMoneyQuoteProvider) Name() string {
 	return "EastMoney"
 }
-
 
 // Fetch requests EastMoney real-time quotes in batch and maps them to the standard Quote structure.
 func (p *EastMoneyQuoteProvider) Fetch(ctx context.Context, items []monitor.WatchlistItem) (map[string]monitor.Quote, error) {
