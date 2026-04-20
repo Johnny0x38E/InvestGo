@@ -7,8 +7,6 @@ import (
 	"regexp"
 	"strings"
 	"time"
-
-	"investgo/internal/monitor/validation"
 )
 
 var sensitiveLogPatterns = []*regexp.Regexp{
@@ -93,8 +91,11 @@ func (s *Store) UpsertItem(input WatchlistItem) (StateSnapshot, error) {
 	}
 
 	s.runtime.QuoteSource = s.quoteProviderSummaryLocked()
-	s.state.UpdatedAt = time.Now()
+	now := time.Now()
+	s.state.UpdatedAt = now
+	s.holdingsUpdatedAt = now
 	s.evaluateAlertsLocked()
+	s.invalidateAllCachesLocked()
 	if err := s.saveLocked(); err != nil {
 		s.logError("storage", fmt.Sprintf("save state failed after item update: %v", err))
 		return StateSnapshot{}, err
@@ -122,6 +123,7 @@ func (s *Store) SetItemPinned(id string, pinned bool) (StateSnapshot, error) {
 	}
 	s.state.Items[index] = item
 	s.state.UpdatedAt = now
+	s.invalidateAllCachesLocked()
 
 	if err := s.saveLocked(); err != nil {
 		s.logError("storage", fmt.Sprintf("save state failed after pin update: %v", err))
@@ -157,7 +159,10 @@ func (s *Store) DeleteItem(id string) (StateSnapshot, error) {
 		}
 	}
 	s.state.Alerts = filteredAlerts
-	s.state.UpdatedAt = time.Now()
+	now := time.Now()
+	s.state.UpdatedAt = now
+	s.holdingsUpdatedAt = now
+	s.invalidateAllCachesLocked()
 
 	if err := s.saveLocked(); err != nil {
 		s.logError("storage", fmt.Sprintf("save state failed after item delete: %v", err))
@@ -199,6 +204,7 @@ func (s *Store) UpsertAlert(input AlertRule) (StateSnapshot, error) {
 
 	s.state.UpdatedAt = time.Now()
 	s.evaluateAlertsLocked()
+	s.invalidateAllCachesLocked()
 	if err := s.saveLocked(); err != nil {
 		s.logError("storage", fmt.Sprintf("save state failed after alert update: %v", err))
 		return StateSnapshot{}, err
@@ -220,6 +226,7 @@ func (s *Store) DeleteAlert(id string) (StateSnapshot, error) {
 	alertName := s.state.Alerts[index].Name
 	s.state.Alerts = append(s.state.Alerts[:index], s.state.Alerts[index+1:]...)
 	s.state.UpdatedAt = time.Now()
+	s.invalidateAllCachesLocked()
 
 	if err := s.saveLocked(); err != nil {
 		s.logError("storage", fmt.Sprintf("save state failed after alert delete: %v", err))
@@ -236,13 +243,16 @@ func (s *Store) UpdateSettings(input AppSettings) (StateSnapshot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	settings, err := sanitiseSettings(input, s.state.Settings, s.quoteProviders)
+	settings, err := sanitiseSettings(input, s.state.Settings, s.quoteProviders, s.quoteSourceOptions)
 	if err != nil {
 		return StateSnapshot{}, err
 	}
 
 	s.state.Settings = settings
-	s.state.UpdatedAt = time.Now()
+	now := time.Now()
+	s.state.UpdatedAt = now
+	s.holdingsUpdatedAt = now
+	s.invalidateAllCachesLocked()
 	if err := s.saveLocked(); err != nil {
 		s.logError("storage", fmt.Sprintf("save state failed after settings update: %v", err))
 		return StateSnapshot{}, err
@@ -251,11 +261,10 @@ func (s *Store) UpdateSettings(input AppSettings) (StateSnapshot, error) {
 	s.logInfo(
 		"settings",
 		fmt.Sprintf(
-			"updated settings: cn=%s hk=%s us=%s refresh=%ds hotCacheTTL=%ds theme=%s color=%s developerMode=%t",
+			"updated settings: cn=%s hk=%s us=%s cacheTTL=%ds theme=%s color=%s developerMode=%t",
 			settings.CNQuoteSource,
 			settings.HKQuoteSource,
 			settings.USQuoteSource,
-			settings.RefreshIntervalSeconds,
 			settings.HotCacheTTLSeconds,
 			settings.ThemeMode,
 			settings.ColorTheme,
@@ -271,7 +280,7 @@ func sanitiseItem(input WatchlistItem) (WatchlistItem, error) {
 	item := input
 	item.Name = strings.TrimSpace(item.Name)
 	item.Thesis = strings.TrimSpace(item.Thesis)
-	item.Tags = validation.NormalizeTags(item.Tags)
+	item.Tags = normalizeTags(item.Tags)
 
 	target, err := resolveQuoteTarget(item.Symbol, item.Market, item.Currency)
 	if err != nil {
@@ -288,7 +297,7 @@ func sanitiseItem(input WatchlistItem) (WatchlistItem, error) {
 	//   2. Otherwise, derive effective cost from the invested amount net of fees: max(Amount − Fee, 0).
 	//   Weighted average cost price = Σ effectiveCost_i / Σ Shares_i
 	if len(item.DCAEntries) > 0 {
-		validEntries, totalShares, averageCost := validation.NormalizeDCAEntries(item.DCAEntries, newID)
+		validEntries, totalShares, averageCost := normalizeDCAEntries(item.DCAEntries, newID)
 		item.DCAEntries = validEntries
 		if len(item.DCAEntries) > 0 {
 			item.Quantity = totalShares
@@ -321,7 +330,7 @@ func sanitiseItem(input WatchlistItem) (WatchlistItem, error) {
 
 // sanitiseAlert normalizes alert rules and performs basic validation.
 func sanitiseAlert(input AlertRule) (AlertRule, error) {
-	return validation.SanitizeAlert(input)
+	return sanitiseAlertRule(input)
 }
 
 // logInfo writes info level logs when logbook is available.

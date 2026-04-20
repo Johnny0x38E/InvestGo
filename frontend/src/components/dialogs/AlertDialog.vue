@@ -40,7 +40,7 @@ const alertConditionOptions = computed(() => getAlertConditionOptions());
                 <InputText v-model.trim="form.name" />
             </label>
             <label>
-                <span>{{ t("watchlist.table.item") }}</span>
+                <span>{{ t("dialogs.alert.itemLabel") }}</span>
                 <Select v-model="form.itemId" :options="itemOptions" option-label="label" option-value="value" />
             </label>
             <label>

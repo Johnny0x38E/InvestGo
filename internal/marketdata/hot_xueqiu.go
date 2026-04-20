@@ -11,10 +11,9 @@ import (
 	"strings"
 	"time"
 
+	"investgo/internal/datasource"
 	"investgo/internal/monitor"
 )
-
-const xueqiuScreenerAPI = "https://xueqiu.com/service/v5/stock/screener/quote/list"
 
 // xueqiuScreenerResponse models the JSON envelope returned by the Xueqiu
 // stock screener list API.  Numeric fields use pointer types because the
@@ -57,7 +56,7 @@ func (s *HotService) listXueqiu(ctx context.Context, category monitor.HotCategor
 	params.Set("market", market)
 	params.Set("type", typ)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, xueqiuScreenerAPI+"?"+params.Encode(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, datasource.XueqiuScreenerAPI+"?"+params.Encode(), nil)
 	if err != nil {
 		return monitor.HotListResponse{}, err
 	}

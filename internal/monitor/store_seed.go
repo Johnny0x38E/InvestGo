@@ -1,9 +1,6 @@
 package monitor
 
 import (
-	"crypto/rand"
-	"encoding/hex"
-	"fmt"
 	"time"
 )
 
@@ -64,13 +61,10 @@ func seedState() persistedState {
 		Items:  items,
 		Alerts: alerts,
 		Settings: AppSettings{
-			RefreshIntervalSeconds: 60,
 			HotCacheTTLSeconds:     60,
-			QuoteSource:            DefaultQuoteSourceID,
 			CNQuoteSource:          DefaultCNQuoteSourceID,
 			HKQuoteSource:          DefaultHKQuoteSourceID,
 			USQuoteSource:          DefaultUSQuoteSourceID,
-			HotUSSource:            DefaultUSQuoteSourceID,
 			ThemeMode:              "system",
 			ColorTheme:             "blue",
 			FontPreset:             "system",
@@ -82,6 +76,8 @@ func seedState() persistedState {
 			ProxyURL:               "",
 			AlphaVantageAPIKey:     "",
 			TwelveDataAPIKey:       "",
+			FinnhubAPIKey:          "",
+			PolygonAPIKey:          "",
 			DeveloperMode:          false,
 			DashboardCurrency:      "CNY",
 			UseNativeTitleBar:      false,
@@ -92,27 +88,4 @@ func seedState() persistedState {
 	store.evaluateAlertsLocked()
 	store.state.UpdatedAt = now
 	return store.state
-}
-
-// newID generates a prefixed random ID; falls back to timestamp scheme when random numbers are unavailable.
-func newID(prefix string) string {
-	buffer := make([]byte, 6)
-	if _, err := rand.Read(buffer); err != nil {
-		return fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())
-	}
-	return prefix + "-" + hex.EncodeToString(buffer)
-}
-
-// ptrTime returns an independent pointer copy of the given time value.
-func ptrTime(value time.Time) *time.Time {
-	copy := value
-	return &copy
-}
-
-// nonZeroTime falls back zero-value time to current time.
-func nonZeroTime(value time.Time) time.Time {
-	if value.IsZero() {
-		return time.Now()
-	}
-	return value
 }

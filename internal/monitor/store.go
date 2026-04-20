@@ -3,9 +3,12 @@ package monitor
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	ttlcache "investgo/internal/cache"
 	"investgo/internal/monitor/persistence"
 )
 
@@ -26,10 +29,24 @@ type Store struct {
 	state              persistedState
 	runtime            RuntimeStatus
 	fxRates            *FxRates
+	refreshCache       *ttlcache.TTL[string, StateSnapshot]
+	itemRefreshCache   *ttlcache.TTL[string, StateSnapshot]
+	historyCache       *ttlcache.TTL[string, HistorySeries]
+	overviewCache      *ttlcache.TTL[string, cachedOverviewValue]
+	// holdingsUpdatedAt tracks the last time portfolio holdings changed structurally
+	// (item add/remove/update, settings change). It is used as the stateStamp for the
+	// overviewCache to detect structural changes. The overviewCache is also explicitly
+	// cleared by invalidatePriceCachesLocked so portfolio values always reflect the
+	// latest prices after any quote refresh.
+	holdingsUpdatedAt  time.Time
+	// snapshotCache holds the last built StateSnapshot so repeated Snapshot() calls
+	// (e.g. every /api/state request) avoid re-sorting and re-decorating all items
+	// when nothing in the persisted state has changed.
+	snapshotCache      atomic.Pointer[cachedSnapshot]
 }
 
 // NewStore creates a Store and completes state loading and runtime dependency injection.
-func NewStore(path string, quoteProviders map[string]QuoteProvider, quoteSourceOptions []QuoteSourceOption, historyProvider HistoryProvider, logs *LogBook, appVersion string) (*Store, error) {
+func NewStore(path string, quoteProviders map[string]QuoteProvider, quoteSourceOptions []QuoteSourceOption, historyProvider HistoryProvider, logs *LogBook, appVersion string, httpClient *http.Client) (*Store, error) {
 	return NewStoreWithRepository(
 		persistence.NewJSONRepository(path),
 		quoteProviders,
@@ -37,23 +54,47 @@ func NewStore(path string, quoteProviders map[string]QuoteProvider, quoteSourceO
 		historyProvider,
 		logs,
 		appVersion,
+		httpClient,
 	)
 }
 
 // NewStoreWithRepository creates a Store with an explicit persistence backend.
-func NewStoreWithRepository(repository persistence.Repository, quoteProviders map[string]QuoteProvider, quoteSourceOptions []QuoteSourceOption, historyProvider HistoryProvider, logs *LogBook, appVersion string) (*Store, error) {
+func NewStoreWithRepository(repository persistence.Repository, quoteProviders map[string]QuoteProvider, quoteSourceOptions []QuoteSourceOption, historyProvider HistoryProvider, logs *LogBook, appVersion string, httpClient *http.Client) (*Store, error) {
 	store := &Store{
 		repository:         repository,
 		quoteProviders:     quoteProviders,
 		quoteSourceOptions: append([]QuoteSourceOption(nil), quoteSourceOptions...),
 		historyProvider:    historyProvider,
 		logs:               logs,
-		fxRates:            NewFxRates(nil),
+		fxRates:            NewFxRates(httpClient), // use shared http.Client so proxy transport settings apply to FX rate requests
 		runtime:            RuntimeStatus{AppVersion: appVersion},
+		refreshCache:       ttlcache.NewTTLWithMax[string, StateSnapshot](32),
+		itemRefreshCache:   ttlcache.NewTTLWithMax[string, StateSnapshot](32),
+		historyCache:       ttlcache.NewTTLWithMax[string, HistorySeries](512),
+		overviewCache:      ttlcache.NewTTLWithMax[string, cachedOverviewValue](16),
 	}
 	if err := store.load(); err != nil {
 		return nil, err
 	}
+	store.holdingsUpdatedAt = store.state.UpdatedAt
+
+	// Kick off an initial FX rate fetch in the background so Snapshot() never blocks
+	// waiting for network on the first call.
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		store.fxRates.Fetch(ctx)
+		store.mu.Lock()
+		if fxErr := store.fxRates.LastError(); fxErr != "" {
+			store.runtime.LastFxError = fxErr
+			store.logWarn("fx-rates", fxErr)
+		} else if validAt := store.fxRates.ValidAt(); !validAt.IsZero() {
+			store.runtime.LastFxError = ""
+			store.runtime.LastFxRefreshAt = ptrTime(validAt)
+			store.logInfo("fx-rates", fmt.Sprintf("FX rates ready (%d currencies)", store.fxRates.CurrencyCount()))
+		}
+		store.mu.Unlock()
+	}()
 
 	return store, nil
 }
@@ -71,31 +112,10 @@ func (s *Store) Save() error {
 }
 
 // Snapshot returns a complete state snapshot required for frontend startup and interaction.
+// FX rates are fetched asynchronously in the background; this method never blocks on network.
 func (s *Store) Snapshot() StateSnapshot {
-	if s.fxRates.IsStale() {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		s.fxRates.Fetch(ctx)
-
-		// Write FX rate fetch result to runtime status and log it
-		if fxErr := s.fxRates.LastError(); fxErr != "" {
-			s.mu.Lock()
-			s.runtime.LastFxError = fxErr
-			s.logWarn("fx-rates", fxErr)
-			s.mu.Unlock()
-		} else {
-			validAt := s.fxRates.ValidAt()
-			s.mu.Lock()
-			s.runtime.LastFxError = ""
-			s.runtime.LastFxRefreshAt = ptrTime(validAt)
-			s.logInfo("fx-rates", fmt.Sprintf("FX rates refreshed for %d currencies", s.fxRates.CurrencyCount()))
-			s.mu.Unlock()
-		}
-	}
-
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-
 	return s.snapshotLocked()
 }
 

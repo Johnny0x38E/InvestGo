@@ -40,10 +40,7 @@ type HistoryRouter struct {
 //     Register only sources that have K-line or chart history capability.
 //   - settings is called on every Fetch to obtain the current user preferences.
 //     Pass store.CurrentSettings after the Store has been initialised.
-func NewHistoryRouter(
-	providers map[string]monitor.HistoryProvider,
-	settings func() monitor.AppSettings,
-) *HistoryRouter {
+func NewHistoryRouter(providers map[string]monitor.HistoryProvider, settings func() monitor.AppSettings) *HistoryRouter {
 	out := make(map[string]monitor.HistoryProvider, len(providers))
 	for k, v := range providers {
 		out[k] = v
@@ -60,11 +57,7 @@ func (r *HistoryRouter) Name() string { return "HistoryRouter" }
 // tries each provider in order, and returns the first successful result.
 // When every provider in the chain fails the returned error names each provider
 // and its individual error for diagnostics.
-func (r *HistoryRouter) Fetch(
-	ctx context.Context,
-	item monitor.WatchlistItem,
-	interval monitor.HistoryInterval,
-) (monitor.HistorySeries, error) {
+func (r *HistoryRouter) Fetch(ctx context.Context, item monitor.WatchlistItem, interval monitor.HistoryInterval) (monitor.HistorySeries, error) {
 	chain := r.chainForMarket(item.Market)
 
 	var errs []string
@@ -81,14 +74,9 @@ func (r *HistoryRouter) Fetch(
 	}
 
 	if len(errs) > 0 {
-		return monitor.HistorySeries{}, fmt.Errorf(
-			"all history providers failed for %s (%s): %s",
-			item.Symbol, item.Market, strings.Join(errs, "; "),
-		)
+		return monitor.HistorySeries{}, fmt.Errorf("all history providers failed for %s (%s): %s", item.Symbol, item.Market, strings.Join(errs, "; "))
 	}
-	return monitor.HistorySeries{}, fmt.Errorf(
-		"no history provider configured for market: %s", item.Market,
-	)
+	return monitor.HistorySeries{}, fmt.Errorf("no history provider configured for market: %s", item.Market)
 }
 
 // chainForMarket builds the priority-ordered list of provider IDs for the given
@@ -149,14 +137,14 @@ func (r *HistoryRouter) preferredSourceID(market string, settings monitor.AppSet
 // CN and HK: EastMoney K-line is preferred (richer candlestick granularity for
 // domestic and Hong Kong markets).
 // US: user-selected API-backed providers are respected when configured; the
-// default chain still falls back to Yahoo Finance and then EastMoney so startup
-// does not require API-key-backed sources.
+// default chain still falls back to Yahoo Finance, then Finnhub, Polygon, and
+// finally EastMoney so startup does not require API-key-backed sources.
 func defaultHistoryChain(market string) []string {
 	switch historyMarketGroup(market) {
 	case "us":
-		return []string{"yahoo", "eastmoney"}
+		return []string{"yahoo", "finnhub", "polygon", "alpha-vantage", "twelve-data", "eastmoney"}
 	default:
-		return []string{"eastmoney", "yahoo"}
+		return []string{"yahoo", "eastmoney"}
 	}
 }
 

@@ -20,6 +20,7 @@ export function getSettingsTabs(): SettingsTab[] {
         { key: "general", label: translate("settings.tabs.general") },
         { key: "display", label: translate("settings.tabs.display") },
         { key: "region", label: translate("settings.tabs.region") },
+        { key: "network", label: translate("settings.tabs.network") },
         { key: "developer", label: translate("settings.tabs.developer") },
         { key: "about", label: translate("settings.tabs.about") },
     ];

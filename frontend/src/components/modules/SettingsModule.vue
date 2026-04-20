@@ -123,6 +123,10 @@ async function openExternal(url: string): Promise<void> {
                                 <Select v-model="settingsDraft.usQuoteSource" :options="usQuoteSources" option-label="name" option-value="id" class="w-full" />
                             </label>
 
+                            <p v-if="['alpha-vantage', 'twelve-data', 'finnhub', 'polygon'].includes(settingsDraft.usQuoteSource)" class="settings-api-key-notice full-span">
+                                {{ t("settings.apiKeyNotice") }}
+                            </p>
+
                             <label v-if="settingsDraft.usQuoteSource === 'alpha-vantage'" class="full-span">
                                 <span>{{ t("settings.labels.alphaVantageApiKey") }}</span>
                                 <InputText v-model.trim="settingsDraft.alphaVantageApiKey" type="password" autocomplete="new-password" class="w-full" />
@@ -135,16 +139,24 @@ async function openExternal(url: string): Promise<void> {
                                 <small class="settings-note">{{ t("settings.labels.apiKeyHelp") }}</small>
                             </label>
 
-                            <label>
-                                <span>{{ t("settings.labels.refreshInterval") }}</span>
-                                <InputNumber v-model="settingsDraft.refreshIntervalSeconds" :min="10" :step="10" fluid />
+                            <label v-if="settingsDraft.usQuoteSource === 'finnhub'" class="full-span">
+                                <span>{{ t("settings.labels.finnhubApiKey") }}</span>
+                                <InputText v-model.trim="settingsDraft.finnhubApiKey" type="password" autocomplete="new-password" class="w-full" />
+                                <small class="settings-note">{{ t("settings.labels.apiKeyHelp") }}</small>
                             </label>
-                            <label>
+
+                            <label v-if="settingsDraft.usQuoteSource === 'polygon'" class="full-span">
+                                <span>{{ t("settings.labels.polygonApiKey") }}</span>
+                                <InputText v-model.trim="settingsDraft.polygonApiKey" type="password" autocomplete="new-password" class="w-full" />
+                                <small class="settings-note">{{ t("settings.labels.apiKeyHelp") }}</small>
+                            </label>
+
+                            <label class="full-span">
                                 <span>{{ t("settings.labels.hotCacheTTL") }}</span>
                                 <InputNumber v-model="settingsDraft.hotCacheTTLSeconds" :min="10" :step="10" fluid />
+                                <!-- <small class="settings-note">{{ t("settings.labels.hotCacheTTLHint") }}</small> -->
                             </label>
                         </div>
-                        <!-- <p class="settings-note">Watchlist live quotes are grouped by mainland China (A-shares plus domestic ETFs), Hong Kong (including HK ETFs), and US markets (including US ETFs), and charts automatically fall back when the selected source does not support them.</p> -->
                     </div>
 
                     <div class="settings-section">
@@ -232,7 +244,7 @@ async function openExternal(url: string): Promise<void> {
                         <div class="settings-theme-preview">
                             <div class="settings-theme-preview-copy">
                                 <strong>{{ t("settings.themePreview.title") }}</strong>
-                                <span>{{ t("settings.themePreview.description") }}</span>
+                                <!-- <span>{{ t("settings.themePreview.description") }}</span> -->
                             </div>
                             <div class="settings-theme-preview-swatches">
                                 <span class="settings-theme-swatch accent">{{ t("settings.themePreview.accent") }}</span>
@@ -268,7 +280,9 @@ async function openExternal(url: string): Promise<void> {
                             </label>
                         </div>
                     </div>
+                </div>
 
+                <div v-show="settingsTabProxy === 'network'" class="settings-pane">
                     <div class="settings-section">
                         <h4>{{ t("settings.sections.network") }}</h4>
                         <div class="settings-grid">
@@ -627,6 +641,13 @@ async function openExternal(url: string): Promise<void> {
 
 .settings-meta-grid .full-span {
     grid-column: 1 / -1;
+}
+
+.settings-api-key-notice {
+    margin: 0;
+    font-size: 0.8125rem;
+    color: var(--p-amber-400);
+    line-height: 1.4;
 }
 
 .developer-toggle {

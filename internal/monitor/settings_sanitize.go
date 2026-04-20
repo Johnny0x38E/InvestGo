@@ -7,16 +7,10 @@ import (
 )
 
 // sanitiseSettings merges user input with current configuration and performs unified validation.
-func sanitiseSettings(input AppSettings, current AppSettings, quoteProviders map[string]QuoteProvider) (AppSettings, error) {
+func sanitiseSettings(input AppSettings, current AppSettings, quoteProviders map[string]QuoteProvider, quoteSourceOptions []QuoteSourceOption) (AppSettings, error) {
 	settings := current
-	if input.RefreshIntervalSeconds > 0 {
-		settings.RefreshIntervalSeconds = input.RefreshIntervalSeconds
-	}
 	if input.HotCacheTTLSeconds > 0 {
 		settings.HotCacheTTLSeconds = input.HotCacheTTLSeconds
-	}
-	if strings.TrimSpace(input.QuoteSource) != "" {
-		settings.QuoteSource = strings.ToLower(strings.TrimSpace(input.QuoteSource))
 	}
 	if strings.TrimSpace(input.CNQuoteSource) != "" {
 		settings.CNQuoteSource = strings.ToLower(strings.TrimSpace(input.CNQuoteSource))
@@ -26,9 +20,6 @@ func sanitiseSettings(input AppSettings, current AppSettings, quoteProviders map
 	}
 	if strings.TrimSpace(input.USQuoteSource) != "" {
 		settings.USQuoteSource = strings.ToLower(strings.TrimSpace(input.USQuoteSource))
-	}
-	if strings.TrimSpace(input.HotUSSource) != "" {
-		settings.HotUSSource = strings.ToLower(strings.TrimSpace(input.HotUSSource))
 	}
 	if strings.TrimSpace(input.ThemeMode) != "" {
 		settings.ThemeMode = strings.ToLower(strings.TrimSpace(input.ThemeMode))
@@ -63,23 +54,24 @@ func sanitiseSettings(input AppSettings, current AppSettings, quoteProviders map
 	if input.TwelveDataAPIKey != "" || strings.TrimSpace(current.TwelveDataAPIKey) != "" {
 		settings.TwelveDataAPIKey = strings.TrimSpace(input.TwelveDataAPIKey)
 	}
+	if input.FinnhubAPIKey != "" || strings.TrimSpace(current.FinnhubAPIKey) != "" {
+		settings.FinnhubAPIKey = strings.TrimSpace(input.FinnhubAPIKey)
+	}
+	if input.PolygonAPIKey != "" || strings.TrimSpace(current.PolygonAPIKey) != "" {
+		settings.PolygonAPIKey = strings.TrimSpace(input.PolygonAPIKey)
+	}
 	if strings.TrimSpace(input.DashboardCurrency) != "" {
 		settings.DashboardCurrency = strings.ToUpper(strings.TrimSpace(input.DashboardCurrency))
 	}
 	settings.DeveloperMode = input.DeveloperMode
 	settings.UseNativeTitleBar = input.UseNativeTitleBar
 
-	if settings.RefreshIntervalSeconds < 10 {
-		return AppSettings{}, errors.New("Refresh interval must be at least 10 seconds")
-	}
 	if settings.HotCacheTTLSeconds < 10 {
-		return AppSettings{}, errors.New("Hot cache TTL must be at least 10 seconds")
+		return AppSettings{}, errors.New("Cache TTL must be at least 10 seconds")
 	}
-	settings.CNQuoteSource = normaliseQuoteSourceIDForSettings(settings.CNQuoteSource, settings.QuoteSource, "CN-A", quoteProviders)
-	settings.HKQuoteSource = normaliseQuoteSourceIDForSettings(settings.HKQuoteSource, settings.QuoteSource, "HK-MAIN", quoteProviders)
-	settings.USQuoteSource = normaliseQuoteSourceIDForSettings(settings.USQuoteSource, settings.QuoteSource, "US-STOCK", quoteProviders)
-	settings.HotUSSource = settings.USQuoteSource
-	settings.QuoteSource = DefaultQuoteSourceID
+	settings.CNQuoteSource = normaliseQuoteSourceIDForSettings(settings.CNQuoteSource, "CN-A", quoteProviders, quoteSourceOptions)
+	settings.HKQuoteSource = normaliseQuoteSourceIDForSettings(settings.HKQuoteSource, "HK-MAIN", quoteProviders, quoteSourceOptions)
+	settings.USQuoteSource = normaliseQuoteSourceIDForSettings(settings.USQuoteSource, "US-STOCK", quoteProviders, quoteSourceOptions)
 	if len(quoteProviders) > 0 {
 		if _, ok := quoteProviders[settings.CNQuoteSource]; !ok {
 			return AppSettings{}, errors.New("China quote source is invalid")
@@ -99,6 +91,14 @@ func sanitiseSettings(input AppSettings, current AppSettings, quoteProviders map
 	case "twelve-data":
 		if settings.TwelveDataAPIKey == "" {
 			return AppSettings{}, errors.New("Twelve Data API key is required")
+		}
+	case "finnhub":
+		if settings.FinnhubAPIKey == "" {
+			return AppSettings{}, errors.New("Finnhub API key is required")
+		}
+	case "polygon":
+		if settings.PolygonAPIKey == "" {
+			return AppSettings{}, errors.New("Polygon API key is required")
 		}
 	}
 	switch settings.FontPreset {
@@ -181,13 +181,10 @@ func sanitiseSettings(input AppSettings, current AppSettings, quoteProviders map
 }
 
 // normaliseQuoteSourceIDForSettings determines the final quote source ID to use based on user input, market type, and available quote source list.
-func normaliseQuoteSourceIDForSettings(sourceID, legacySource, market string, providers map[string]QuoteProvider) string {
+func normaliseQuoteSourceIDForSettings(sourceID, market string, providers map[string]QuoteProvider, options []QuoteSourceOption) string {
 	sourceID = strings.ToLower(strings.TrimSpace(sourceID))
-	if sourceID == "" {
-		sourceID = strings.ToLower(strings.TrimSpace(legacySource))
-	}
 	if sourceID != "" {
-		if _, ok := providers[sourceID]; ok && quoteSourceSupportsMarketForSettings(sourceID, market) {
+		if _, ok := providers[sourceID]; ok && quoteSourceSupportsMarketForSettings(sourceID, market, options) {
 			return sourceID
 		}
 	}
@@ -214,14 +211,21 @@ func normaliseQuoteSourceIDForSettings(sourceID, legacySource, market string, pr
 	return DefaultQuoteSourceID
 }
 
-// quoteSourceSupportsMarketForSettings returns whether the given quote source supports the specified market for the purpose of validating user settings.
-func quoteSourceSupportsMarketForSettings(sourceID, market string) bool {
-	switch sourceID {
-	case "eastmoney", "yahoo", "sina", "xueqiu":
-		return market != "CN-BJ"
-	case "alpha-vantage", "twelve-data":
-		return market == "US-STOCK" || market == "US-ETF"
-	default:
-		return false
+// quoteSourceSupportsMarketForSettings returns whether the given quote source supports the specified market
+// by consulting the authoritative QuoteSourceOption.SupportedMarkets list.
+func quoteSourceSupportsMarketForSettings(sourceID string, market string, options []QuoteSourceOption) bool {
+	for _, opt := range options {
+		if opt.ID == sourceID {
+			if len(opt.SupportedMarkets) == 0 {
+				return true
+			}
+			for _, m := range opt.SupportedMarkets {
+				if m == market {
+					return true
+				}
+			}
+			return false
+		}
 	}
+	return false
 }

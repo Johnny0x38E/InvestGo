@@ -52,30 +52,24 @@ func main() {
 	proxyTransport := platform.NewProxyTransport("system", "")
 	httpClient := platform.NewHTTPClient(proxyTransport)
 
-	var quoteSettings func() monitor.AppSettings = func() monitor.AppSettings { return monitor.AppSettings{} }
-	quoteProviders, quoteSourceOptions := marketdata.DefaultQuoteSourceRegistry(httpClient, func() monitor.AppSettings { return quoteSettings() })
-
-	// historySettings is a lazy getter that returns the Store's current settings.
-	// It is initialised to a safe default and wired to the real store below so
-	// that HistoryRouter always sees up-to-date per-market preferences without
-	// creating an initialisation cycle.
-	var historySettings func() monitor.AppSettings = func() monitor.AppSettings { return monitor.AppSettings{} }
+	var settingsFunc func() monitor.AppSettings = func() monitor.AppSettings { return monitor.AppSettings{} }
+	registry := marketdata.DefaultRegistry(httpClient, func() monitor.AppSettings { return settingsFunc() })
 
 	store, err := monitor.NewStore(
 		defaultStatePath(),
-		quoteProviders,
-		quoteSourceOptions,
-		marketdata.NewSmartHistoryProvider(httpClient, func() monitor.AppSettings { return historySettings() }),
+		registry.QuoteProviders(),
+		registry.QuoteSourceOptions(),
+		registry.NewHistoryRouter(func() monitor.AppSettings { return settingsFunc() }),
 		logs,
 		appVersion,
+		httpClient, // shared http.Client so FX rate requests respect the configured proxy transport
 	)
 	if err != nil {
 		log.Fatalf("initialise store: %v", err)
 	}
 
 	// Wire the real settings getter now that the Store is ready.
-	historySettings = store.CurrentSettings
-	quoteSettings = store.CurrentSettings
+	settingsFunc = store.CurrentSettings
 
 	// The Store is now loaded — sync the proxy transport with the persisted
 	// settings. ApplySystemProxy sets process-wide env vars so that
@@ -91,7 +85,7 @@ func main() {
 	}
 	proxyTransport.Update(proxyMode, proxyURL)
 
-	hotService := marketdata.NewHotService(httpClient, logs.NewSlogLogger("hot", slog.LevelInfo))
+	hotService := marketdata.NewHotService(httpClient, logs.NewSlogLogger("hot", slog.LevelInfo), registry)
 
 	frontendFS, err := fs.Sub(frontendAssets, "frontend/dist")
 	if err != nil {

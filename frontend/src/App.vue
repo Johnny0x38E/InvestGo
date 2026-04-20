@@ -18,27 +18,21 @@ import ItemDialog from "./components/dialogs/ItemDialog.vue";
 import { appendClientLog, installClientLogCapture } from "./devlog";
 import { useDeveloperLogs } from "./composables/useDeveloperLogs";
 import { useHistorySeries } from "./composables/useHistorySeries";
+import { useItemDialog } from "./composables/useItemDialog";
+import { useAlertDialog } from "./composables/useAlertDialog";
+import { useConfirmDialog } from "./composables/useConfirmDialog";
 import {
     defaultSettings,
-    emptyAlertForm,
-    emptyItemForm,
-    hotItemToWatchForm,
-    hotItemToPositionForm,
-    mapAlertToForm,
-    mapItemToForm,
     normaliseSettings,
-    serialiseItemForm,
 } from "./forms";
 import { setFormatterSettings } from "./format";
 import { setI18nLocale, translate } from "./i18n";
 import { applyPrimeVueColorTheme } from "./theme";
 import type {
-    AlertFormModel,
     AlertRule,
     AppSettings,
     HotItem,
     HotMarketGroup,
-    ItemFormModel,
     ModuleKey,
     OptionItem,
     QuoteSourceOption,
@@ -67,31 +61,12 @@ const selectedItemId = ref("");
 const activeModule = ref<ModuleKey>("overview");
 const hotMarketGroup = ref<HotMarketGroup>("cn");
 const settingsTab = ref<SettingsTabKey>("general");
-const settingsVisible = ref(false);
-const itemDialogVisible = ref(false);
-const alertDialogVisible = ref(false);
-const confirmDialogVisible = ref(false);
 const savingSettings = ref(false);
-const savingItem = ref(false);
 const dcaDetailVisible = ref(false);
 const dcaDetailItem = ref<WatchlistItem | null>(null);
-const itemDialogInitialTab = ref<"basic" | "dca">("basic");
-const itemDialogWatchOnly = ref(false);
-const savingAlert = ref(false);
-const deleting = ref(false);
 const matchMediaList = window.matchMedia("(prefers-color-scheme: dark)");
 
 const settingsDraft = reactive<AppSettings>({ ...defaultSettings });
-const itemForm = reactive<ItemFormModel>(emptyItemForm());
-const alertForm = reactive<AlertFormModel>(emptyAlertForm());
-const confirmTitle = ref("");
-const confirmMessage = ref("");
-const confirmLabel = ref(translate("common.delete"));
-const pendingDelete = reactive<{ kind: "" | "item" | "alert"; id: string }>({
-    kind: "",
-    id: "",
-});
-let refreshTimer = 0;
 let developerLogTimer = 0;
 
 const filteredItems = computed(() => {
@@ -141,7 +116,7 @@ watch(
 watch(
     () =>
         [
-            settingsVisible.value,
+            activeModule.value,
             settings.value.fontPreset,
             settings.value.colorTheme,
             settings.value.priceColorScheme,
@@ -175,22 +150,17 @@ watch(activeModule, (module) => {
 });
 
 watch(activeModule, (module, previous) => {
-    if (!shouldAutoRefreshModule(module)) {
-        window.clearTimeout(refreshTimer);
-        if (module !== previous && module === "watchlist") {
-            // Entering the watchlist should refresh only the visible
-            // instrument so upstream providers are not hit with the whole list.
-            void refreshSelectedItem(true, false);
-        }
+    if (module === previous) {
         return;
     }
-    if (module !== previous) {
-        // Overview aggregates the whole portfolio, so it still gets a full
-        // refresh when users switch back into that module.
+    if (module === "watchlist") {
+        // Entering the watchlist refreshes only the selected instrument
+        // so upstream providers are not hit with the whole list.
+        void refreshSelectedItem(true, false);
+    } else if (module === "overview") {
+        // Overview aggregates the whole portfolio; refresh on module entry.
         void refreshQuotes(true, false);
-        return;
     }
-    scheduleAutoRefresh();
 });
 
 const {
@@ -215,7 +185,7 @@ const {
 watch(
     () =>
         [
-            settingsVisible.value,
+            activeModule.value === "settings",
             settingsTab.value,
             settingsDraft.developerMode,
         ] as const,
@@ -241,7 +211,6 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
-    window.clearTimeout(refreshTimer);
     window.clearInterval(developerLogTimer);
     matchMediaList.removeEventListener("change", syncThemeMode);
 });
@@ -264,10 +233,6 @@ function applyResolvedTheme(themeMode: AppSettings["themeMode"]): void {
     document.documentElement.classList.toggle("app-dark", nextTheme === "dark");
 }
 
-function shouldAutoRefreshModule(module: ModuleKey): boolean {
-    return module === "overview";
-}
-
 // Fetch the full backend snapshot for initial load and manual refresh flows.
 async function loadState(silent = false): Promise<void> {
     if (!silent) {
@@ -278,8 +243,6 @@ async function loadState(silent = false): Promise<void> {
         const snapshot = await api<StateSnapshot>("/api/state");
         applySnapshot(snapshot);
         setStatus(translate("app.dashboardLoaded"), "success");
-
-        void refreshQuotes(true, false);
     } catch (error) {
         setStatus(
             error instanceof Error
@@ -307,20 +270,20 @@ function applySnapshot(snapshot: StateSnapshot): void {
         // snapshot update so list-driven modules never point at a deleted item.
         selectedItemId.value = items.value[0]?.id ?? "";
     }
-
-    scheduleAutoRefresh();
 }
 
 // Refresh live quotes and optionally reload the currently selected chart range.
 async function refreshQuotes(
     silent = false,
     refreshHistory = true,
+    force = false,
 ): Promise<void> {
     try {
         if (!silent) {
             setStatus(translate("app.syncingQuotes"), "success");
         }
-        const snapshot = await api<StateSnapshot>("/api/refresh", {
+        const query = force ? "?force=1" : "";
+        const snapshot = await api<StateSnapshot>(`/api/refresh${query}`, {
             method: "POST",
         });
         applySnapshot(snapshot);
@@ -353,8 +316,6 @@ async function refreshQuotes(
                 : translate("app.refreshFailed"),
             "error",
         );
-    } finally {
-        scheduleAutoRefresh();
     }
 }
 
@@ -362,6 +323,7 @@ async function refreshQuotes(
 async function refreshSelectedItem(
     silent = false,
     refreshHistory = true,
+    force = false,
 ): Promise<void> {
     const currentItem = selectedItem.value;
     if (!currentItem) {
@@ -372,8 +334,9 @@ async function refreshSelectedItem(
         if (!silent) {
             setStatus(translate("app.syncingQuotes"), "success");
         }
+        const query = force ? "?force=1" : "";
         const snapshot = await api<StateSnapshot>(
-            `/api/items/${encodeURIComponent(currentItem.id)}/refresh`,
+            `/api/items/${encodeURIComponent(currentItem.id)}/refresh${query}`,
             {
                 method: "POST",
             },
@@ -405,25 +368,7 @@ async function refreshSelectedItem(
                 : translate("app.refreshFailed"),
             "error",
         );
-    } finally {
-        scheduleAutoRefresh();
     }
-}
-
-// Schedule the next automatic sync using the configured interval so every chart range stays up to date.
-function scheduleAutoRefresh(): void {
-    window.clearTimeout(refreshTimer);
-    if (!shouldAutoRefreshModule(activeModule.value)) {
-        return;
-    }
-    const intervalMs =
-        Math.max(settings.value.refreshIntervalSeconds || 60, 10) * 1000;
-
-    // Use setTimeout instead of setInterval so every cycle re-reads the latest
-    // settings and does not queue overlapping refresh requests.
-    refreshTimer = window.setTimeout(() => {
-        void refreshQuotes(true);
-    }, intervalMs);
 }
 
 // Update the top status bar message and tone.
@@ -432,9 +377,8 @@ function setStatus(message: string, tone: StatusTone): void {
     statusTone.value = tone;
 }
 
-// Open the settings dialog and copy the current settings into the draft model.
+// Open the settings dialog; the activeModule watcher seeds settingsDraft.
 function openSettings(): void {
-    Object.assign(settingsDraft, settings.value);
     activeModule.value = "settings";
 }
 
@@ -465,38 +409,32 @@ async function saveSettings(): Promise<void> {
     }
 }
 
-// Open the item editor dialog.
-function openItemDialog(
-    item?: WatchlistItem,
-    initialTab: "basic" | "dca" = "basic",
-): void {
-    Object.assign(itemForm, item ? mapItemToForm(item) : emptyItemForm());
-    itemDialogInitialTab.value = initialTab;
-    itemDialogWatchOnly.value = false;
-    itemDialogVisible.value = true;
+const {
+    itemDialogVisible, itemDialogInitialTab, itemDialogWatchOnly, savingItem, itemForm,
+    openItemDialog, openHotWatchDialog, openHotPositionDialog, saveItem,
+    quickAddHotItem: quickAddHotItemInner, toggleItemPinned, performDeleteItem: performDeleteItemInner,
+} = useItemDialog(applySnapshot, clearHistoryCache, setStatus);
+
+async function quickAddHotItem(item: HotItem): Promise<void> {
+    const key = `${item.market}:${item.symbol}`;
+    await quickAddHotItemInner(item, trackedHotKeys.value.includes(key));
 }
 
-// Open the item dialog pre-filled from a hot list item in "关注" (watch only) mode.
-function openHotWatchDialog(item: HotItem): void {
-    Object.assign(itemForm, hotItemToWatchForm(item));
-    itemDialogInitialTab.value = "basic";
-    itemDialogWatchOnly.value = true;
-    itemDialogVisible.value = true;
-}
+const {
+    alertDialogVisible, savingAlert, alertForm,
+    openAlertDialog, saveAlert, performDeleteAlert: performDeleteAlertInner,
+} = useAlertDialog(applySnapshot, setStatus, () => { activeModule.value = "alerts"; });
+
+const {
+    confirmDialogVisible, confirmTitle, confirmMessage, confirmLabel, deleting,
+    requestDeleteItem, requestDeleteAlert, confirmDelete,
+} = useConfirmDialog(performDeleteItemInner, performDeleteAlertInner);
 
 function unwatchHotItem(item: HotItem): void {
     const existing = items.value.find(i => i.symbol === item.symbol && i.market === item.market);
     if (existing) {
         requestDeleteItem(existing.id);
     }
-}
-
-// Open the item dialog pre-filled from a hot list item in "建仓" (open position) mode.
-function openHotPositionDialog(item: HotItem): void {
-    Object.assign(itemForm, hotItemToPositionForm(item));
-    itemDialogInitialTab.value = "basic";
-    itemDialogWatchOnly.value = false;
-    itemDialogVisible.value = true;
 }
 
 // Open the DCA detail dialog.
@@ -512,225 +450,6 @@ function editFromDCADetail(): void {
     openItemDialog(dcaDetailItem.value, "dca");
 }
 
-// Save the item and refresh cached data so the active chart stays aligned with the latest state.
-async function saveItem(): Promise<void> {
-    savingItem.value = true;
-    try {
-        const payload = serialiseItemForm(itemForm);
-        // In watch-only mode, clear all position fields so the item is saved as a pure watchlist entry.
-        if (itemDialogWatchOnly.value) {
-            payload.quantity = 0;
-            payload.costPrice = 0;
-            payload.acquiredAt = undefined;
-            payload.dcaEntries = [];
-        }
-        const path = itemForm.id ? `/api/items/${itemForm.id}` : "/api/items";
-        const method = itemForm.id ? "PUT" : "POST";
-        const snapshot = await api<StateSnapshot>(path, {
-            method,
-            body: JSON.stringify(payload),
-        });
-        clearHistoryCache();
-        applySnapshot(snapshot);
-        itemDialogVisible.value = false;
-        setStatus(
-            itemForm.id
-                ? translate("app.itemUpdated")
-                : translate("app.itemAdded"),
-            "success",
-        );
-    } catch (error) {
-        setStatus(
-            error instanceof Error
-                ? error.message
-                : translate("app.itemSaveFailed"),
-            "error",
-        );
-    } finally {
-        savingItem.value = false;
-    }
-}
-
-// Quickly add an instrument from the hot list into the watchlist.
-async function quickAddHotItem(item: HotItem): Promise<void> {
-    const key = `${item.market}:${item.symbol}`;
-    if (trackedHotKeys.value.includes(key)) {
-        setStatus(translate("app.itemAlreadyTracked"), "warn");
-        return;
-    }
-
-    try {
-        // Quick add only writes the baseline holding fields; the current price is still backfilled by the unified quote source.
-        const snapshot = await api<StateSnapshot>("/api/items", {
-            method: "POST",
-            body: JSON.stringify({
-                symbol: item.symbol,
-                name: item.name,
-                market: item.market,
-                currency: item.currency,
-                quantity: 0,
-                costPrice: item.currentPrice || 0,
-                tags: [translate("app.quickAddTag")],
-                thesis: translate("app.quickAddThesis"),
-            }),
-        });
-        applySnapshot(snapshot);
-        setStatus(
-            translate("app.hotItemAdded", { symbol: item.symbol }),
-            "success",
-        );
-    } catch (error) {
-        setStatus(
-            error instanceof Error
-                ? error.message
-                : translate("app.addItemFailed"),
-            "error",
-        );
-    }
-}
-
-async function toggleItemPinned(item: WatchlistItem): Promise<void> {
-    try {
-        const snapshot = await api<StateSnapshot>(`/api/items/${item.id}/pin`, {
-            method: "PUT",
-            body: JSON.stringify({ pinned: !item.pinnedAt }),
-        });
-        applySnapshot(snapshot);
-        setStatus(
-            item.pinnedAt
-                ? translate("app.itemUnpinned")
-                : translate("app.itemPinned"),
-            "success",
-        );
-    } catch (error) {
-        setStatus(
-            error instanceof Error ? error.message : translate("app.pinFailed"),
-            "error",
-        );
-    }
-}
-
-// Clear related history cache entries when an item is deleted.
-async function performDeleteItem(id: string): Promise<void> {
-    try {
-        const snapshot = await api<StateSnapshot>(`/api/items/${id}`, {
-            method: "DELETE",
-        });
-        clearHistoryCache();
-        applySnapshot(snapshot);
-        setStatus(translate("app.itemDeleted"), "success");
-    } catch (error) {
-        setStatus(
-            error instanceof Error
-                ? error.message
-                : translate("app.deleteFailed"),
-            "error",
-        );
-    }
-}
-
-// Open the alert editor dialog.
-function openAlertDialog(alert?: AlertRule): void {
-    Object.assign(
-        alertForm,
-        alert ? mapAlertToForm(alert) : emptyAlertForm(items.value[0]?.id),
-    );
-    alertDialogVisible.value = true;
-}
-
-// Save the alert rule and switch the UI to the alerts module.
-async function saveAlert(): Promise<void> {
-    savingAlert.value = true;
-    try {
-        const path = alertForm.id
-            ? `/api/alerts/${alertForm.id}`
-            : "/api/alerts";
-        const method = alertForm.id ? "PUT" : "POST";
-        const snapshot = await api<StateSnapshot>(path, {
-            method,
-            body: JSON.stringify(alertForm),
-        });
-        applySnapshot(snapshot);
-        alertDialogVisible.value = false;
-        setStatus(
-            alertForm.id
-                ? translate("app.alertUpdated")
-                : translate("app.alertAdded"),
-            "success",
-        );
-        activeModule.value = "alerts";
-    } catch (error) {
-        setStatus(
-            error instanceof Error
-                ? error.message
-                : translate("app.alertSaveFailed"),
-            "error",
-        );
-    } finally {
-        savingAlert.value = false;
-    }
-}
-
-// Delete an alert rule.
-async function performDeleteAlert(id: string): Promise<void> {
-    try {
-        const snapshot = await api<StateSnapshot>(`/api/alerts/${id}`, {
-            method: "DELETE",
-        });
-        applySnapshot(snapshot);
-        setStatus(translate("app.alertDeleted"), "success");
-    } catch (error) {
-        setStatus(
-            error instanceof Error
-                ? error.message
-                : translate("app.deleteFailed"),
-            "error",
-        );
-    }
-}
-
-// Record the pending delete target and open the confirmation dialog.
-function requestDeleteItem(id: string): void {
-    pendingDelete.kind = "item";
-    pendingDelete.id = id;
-    confirmTitle.value = translate("dialogs.confirm.deleteItemTitle");
-    confirmMessage.value = translate("dialogs.confirm.deleteItemMessage");
-    confirmLabel.value = translate("dialogs.confirm.deleteItemLabel");
-    confirmDialogVisible.value = true;
-}
-
-function requestDeleteAlert(id: string): void {
-    pendingDelete.kind = "alert";
-    pendingDelete.id = id;
-    confirmTitle.value = translate("dialogs.confirm.deleteAlertTitle");
-    confirmMessage.value = translate("dialogs.confirm.deleteAlertMessage");
-    confirmLabel.value = translate("dialogs.confirm.deleteAlertLabel");
-    confirmDialogVisible.value = true;
-}
-
-// Execute the confirmed delete action.
-async function confirmDelete(): Promise<void> {
-    if (!pendingDelete.kind || !pendingDelete.id) {
-        confirmDialogVisible.value = false;
-        return;
-    }
-
-    deleting.value = true;
-    try {
-        // The delete target has already been frozen into pendingDelete before confirmation, so this branch only performs the matching action.
-        if (pendingDelete.kind === "item") {
-            await performDeleteItem(pendingDelete.id);
-        } else {
-            await performDeleteAlert(pendingDelete.id);
-        }
-        confirmDialogVisible.value = false;
-    } finally {
-        deleting.value = false;
-        pendingDelete.kind = "";
-        pendingDelete.id = "";
-    }
-}
-
 // Switch the active module; watchlist data loading is handled by the module watcher so it can choose single-item refreshes.
 function switchModule(next: ModuleKey): void {
     appendClientLog(
@@ -740,8 +459,8 @@ function switchModule(next: ModuleKey): void {
     );
     activeModule.value = next;
 }
-</script>
 
+</script>
 <template>
     <AppShell
         :active-module="activeModule"
@@ -783,7 +502,7 @@ function switchModule(next: ModuleKey): void {
             :developer-logs="developerLogs"
             :saving-settings="savingSettings"
             :loading-logs="loadingLogs"
-            @refresh="activeModule === 'watchlist' ? refreshSelectedItem() : refreshQuotes()"
+            @refresh="activeModule === 'watchlist' ? refreshSelectedItem(false, true, true) : refreshQuotes(false, true, true)"
             @select-interval="selectHistoryInterval"
             @update:hot-market-group="hotMarketGroup = $event"
             @hot-watch-item="openHotWatchDialog"
@@ -796,7 +515,7 @@ function switchModule(next: ModuleKey): void {
             @toggle-pin="toggleItemPinned"
             @select-item="selectedItemId = $event"
             @show-dca="showDCADetail"
-            @add-alert="openAlertDialog()"
+            @add-alert="openAlertDialog(undefined, items[0]?.id)"
             @edit-alert="openAlertDialog"
             @delete-alert="requestDeleteAlert"
             @update:settings-tab="settingsTab = $event"

@@ -29,6 +29,9 @@ const messages: Record<SupportedLocale, TranslationTree> = {
             date: "日期",
             note: "备注",
             source: "来源",
+            cacheHit: "命中缓存",
+            cacheMiss: "实时请求",
+            cacheFreshUntil: "缓存到期 {time}",
             none: "无",
             notAvailable: "暂无",
             localFile: "本地状态文件",
@@ -84,6 +87,9 @@ const messages: Record<SupportedLocale, TranslationTree> = {
             description: "把组合摘要、核心持仓和每日资产轨迹集中到一个更稳定的首页视图。",
             loading: "正在加载概览分析...",
             loadFailed: "加载概览分析失败",
+            meta: {
+                cache: "缓存 {state}",
+            },
             charts: {
                 category: {
                     title: "持仓分布",
@@ -119,13 +125,14 @@ const messages: Record<SupportedLocale, TranslationTree> = {
                 general: "常规",
                 display: "显示",
                 region: "区域",
+                network: "网络",
                 developer: "开发",
                 about: "关于",
             },
             sections: {
-                runtime: "运行",
-                runtimeStatus: "运行状态",
-                appearance: "外观与金额展示",
+                runtime: "数据",
+                runtimeStatus: "状态",
+                appearance: "显示",
                 network: "网络",
                 window: "窗口",
                 region: "语言与区域",
@@ -138,9 +145,11 @@ const messages: Record<SupportedLocale, TranslationTree> = {
                 usQuoteSource: "美股 / 美股ETF 行情源",
                 alphaVantageApiKey: "Alpha Vantage API Key",
                 twelveDataApiKey: "Twelve Data API Key",
+                finnhubApiKey: "Finnhub API Key",
+                polygonApiKey: "Polygon API Key",
                 apiKeyHelp: "仅在对应美股数据源被选中时需要填写。",
-                refreshInterval: "自动刷新间隔",
-                hotCacheTTL: "热门榜单缓存时长",
+                hotCacheTTL: "数据缓存时长",
+                hotCacheTTLHint: "统一控制观察列表行情、热门榜单和资产概览的数据缓存有效期。缓存未过期时返回缓存数据；手动刷新可跳过缓存获取最新数据。",
                 quoteSource: "行情源",
                 liveCoverage: "同步覆盖",
                 lastQuoteRefreshAt: "上次成功同步",
@@ -177,7 +186,7 @@ const messages: Record<SupportedLocale, TranslationTree> = {
             developer: {
                 recentLogs: "最近日志 {count} 条",
                 loading: "正在刷新日志…",
-                idle: "日志会持续写入内存缓冲与本地日志文件。",
+                idle: "",
                 empty: "还没有捕获到日志。你可以先执行一次刷新、保存设置，或等待下一次自动行情同步。",
             },
             about: {
@@ -190,6 +199,7 @@ const messages: Record<SupportedLocale, TranslationTree> = {
                     "使用本软件所提供的所有数据、信息和功能，用户应当自行判断其准确性和完整性。作者和贡献者不对因使用本软件而产生的投资损失、收益波动、数据中断、数据错误或任何基于本软件信息做出的投资决策结果承担责任。",
                 disclaimerParagraph3: "投资有风险，入市需谨慎。用户在使用本软件前应充分了解投资风险，并自行承担所有投资决策的后果。",
             },
+            apiKeyNotice: "API Key 以明文形式存储在 state.json 中，请勿将此文件分享至公开场合。",
         },
         options: {
             historyRange: {
@@ -207,16 +217,16 @@ const messages: Record<SupportedLocale, TranslationTree> = {
                 // Sub-markets (CN-GEM, CN-STAR, CN-BJ, HK-GEM) are mapped to
                 // their parent group so that items stored with those values
                 // display consistently everywhere in the UI.
-                "CN-A":     "A股",
-                "CN-GEM":   "A股",
-                "CN-STAR":  "A股",
-                "CN-BJ":    "A股",
-                "CN-ETF":   "A股ETF",
-                "HK-MAIN":  "港股",
-                "HK-GEM":   "港股",
-                "HK-ETF":   "港股ETF",
+                "CN-A": "A股",
+                "CN-GEM": "A股",
+                "CN-STAR": "A股",
+                "CN-BJ": "A股",
+                "CN-ETF": "A股ETF",
+                "HK-MAIN": "港股",
+                "HK-GEM": "港股",
+                "HK-ETF": "港股ETF",
                 "US-STOCK": "美股",
-                "US-ETF":   "美股ETF",
+                "US-ETF": "美股ETF",
             },
             fontPreset: {
                 system: "系统默认",
@@ -386,6 +396,8 @@ const messages: Record<SupportedLocale, TranslationTree> = {
                 amplitudePending: "等待价格同步",
             },
             meta: {
+                cache: "缓存 {state}",
+                cacheFreshUntil: "缓存到期 {time}",
                 chartSource: "图表来源 {source}",
                 syncedAt: "同步于 {time}",
             },
@@ -427,6 +439,7 @@ const messages: Record<SupportedLocale, TranslationTree> = {
             alert: {
                 addTitle: "添加",
                 editTitle: "编辑",
+                itemLabel: "标的",
             },
             item: {
                 addTitle: "添加标的",
@@ -538,6 +551,9 @@ const messages: Record<SupportedLocale, TranslationTree> = {
             date: "Date",
             note: "Note",
             source: "Source",
+            cacheHit: "cache hit",
+            cacheMiss: "live request",
+            cacheFreshUntil: "Cache expires {time}",
             none: "None",
             notAvailable: "N/A",
             localFile: "Local State File",
@@ -593,6 +609,9 @@ const messages: Record<SupportedLocale, TranslationTree> = {
             description: "A consolidated view of your portfolio — current value, position breakdown, and historical performance trend all in one place.",
             loading: "Loading overview analytics...",
             loadFailed: "Failed to load overview analytics",
+            meta: {
+                cache: "Cache {state}",
+            },
             charts: {
                 category: {
                     title: "Holdings Breakdown",
@@ -628,6 +647,7 @@ const messages: Record<SupportedLocale, TranslationTree> = {
                 general: "General",
                 display: "Display",
                 region: "Region",
+                network: "Network",
                 developer: "Developer",
                 about: "About",
             },
@@ -647,9 +667,12 @@ const messages: Record<SupportedLocale, TranslationTree> = {
                 usQuoteSource: "US / US ETF Quote Source",
                 alphaVantageApiKey: "Alpha Vantage API Key",
                 twelveDataApiKey: "Twelve Data API Key",
+                finnhubApiKey: "Finnhub API Key",
+                polygonApiKey: "Polygon API Key",
                 apiKeyHelp: "Required only when the matching US quote source is selected.",
-                refreshInterval: "Auto Refresh Interval",
-                hotCacheTTL: "Hot Cache TTL",
+                hotCacheTTL: "Data Cache TTL",
+                hotCacheTTLHint:
+                    "Unified cache duration for watchlist quotes, hot list data, and portfolio overview. Cached results are returned within this window; use the force-refresh button to bypass the cache and fetch live data.",
                 quoteSource: "Quote Source",
                 liveCoverage: "Live Coverage",
                 lastQuoteRefreshAt: "Last Successful Sync",
@@ -700,6 +723,7 @@ const messages: Record<SupportedLocale, TranslationTree> = {
                     "Users should independently verify the accuracy and completeness of all data, information, and functions provided by this software. The authors and contributors assume no liability for investment losses, gains, data interruptions, data errors, or any outcomes from decisions made based on information from this software.",
                 disclaimerParagraph3: "Investing involves risk. Please understand the risks before entering the market and assume full responsibility for your own investment decisions.",
             },
+            apiKeyNotice: "API keys are stored in plaintext in state.json. Do not share this file publicly.",
         },
         options: {
             historyRange: {
@@ -713,16 +737,16 @@ const messages: Record<SupportedLocale, TranslationTree> = {
                 fallback: "Range",
             },
             market: {
-                "CN-A":     "A-Share",
-                "CN-GEM":   "A-Share",
-                "CN-STAR":  "A-Share",
-                "CN-BJ":    "A-Share",
-                "CN-ETF":   "A-Share ETF",
-                "HK-MAIN":  "HK Stock",
-                "HK-GEM":   "HK Stock",
-                "HK-ETF":   "HK ETF",
+                "CN-A": "A-Share",
+                "CN-GEM": "A-Share",
+                "CN-STAR": "A-Share",
+                "CN-BJ": "A-Share",
+                "CN-ETF": "A-Share ETF",
+                "HK-MAIN": "HK Stock",
+                "HK-GEM": "HK Stock",
+                "HK-ETF": "HK ETF",
                 "US-STOCK": "US Stock",
-                "US-ETF":   "US ETF",
+                "US-ETF": "US ETF",
             },
             fontPreset: {
                 system: "System Default",
@@ -892,6 +916,8 @@ const messages: Record<SupportedLocale, TranslationTree> = {
                 amplitudePending: "Waiting for price sync",
             },
             meta: {
+                cache: "Cache {state}",
+                cacheFreshUntil: "Cache expires {time}",
                 chartSource: "Chart Source {source}",
                 syncedAt: "Synced {time}",
             },
@@ -933,6 +959,7 @@ const messages: Record<SupportedLocale, TranslationTree> = {
             alert: {
                 addTitle: "Add Alert",
                 editTitle: "Edit Alert",
+                itemLabel: "Item",
             },
             item: {
                 addTitle: "Add Item",

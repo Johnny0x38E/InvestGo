@@ -6,7 +6,7 @@ import Skeleton from "primevue/skeleton";
 
 import SummaryStrip from "../SummaryStrip.vue";
 import { api, ApiAbortError } from "../../api";
-import { formatMoney, formatNumber, resolvedLocale } from "../../format";
+import { formatDateTime, formatMoney, formatNumber, resolvedLocale } from "../../format";
 import { useI18n } from "../../i18n";
 import type { DashboardSummary, OverviewAnalytics } from "../../types";
 
@@ -65,9 +65,7 @@ function resolveChartPalette(): string[] {
     if (!ds) return CHART_PALETTE_DARK;
     const sample = ds.getPropertyValue("--chart-1").trim();
     if (sample) {
-        return [1, 2, 3, 4, 5, 6, 7, 8].map(
-            (i) => ds.getPropertyValue(`--chart-${i}`).trim() || CHART_PALETTE_DARK[i - 1],
-        );
+        return [1, 2, 3, 4, 5, 6, 7, 8].map((i) => ds.getPropertyValue(`--chart-${i}`).trim() || CHART_PALETTE_DARK[i - 1]);
     }
     // Fallback when CSS variables are not yet injected: detect mode via --app-bg.
     const bg = ds.getPropertyValue("--app-bg").trim();
@@ -75,8 +73,8 @@ function resolveChartPalette(): string[] {
     return isDark ? CHART_PALETTE_DARK : CHART_PALETTE_LIGHT;
 }
 
-const donutPalette = computed(() => resolveChartPalette());
-const trendPalette = computed(() => resolveChartPalette());
+// Single palette shared by both the breakdown doughnut and trend charts.
+const chartPalette = computed(() => resolveChartPalette());
 
 const trendTotalColor = computed(() => {
     if (!documentStyle.value) return "#24476f";
@@ -84,6 +82,15 @@ const trendTotalColor = computed(() => {
 });
 
 const breakdownTotal = computed(() => analytics.value?.breakdown.reduce((sum, slice) => sum + slice.value, 0) ?? 0);
+const cacheSummary = computed(() => (analytics.value?.cached ? t("common.cacheHit") : t("common.cacheMiss")));
+const hasOverviewData = computed(() => {
+    const dashboard = props.dashboard;
+    if (!dashboard) {
+        return false;
+    }
+
+    return dashboard.totalCost > 0 || dashboard.totalValue > 0;
+});
 
 const doughnutData = computed(() => {
     const breakdown = analytics.value?.breakdown ?? [];
@@ -92,7 +99,7 @@ const doughnutData = computed(() => {
         datasets: [
             {
                 data: breakdown.map((slice) => slice.value),
-                backgroundColor: breakdown.map((_, index) => donutPalette.value[index % donutPalette.value.length]),
+                backgroundColor: breakdown.map((_, index) => chartPalette.value[index % chartPalette.value.length]),
                 borderWidth: 0,
                 hoverOffset: 12,
                 cutout: "70%",
@@ -147,7 +154,7 @@ const doughnutOptions = computed(() => {
 
 const trendData = computed(() => {
     const trend = analytics.value?.trend;
-    if (!trend) {
+    if (!trend || trend.dates.length === 0 || trend.series.length === 0) {
         return null;
     }
 
@@ -179,7 +186,7 @@ const trendData = computed(() => {
                 yAxisID: "y",
             },
             ...trend.series.map((series, index) => {
-                const color = trendPalette.value[index % trendPalette.value.length];
+                const color = chartPalette.value[index % chartPalette.value.length];
                 return {
                     label: series.name || series.symbol,
                     data: series.values,
@@ -309,7 +316,30 @@ onBeforeUnmount(() => {
     inflightController?.abort(new ApiAbortError("aborted"));
 });
 
+function applyEmptyOverview(): void {
+    analytics.value = {
+        displayCurrency: props.dashboard?.displayCurrency || "CNY",
+        breakdown: [],
+        trend: {
+            dates: [],
+            series: [],
+            totalValue: 0,
+        },
+        cached: false,
+        generatedAt: props.generatedAt || new Date().toISOString(),
+    };
+    loading.value = false;
+    error.value = "";
+}
+
 async function loadOverview(): Promise<void> {
+    if (!hasOverviewData.value) {
+        inflightController?.abort(new ApiAbortError("aborted"));
+        inflightController = null;
+        applyEmptyOverview();
+        return;
+    }
+
     inflightController?.abort(new ApiAbortError("aborted"));
     const controller = new AbortController();
     inflightController = controller;
@@ -343,7 +373,7 @@ async function loadOverview(): Promise<void> {
                 <h3 class="title">{{ t("modules.overview") }}</h3>
             </div>
             <div class="toolbar-row">
-                <Button size="small" text icon="pi pi-refresh" :label="t('watchlist.refresh')" @click="$emit('refresh')" />
+                <Button size="small" text icon="pi pi-refresh" :label="t('common.refresh')" @click="$emit('refresh')" />
             </div>
         </div>
 
@@ -376,6 +406,10 @@ async function loadOverview(): Promise<void> {
             <div class="overview-card overview-card-top">
                 <div class="overview-head">
                     <h4>{{ t("overview.charts.category.title") }}</h4>
+                    <div class="toolbar-row">
+                        <span class="overview-meta-chip">{{ t("overview.meta.cache", { state: cacheSummary }) }}</span>
+                        <span v-if="analytics.cacheExpiresAt" class="overview-meta-chip">{{ t("common.cacheFreshUntil", { time: formatDateTime(analytics.cacheExpiresAt) }) }}</span>
+                    </div>
                 </div>
 
                 <div v-if="analytics.breakdown.length" class="overview-breakdown">
@@ -392,12 +426,12 @@ async function loadOverview(): Promise<void> {
                     <div class="overview-breakdown-list">
                         <div v-for="(slice, index) in analytics.breakdown" :key="slice.itemId" class="overview-breakdown-row">
                             <div class="overview-breakdown-line">
-                                <span class="overview-breakdown-dot" :style="{ backgroundColor: donutPalette[index % donutPalette.length] }"></span>
+                                <span class="overview-breakdown-dot" :style="{ backgroundColor: chartPalette[index % chartPalette.length] }"></span>
                                 <strong>{{ slice.name || slice.symbol }}</strong>
                                 <span class="overview-breakdown-pct">{{ formatNumber(slice.weight * 100, 1) }}%</span>
                             </div>
                             <div class="overview-breakdown-bar">
-                                <div class="overview-breakdown-fill" :style="{ width: `${Math.max(slice.weight * 100, 6)}%`, backgroundColor: donutPalette[index % donutPalette.length] }"></div>
+                                <div class="overview-breakdown-fill" :style="{ width: `${Math.max(slice.weight * 100, 6)}%`, backgroundColor: chartPalette[index % chartPalette.length] }"></div>
                             </div>
                             <span class="overview-breakdown-value">{{ formatMoney(slice.value) }}</span>
                         </div>
@@ -418,7 +452,7 @@ async function loadOverview(): Promise<void> {
 
                     <div class="overview-series-list">
                         <div v-for="(series, index) in analytics.trend.series" :key="series.itemId" class="overview-legend-item">
-                            <span class="overview-breakdown-dot" :style="{ backgroundColor: trendPalette[index % trendPalette.length] }"></span>
+                            <span class="overview-breakdown-dot" :style="{ backgroundColor: chartPalette[index % chartPalette.length] }"></span>
                             <span class="overview-legend-label">{{ series.name || series.symbol }}</span>
                             <b class="overview-legend-value">{{ formatMoney(series.latestValue) }}</b>
                         </div>
@@ -433,7 +467,10 @@ async function loadOverview(): Promise<void> {
 <style scoped>
 .overview-module {
     min-height: 0;
+    min-width: 0;
+    width: 100%;
     gap: 24px;
+    overflow: hidden;
 }
 
 .overview-loading-grid,
@@ -443,7 +480,10 @@ async function loadOverview(): Promise<void> {
     gap: 36px;
     padding-bottom: 12px;
     min-height: 0;
+    min-width: 0;
+    width: 100%;
     flex: 1 1 0;
+    overflow: hidden;
 }
 
 .overview-card {
@@ -452,7 +492,7 @@ async function loadOverview(): Promise<void> {
     display: flex;
     flex-direction: column;
     gap: 16px;
-    overflow: visible;
+    overflow: hidden;
 }
 
 .overview-breakdown,
@@ -467,6 +507,18 @@ async function loadOverview(): Promise<void> {
     align-items: center;
     justify-content: space-between;
     gap: 10px;
+    min-width: 0;
+}
+
+.overview-meta-chip {
+    font-size: 11px;
+    color: var(--muted);
+    background: color-mix(in srgb, var(--panel-soft) 92%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+    border-radius: 999px;
+    padding: 3px 8px;
+    white-space: nowrap;
+    line-height: 1.6;
 }
 
 .overview-head h4 {
@@ -480,15 +532,17 @@ async function loadOverview(): Promise<void> {
     gap: 24px;
     height: 100%;
     min-height: 0;
-    overflow: visible;
+    overflow: hidden;
     position: relative;
 }
 
 .overview-doughnut-wrap {
     min-height: 0;
+    min-width: 0;
     display: flex;
     align-items: center;
     justify-content: center;
+    overflow: hidden;
 }
 
 .overview-doughnut-shell {
@@ -505,6 +559,9 @@ async function loadOverview(): Promise<void> {
 .overview-doughnut-chart {
     width: 100%;
     height: 100%;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
     position: relative;
     z-index: 10;
 }
@@ -512,6 +569,9 @@ async function loadOverview(): Promise<void> {
 .overview-doughnut-chart :deep(canvas) {
     width: 100% !important;
     height: 100% !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
+    display: block;
 }
 
 .overview-doughnut-center {
@@ -539,8 +599,9 @@ async function loadOverview(): Promise<void> {
     grid-template-columns: 1fr 1fr;
     gap: 8px 16px;
     overflow-y: auto;
-    overflow-x: visible;
+    overflow-x: hidden;
     min-height: 0;
+    min-width: 0;
     align-content: start;
 }
 
@@ -597,6 +658,8 @@ async function loadOverview(): Promise<void> {
     gap: 8px;
     height: 100%;
     min-height: 0;
+    min-width: 0;
+    overflow: hidden;
 }
 
 .overview-trend-shell {
@@ -604,16 +667,23 @@ async function loadOverview(): Promise<void> {
     background: transparent;
     padding: 8px;
     min-height: 0;
+    overflow: hidden;
 }
 
 .overview-trend-chart {
     width: 100%;
     height: 100%;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
 }
 
 .overview-trend-chart :deep(canvas) {
     width: 100% !important;
     height: 100% !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
+    display: block;
 }
 
 .overview-series-list {
@@ -621,6 +691,7 @@ async function loadOverview(): Promise<void> {
     flex-wrap: wrap;
     gap: 6px;
     overflow: hidden;
+    min-width: 0;
 }
 
 .overview-legend-item {
@@ -643,6 +714,7 @@ async function loadOverview(): Promise<void> {
 
 .overview-empty {
     min-height: 0;
+    min-width: 0;
     height: 100%;
     border: 1px dashed color-mix(in srgb, var(--border) 90%, transparent);
     border-radius: 12px;

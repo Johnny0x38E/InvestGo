@@ -38,7 +38,7 @@ const summary = computed(() => props.item?.dcaSummary ?? null);
 function buyPrice(entry: { effectivePrice?: number }): string {
     if (!props.item) return "—";
     const p = "effectivePrice" in entry && typeof entry.effectivePrice === "number" ? entry.effectivePrice : 0;
-    return p > 0 ? formatUnitPrice(p, props.item.currency) : "—";
+    return p > 0 ? formatUnitPrice(p, props.item.currency, 4) : "—";
 }
 
 function formatEntryDate(iso: string): string {
@@ -69,7 +69,7 @@ function pnlTone(v: number | null): string {
             </div>
             <div class="dca-summary-cell">
                 <span class="dca-summary-label">{{ t("dialogs.dcaDetail.summary.totalInvested") }}</span>
-                <span class="dca-summary-value">{{ formatUnitPrice(summary.totalAmount, item?.currency ?? "") }}</span>
+                <span class="dca-summary-value">{{ formatUnitPrice(summary.totalAmount, item?.currency ?? "", 4) }}</span>
             </div>
             <div v-if="summary.totalFees > 0" class="dca-summary-cell">
                 <span class="dca-summary-label">{{ t("dialogs.dcaDetail.summary.totalFees") }}</span>
@@ -115,7 +115,7 @@ function pnlTone(v: number | null): string {
             <div v-for="(entry, idx) in entries" :key="entry.id" class="dca-detail-row">
                 <span class="dca-detail-cell dca-seq-col dca-seq">{{ idx + 1 }}</span>
                 <span class="dca-detail-cell">{{ formatEntryDate(entry.date) }}</span>
-                <span class="dca-detail-cell dca-num-col">{{ formatUnitPrice(entry.amount, item?.currency ?? "") }}</span>
+                <span class="dca-detail-cell dca-num-col">{{ formatUnitPrice(entry.amount, item?.currency ?? "", 4) }}</span>
                 <span class="dca-detail-cell dca-num-col">{{ formatNumber(entry.shares, 4) }}</span>
                 <span class="dca-detail-cell dca-num-col">{{ buyPrice(entry) }}</span>
                 <span class="dca-detail-cell dca-num-col">{{ entry.fee && entry.fee > 0 ? formatUnitPrice(entry.fee, item?.currency ?? "") : "—" }}</span>

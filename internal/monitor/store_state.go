@@ -2,7 +2,6 @@ package monitor
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 )
@@ -33,7 +32,7 @@ func (s *Store) load() error {
 	return nil
 }
 
-// normaliseLocked is compatible with old state files and falls back missing fields to safe default values.
+// normaliseLocked ensures required fields have valid values when state is loaded from disk.
 func (s *Store) normaliseLocked() {
 	if s.state.Items == nil {
 		s.state.Items = []WatchlistItem{}
@@ -42,31 +41,12 @@ func (s *Store) normaliseLocked() {
 		s.state.Alerts = []AlertRule{}
 	}
 
-	// Old version states may be missing new fields; here we uniformly populate default settings.
-	if s.state.Settings.RefreshIntervalSeconds <= 0 {
-		s.state.Settings.RefreshIntervalSeconds = 60
-	}
 	if s.state.Settings.HotCacheTTLSeconds <= 0 {
 		s.state.Settings.HotCacheTTLSeconds = 60
-	}
-	legacySource := strings.ToLower(strings.TrimSpace(s.state.Settings.QuoteSource))
-	if s.state.Settings.CNQuoteSource == "" {
-		s.state.Settings.CNQuoteSource = legacySource
-	}
-	if s.state.Settings.HKQuoteSource == "" {
-		s.state.Settings.HKQuoteSource = legacySource
-	}
-	if s.state.Settings.USQuoteSource == "" {
-		s.state.Settings.USQuoteSource = legacySource
 	}
 	s.state.Settings.CNQuoteSource = s.normaliseQuoteSourceIDLocked(s.state.Settings.CNQuoteSource, "CN-A")
 	s.state.Settings.HKQuoteSource = s.normaliseQuoteSourceIDLocked(s.state.Settings.HKQuoteSource, "HK-MAIN")
 	s.state.Settings.USQuoteSource = s.normaliseQuoteSourceIDLocked(s.state.Settings.USQuoteSource, "US-STOCK")
-	if _, ok := s.quoteProviders[legacySource]; ok {
-		s.state.Settings.QuoteSource = legacySource
-	} else {
-		s.state.Settings.QuoteSource = DefaultQuoteSourceID
-	}
 	if s.state.Settings.FontPreset == "" {
 		s.state.Settings.FontPreset = "system"
 	}
@@ -94,7 +74,6 @@ func (s *Store) normaliseLocked() {
 	if s.state.Settings.DashboardCurrency == "" {
 		s.state.Settings.DashboardCurrency = "CNY"
 	}
-	s.state.Settings.HotUSSource = s.state.Settings.USQuoteSource
 
 	// Items in historical states may be missing ID, name, or update time; here we complete them.
 	for idx := range s.state.Items {
@@ -137,53 +116,6 @@ func (s *Store) saveLocked() error {
 		return fmt.Errorf("state repository is not configured")
 	}
 	return s.repository.Save(s.state)
-}
-
-// snapshotLocked returns a read-only snapshot copy for frontend consumption.
-func (s *Store) snapshotLocked() StateSnapshot {
-	items := append([]WatchlistItem{}, s.state.Items...)
-	alerts := append([]AlertRule{}, s.state.Alerts...)
-	quoteSources := append([]QuoteSourceOption{}, s.quoteSourceOptions...)
-	runtime := s.runtime
-	runtime.QuoteSource = s.quoteProviderSummaryLocked()
-	runtime.LivePriceCount = countLiveQuotes(items)
-
-	// Snapshot sorting only affects output order, not internal persisted slice order.
-	sort.Slice(items, func(i, j int) bool {
-		if items[i].PinnedAt != nil || items[j].PinnedAt != nil {
-			if items[i].PinnedAt == nil {
-				return false
-			}
-			if items[j].PinnedAt == nil {
-				return true
-			}
-			if !items[i].PinnedAt.Equal(*items[j].PinnedAt) {
-				return items[i].PinnedAt.After(*items[j].PinnedAt)
-			}
-		}
-		return items[i].UpdatedAt.After(items[j].UpdatedAt)
-	})
-	sort.Slice(alerts, func(i, j int) bool {
-		if alerts[i].Triggered != alerts[j].Triggered {
-			return alerts[i].Triggered
-		}
-		return alerts[i].UpdatedAt.After(alerts[j].UpdatedAt)
-	})
-
-	for index := range items {
-		items[index] = decorateItemDerived(items[index])
-	}
-
-	return StateSnapshot{
-		Dashboard:    buildDashboard(items, alerts, s.fxRates, s.state.Settings.DashboardCurrency),
-		Items:        items,
-		Alerts:       alerts,
-		Settings:     s.state.Settings,
-		Runtime:      runtime,
-		QuoteSources: quoteSources,
-		StoragePath:  s.repository.Path(),
-		GeneratedAt:  time.Now(),
-	}
 }
 
 // evaluateAlertsLocked recalculates trigger status of all alerts based on current prices.
@@ -290,8 +222,6 @@ func marketGroupForMarket(market string) string {
 }
 
 // quoteSourceIDForMarketLocked returns the quote source ID that should be effective for the given market.
-// The legacy single-field QuoteSource compatibility path is handled during state normalization and settings sanitisation,
-// so runtime selection only depends on the market-specific settings plus fallback rules.
 func (s *Store) quoteSourceIDForMarketLocked(market string) string {
 	settings := s.state.Settings
 	switch marketGroupForMarket(market) {
@@ -378,53 +308,4 @@ func (s *Store) activeQuoteProviderLocked(market string) QuoteProvider {
 // activeQuoteSourceIDLocked returns the currently effective quote source ID.
 func (s *Store) activeQuoteSourceIDLocked(market string) string {
 	return s.quoteSourceIDForMarketLocked(market)
-}
-
-
-// buildDashboard builds dashboard summary data based on items, alerts, and FX rate information.
-func buildDashboard(items []WatchlistItem, alerts []AlertRule, fx *FxRates, displayCurrency string) DashboardSummary {
-	var summary DashboardSummary
-	summary.ItemCount = len(items)
-
-	if displayCurrency == "" {
-		displayCurrency = "CNY"
-	}
-	summary.DisplayCurrency = displayCurrency
-
-	// First convert each item's cost and market value to unified display currency, then perform portfolio aggregation.
-	for _, item := range items {
-		costBasis := item.CostBasis()
-		marketValue := item.MarketValue()
-
-		itemCurrency := strings.ToUpper(strings.TrimSpace(item.Currency))
-		if fx != nil && itemCurrency != "" && itemCurrency != displayCurrency {
-			costBasis = fx.Convert(costBasis, itemCurrency, displayCurrency)
-			marketValue = fx.Convert(marketValue, itemCurrency, displayCurrency)
-		}
-
-		summary.TotalCost += costBasis
-		summary.TotalValue += marketValue
-		// Only items with an actual position (Quantity > 0) and a recorded cost price contribute to the win/loss tally.
-		// Watch-only items and zero-cost DCA edge cases are excluded from this count.
-		if item.Quantity > 0 && item.CostPrice > 0 {
-			if item.CurrentPrice > item.CostPrice {
-				summary.WinCount++
-			} else if item.CurrentPrice < item.CostPrice {
-				summary.LossCount++
-			}
-		}
-	}
-
-	summary.TotalPnL = summary.TotalValue - summary.TotalCost
-	if summary.TotalCost > 0 {
-		summary.TotalPnLPct = summary.TotalPnL / summary.TotalCost * 100
-	}
-
-	for _, alert := range alerts {
-		if alert.Triggered {
-			summary.TriggeredAlerts++
-		}
-	}
-
-	return summary
 }

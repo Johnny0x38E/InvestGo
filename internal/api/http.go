@@ -17,7 +17,7 @@ type Handler struct {
 	hot            *marketdata.HotService
 	logs           *monitor.LogBook
 	proxyTransport *platform.ProxyTransport
-	routes         []route
+	mux            *http.ServeMux // internal router (Go 1.22+ pattern matching)
 }
 
 const localeHeader = "X-InvestGo-Locale"
@@ -40,34 +40,62 @@ type pinItemRequest struct {
 
 // NewHandler returns the unified API handler.
 func NewHandler(store *monitor.Store, hot *marketdata.HotService, logs *monitor.LogBook, proxyTransport *platform.ProxyTransport) *Handler {
-	handler := &Handler{
+	h := &Handler{
 		store:          store,
 		hot:            hot,
 		logs:           logs,
 		proxyTransport: proxyTransport,
 	}
-	handler.routes = handler.registerRoutes()
-	return handler
+	h.mux = h.buildMux()
+	return h
 }
 
-// ServeHTTP strips the `/api` prefix uniformly and dispatches requests to registered routes.
+// buildMux registers all API routes on an http.ServeMux using Go 1.22+ method+pattern syntax.
+// Path parameters (e.g. {id}) are retrieved via r.PathValue("id") inside handlers.
+func (h *Handler) buildMux() *http.ServeMux {
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("GET /state", h.handleState)
+	mux.HandleFunc("GET /overview", h.handleOverview)
+	mux.HandleFunc("GET /logs", h.handleLogs)
+	mux.HandleFunc("DELETE /logs", h.handleClearLogs)
+	mux.HandleFunc("POST /client-logs", h.handleClientLogs)
+	mux.HandleFunc("GET /hot", h.handleHot)
+	mux.HandleFunc("GET /history", h.handleHistory)
+	mux.HandleFunc("POST /refresh", h.handleRefresh)
+	mux.HandleFunc("POST /open-external", h.handleOpenExternal)
+	mux.HandleFunc("PUT /settings", h.handleUpdateSettings)
+	mux.HandleFunc("POST /items", h.handleCreateItem)
+	mux.HandleFunc("POST /items/{id}/refresh", h.handleRefreshItem)
+	mux.HandleFunc("PUT /items/{id}", h.handleUpdateItem)
+	mux.HandleFunc("PUT /items/{id}/pin", h.handlePinItem)
+	mux.HandleFunc("DELETE /items/{id}", h.handleDeleteItem)
+	mux.HandleFunc("POST /alerts", h.handleCreateAlert)
+	mux.HandleFunc("PUT /alerts/{id}", h.handleUpdateAlert)
+	mux.HandleFunc("DELETE /alerts/{id}", h.handleDeleteAlert)
+
+	// Catch-all: return a JSON 404 for any unmatched path.
+	mux.HandleFunc("/{path...}", func(w http.ResponseWriter, r *http.Request) {
+		writeError(w, r, http.StatusNotFound, errNotFound(r.URL.Path))
+	})
+
+	return mux
+}
+
+// ServeHTTP strips the `/api` prefix and delegates to the inner ServeMux.
 func (h *Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 
-	path := trimAPIPath(request.URL.Path)
-	for _, route := range h.routes {
-		params, ok := route.match(request.Method, path)
-		if !ok {
-			continue
-		}
-		route.handler(writer, request, params)
-		return
-	}
-
-	writeError(writer, request, http.StatusNotFound, errNotFound(path))
+	// Strip the /api prefix registered on the outer mux so inner patterns
+	// are relative (e.g. "/api/items/x" becomes "/items/x").
+	r2 := request.Clone(request.Context())
+	r2.URL = new(url.URL)
+	*r2.URL = *request.URL
+	r2.URL.Path = trimAPIPath(request.URL.Path)
+	h.mux.ServeHTTP(writer, r2)
 }
 
-// trimAPIPath trims the `/api` prefix registered by Wails into a relative path for internal routing.
+// trimAPIPath strips the `/api` prefix registered by the outer mux.
 func trimAPIPath(path string) string {
 	trimmed := strings.TrimPrefix(path, "/api")
 	if trimmed == "" {
@@ -121,7 +149,7 @@ func sanitiseDeveloperLogLevel(level monitor.DeveloperLogLevel) monitor.Develope
 	}
 }
 
-// sanitiseExternalURL validates and sanitizes external URL input, ensuring correct format and safe protocols.
+// sanitiseExternalURL validates and sanitizes external URL input.
 func sanitiseExternalURL(raw string) (string, error) {
 	value := strings.TrimSpace(raw)
 	if value == "" {
@@ -189,7 +217,7 @@ func localizeQuoteSourceOptions(locale string, options []monitor.QuoteSourceOpti
 }
 
 func localizeQuoteSourceSummary(locale, summary string) string {
-	replacements := []string{"EastMoney", "Yahoo Finance", "Sina Finance", "Xueqiu", "Alpha Vantage", "Twelve Data"}
+	replacements := []string{"EastMoney", "Yahoo Finance", "Sina Finance", "Xueqiu", "Tencent Finance", "Alpha Vantage", "Twelve Data", "Finnhub", "Polygon"}
 	for _, name := range replacements {
 		summary = strings.ReplaceAll(summary, name, localizeQuoteSourceName(locale, name))
 	}
@@ -200,17 +228,23 @@ func localizeQuoteSourceName(locale, name string) string {
 	if strings.EqualFold(locale, "zh-CN") || strings.HasPrefix(strings.ToLower(locale), "zh") {
 		switch name {
 		case "EastMoney":
-			return "东方财富"
+			return "\u4e1c\u65b9\u8d22\u5bcc"
 		case "Yahoo Finance":
-			return "雅虎财经"
+			return "\u96c5\u864e\u8d22\u7ecf"
 		case "Sina Finance":
-			return "新浪财经"
+			return "\u65b0\u6d6a\u8d22\u7ecf"
 		case "Xueqiu":
-			return "雪球"
+			return "\u96ea\u7403"
+		case "Tencent Finance":
+			return "\u817e\u8baf\u8d22\u7ecf"
 		case "Alpha Vantage":
 			return "Alpha Vantage"
 		case "Twelve Data":
 			return "Twelve Data"
+		case "Finnhub":
+			return "Finnhub"
+		case "Polygon":
+			return "Polygon"
 		}
 	}
 	return name
@@ -223,17 +257,23 @@ func localizeQuoteSourceDescription(locale, sourceID, fallback string) string {
 
 	switch strings.ToLower(strings.TrimSpace(sourceID)) {
 	case "eastmoney":
-		return "覆盖 A 股、港股和美股，字段最完整，适合作为默认综合行情源。"
+		return "\u8986\u76d6 A \u80a1\u3001\u6e2f\u80a1\u548c\u7f8e\u80a1\uff0c\u5b57\u6bb5\u6700\u5b8c\u6574\uff0c\u9002\u5408\u4f5c\u4e3a\u9ed8\u8ba4\u7efc\u5408\u884c\u60c5\u6e90\u3002"
 	case "yahoo":
-		return "港股和美股覆盖较稳定，适合以海外市场为主的组合。"
+		return "\u6e2f\u80a1\u548c\u7f8e\u80a1\u8986\u76d6\u8f83\u7a33\u5b9a\uff0c\u9002\u5408\u4ee5\u6d77\u5916\u5e02\u573a\u4e3a\u4e3b\u7684\u7ec4\u5408\u3002"
 	case "sina":
-		return "A 股与境内 ETF 刷新较快，适合国内市场盯盘。"
+		return "A \u80a1\u4e0e\u5883\u5185 ETF \u5237\u65b0\u8f83\u5feb\uff0c\u9002\u5408\u56fd\u5185\u5e02\u573a\u76ef\u76d8\u3002"
 	case "xueqiu":
-		return "覆盖 A 股和港股，适合作为社区型补充来源。"
+		return "\u8986\u76d6 A \u80a1\u548c\u6e2f\u80a1\uff0c\u9002\u5408\u4f5c\u4e3a\u793e\u533a\u578b\u8865\u5145\u6765\u6e90\u3002"
+	case "tencent":
+		return "\u817e\u8baf\u8d22\u7ecf\u63d0\u4f9b A \u80a1\u3001\u6e2f\u80a1\u548c\u7f8e\u80a1\u7684\u5b9e\u65f6\u884c\u60c5\uff0c\u5e76\u63d0\u4f9b\u8f7b\u91cf K \u7ebf\u63a5\u53e3\u4f5c\u4e3a\u8865\u5145\u3002"
 	case "alpha-vantage":
-		return "适合美股和美股 ETF 的 API 型数据源，实时与历史都可走同一来源。"
+		return "\u9002\u5408\u7f8e\u80a1\u548c\u7f8e\u80a1 ETF \u7684 API \u578b\u6570\u636e\u6e90\uff0c\u5b9e\u65f6\u4e0e\u5386\u53f2\u90fd\u53ef\u8d70\u540c\u4e00\u6765\u6e90\u3002"
 	case "twelve-data":
-		return "较稳定的美股与美股 ETF API 型数据源，适合统一实时和历史链路。"
+		return "\u8f83\u7a33\u5b9a\u7684\u7f8e\u80a1\u4e0e\u7f8e\u80a1 ETF API \u578b\u6570\u636e\u6e90\uff0c\u9002\u5408\u7edf\u4e00\u5b9e\u65f6\u548c\u5386\u53f2\u94fe\u8def\u3002"
+	case "finnhub":
+		return "\u9762\u5411\u7f8e\u80a1\u4e0e ETF \u7684 API \u6570\u636e\u6e90\uff0c\u9002\u5408\u7edf\u4e00\u63a5\u5165\u5b9e\u65f6\u4ef7\u683c\u548c K \u7ebf\u5386\u53f2\u3002"
+	case "polygon":
+		return "Polygon.io\uff08Massive\uff09\u63d0\u4f9b\u7684\u7f8e\u80a1\u4e0e ETF API \u6570\u636e\u6e90\uff0c\u9002\u5408\u9ad8\u8d28\u91cf\u5b9e\u65f6\u4e0e\u5386\u53f2\u94fe\u8def\u3002"
 	default:
 		return fallback
 	}
