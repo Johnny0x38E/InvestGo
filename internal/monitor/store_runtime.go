@@ -16,7 +16,13 @@ type quoteRefreshResult struct {
 
 // Refresh refreshes real-time quotes and alert status, but does not touch historical trend cache.
 // This allows the frontend to fetch charts on demand instead of repackaging historical data into the baseline snapshot on every refresh.
-func (s *Store) Refresh(ctx context.Context) (StateSnapshot, error) {
+func (s *Store) Refresh(ctx context.Context, force bool) (StateSnapshot, error) {
+	if !force {
+		if cached, _, ok := s.refreshCache.Get("all"); ok {
+			return cloneStateSnapshot(cached), nil
+		}
+	}
+
 	// First copy current items slice to avoid holding read lock for extended period during network requests.
 	s.mu.RLock()
 	items := append([]WatchlistItem(nil), s.state.Items...)
@@ -47,7 +53,7 @@ func (s *Store) Refresh(ctx context.Context) (StateSnapshot, error) {
 		s.runtime.LastQuoteRefreshAt = ptrTime(time.Now())
 	}
 
-	if fetchErr := joinProblems(result.problems); fetchErr != nil {
+	if fetchErr := JoinProblems(result.problems); fetchErr != nil {
 		s.runtime.LastQuoteError = fetchErr.Error()
 		s.logWarn("quotes", fmt.Sprintf("quote refresh failed: %v", fetchErr))
 	}
@@ -66,16 +72,28 @@ func (s *Store) Refresh(ctx context.Context) (StateSnapshot, error) {
 
 	s.evaluateAlertsLocked()
 	s.state.UpdatedAt = time.Now()
+	// Price refreshes do not change portfolio structure, so only the quote-result caches
+	// are invalidated. The history and overview caches remain valid across price ticks.
+	s.invalidatePriceCachesLocked()
 	if err := s.saveLocked(); err != nil {
 		s.logError("storage", fmt.Sprintf("save state failed after quote refresh: %v", err))
 		return StateSnapshot{}, err
 	}
 
-	return s.snapshotLocked(), nil
+	snapshot := s.snapshotLocked()
+	s.refreshCache.Set("all", cloneStateSnapshot(snapshot), s.quoteRefreshTTLLocked())
+	return snapshot, nil
 }
 
 // RefreshItem refreshes only one tracked instrument so view-local refresh flows can avoid sending the full watchlist to upstream providers.
-func (s *Store) RefreshItem(ctx context.Context, itemID string) (StateSnapshot, error) {
+func (s *Store) RefreshItem(ctx context.Context, itemID string, force bool) (StateSnapshot, error) {
+	if !force {
+		if cached, _, ok := s.itemRefreshCache.Get(itemID); ok {
+			snapshot := cloneStateSnapshot(cached)
+			return snapshot, nil
+		}
+	}
+
 	s.mu.RLock()
 	index := s.findItemIndexLocked(itemID)
 	if index == -1 {
@@ -104,7 +122,7 @@ func (s *Store) RefreshItem(ctx context.Context, itemID string) (StateSnapshot, 
 		}
 	}
 
-	if fetchErr := joinProblems(result.problems); fetchErr != nil {
+	if fetchErr := JoinProblems(result.problems); fetchErr != nil {
 		s.runtime.LastQuoteError = fetchErr.Error()
 		s.logWarn("quotes", fmt.Sprintf("quote refresh failed: %v", fetchErr))
 	}
@@ -122,12 +140,15 @@ func (s *Store) RefreshItem(ctx context.Context, itemID string) (StateSnapshot, 
 
 	s.evaluateAlertsLocked()
 	s.state.UpdatedAt = time.Now()
+	s.invalidatePriceCachesLocked()
 	if err := s.saveLocked(); err != nil {
 		s.logError("storage", fmt.Sprintf("save state failed after single-item quote refresh: %v", err))
 		return StateSnapshot{}, err
 	}
 
-	return s.snapshotLocked(), nil
+	snapshot := s.snapshotLocked()
+	s.itemRefreshCache.Set(itemID, cloneStateSnapshot(snapshot), s.quoteRefreshTTLLocked())
+	return snapshot, nil
 }
 
 // refreshQuotesForItems batches items by their active market-specific provider so multi-market lists still respect per-market source settings.
@@ -179,7 +200,17 @@ func (s *Store) refreshQuotesForItems(ctx context.Context, items []WatchlistItem
 // ItemHistory queries historical price data for the specified item.
 // Routing to the appropriate data source is handled by the historyProvider (HistoryRouter),
 // which selects and sequences providers based on the item market and user settings.
-func (s *Store) ItemHistory(ctx context.Context, itemID string, interval HistoryInterval) (HistorySeries, error) {
+func (s *Store) ItemHistory(ctx context.Context, itemID string, interval HistoryInterval, force bool) (HistorySeries, error) {
+	cacheKey := itemID + "|" + string(interval)
+	if !force {
+		if cached, expiresAt, ok := s.historyCache.Get(cacheKey); ok {
+			series := cloneHistorySeries(cached)
+			series.Cached = true
+			series.CacheExpiresAt = ptrTime(expiresAt)
+			return series, nil
+		}
+	}
+
 	s.mu.RLock()
 	index := s.findItemIndexLocked(itemID)
 	if index == -1 {
@@ -198,22 +229,62 @@ func (s *Store) ItemHistory(ctx context.Context, itemID string, interval History
 		return HistorySeries{}, err
 	}
 	series.Snapshot = buildMarketSnapshot(decorateItemDerived(item), series)
+	series.Cached = false
+	// History OHLCV data is stable within each interval window; use a longer
+	// per-interval TTL rather than the short HotCacheTTLSeconds setting.
+	expiresAt := s.historyCache.Set(cacheKey, cloneHistorySeries(series), historyCacheTTLForInterval(interval))
+	series.CacheExpiresAt = ptrTime(expiresAt)
 	return series, nil
 }
 
 // OverviewAnalytics builds the overview analytics payload used by the dashboard overview module.
-func (s *Store) OverviewAnalytics(ctx context.Context) (OverviewAnalytics, error) {
+func (s *Store) OverviewAnalytics(ctx context.Context, force bool) (OverviewAnalytics, error) {
 	s.mu.RLock()
 	items := append([]WatchlistItem(nil), s.state.Items...)
 	displayCurrency := s.state.Settings.DashboardCurrency
+	// stateStamp guards against a race where a structural mutation (item add/remove/update,
+	// settings change) happens concurrently with an in-flight overview build: if the result
+	// is cached with an old stamp the next caller sees a miss and rebuilds. In the common
+	// case invalidatePriceCachesLocked clears overviewCache after every price refresh, so
+	// overviewCache.Get returns ok=false before this stamp comparison matters.
+	stateStamp := s.holdingsUpdatedAt
 	s.mu.RUnlock()
-
-	calculator := newOverviewCalculator(s.fxRates, displayCurrency, func(ctx context.Context, item WatchlistItem, interval HistoryInterval) (HistorySeries, error) {
-		if s.historyProvider == nil {
-			return HistorySeries{}, errors.New("History provider is not configured")
+	if !force {
+		if cached, expiresAt, ok := s.overviewCache.Get("all"); ok && cached.stateStamp.Equal(stateStamp) {
+			analytics := cloneOverviewAnalytics(cached.analytics)
+			analytics.Cached = true
+			analytics.CacheExpiresAt = ptrTime(expiresAt)
+			return analytics, nil
 		}
-		return s.historyProvider.Fetch(ctx, item, interval)
+	}
+
+	relevantItems := make([]WatchlistItem, 0, len(items))
+	for _, item := range items {
+		if item.Quantity > 0 || len(validOverviewDCAEntries(item.DCAEntries)) > 0 {
+			relevantItems = append(relevantItems, item)
+		}
+	}
+
+	// Route history through ItemHistory so the shared historyCache is used.
+	// This makes overview rebuilds cheap (no extra network calls) when history
+	// is already cached, which is the common case after the user loads the chart
+	// for any holding. Bypassing historyProvider.Fetch directly would circumvent
+	// the cache and issue redundant network requests on every price refresh.
+	calculator := newOverviewCalculator(s.fxRates, displayCurrency, func(ctx context.Context, item WatchlistItem, interval HistoryInterval) (HistorySeries, error) {
+		return s.ItemHistory(ctx, item.ID, interval, false)
 	})
 
-	return calculator.Build(ctx, items)
+	analytics, err := calculator.Build(ctx, relevantItems)
+	if err != nil {
+		return OverviewAnalytics{}, err
+	}
+	analytics.Cached = false
+
+	expiresAt := s.overviewCache.Set("all", cachedOverviewValue{
+		analytics:  cloneOverviewAnalytics(analytics),
+		stateStamp: stateStamp,
+	}, s.derivedCacheTTL())
+	analytics.CacheExpiresAt = ptrTime(expiresAt)
+
+	return analytics, nil
 }

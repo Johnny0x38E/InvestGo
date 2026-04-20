@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted } from "vue";
+import { computed } from "vue";
 import Button from "primevue/button";
 import Tag from "primevue/tag";
 
-import { appendClientLog } from "../../devlog";
 import { formatDateTime, formatUnitPrice } from "../../format";
 import { useI18n } from "../../i18n";
 import type { AlertRule, WatchlistItem } from "../../types";
@@ -32,13 +31,7 @@ function itemCurrency(itemId: string): string {
     return itemMap.value.get(itemId)?.currency || "CNY";
 }
 
-onMounted(() => {
-    appendClientLog("info", "alerts", `alerts module mounted (alerts=${safeAlerts.value.length}, items=${safeItems.value.length})`);
-});
 
-onBeforeUnmount(() => {
-    appendClientLog("info", "alerts", "alerts module unmounted");
-});
 </script>
 
 <template>

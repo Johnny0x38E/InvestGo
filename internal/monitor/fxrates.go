@@ -18,6 +18,7 @@ import (
 // Uses Frankfurter API (European Central Bank data), cached for at least 2 hours.
 type FxRates struct {
 	mu        sync.RWMutex
+	fetchMu   sync.Mutex         // prevents concurrent in-flight fetches
 	rates     map[string]float64 // foreign currency -> CNY
 	validAt   time.Time
 	lastError string // error message from the most recent fetch failure
@@ -74,6 +75,12 @@ type frankfurterResponse struct {
 // Fetches foreign currency rates with CNY as base, then takes reciprocals to get "foreign currency → CNY" mapping.
 // Clears lastError on success, records error message on failure.
 func (f *FxRates) Fetch(ctx context.Context) {
+	// Only one goroutine fetches at a time; concurrent callers return immediately.
+	if !f.fetchMu.TryLock() {
+		return
+	}
+	defer f.fetchMu.Unlock()
+
 	url := datasource.FrankfurterAPI + "?from=CNY"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {

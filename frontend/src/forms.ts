@@ -2,7 +2,6 @@ import type { AlertFormModel, AlertRule, AppSettings, DCAEntry, DCAEntryRow, Hot
 
 // Default settings used during frontend initialization; must stay in sync with backend defaults.
 export const defaultSettings: AppSettings = {
-    refreshIntervalSeconds: 60,
     hotCacheTTLSeconds: 60,
     cnQuoteSource: "sina",
     hkQuoteSource: "xueqiu",
@@ -18,6 +17,8 @@ export const defaultSettings: AppSettings = {
     proxyURL: "",
     alphaVantageApiKey: "",
     twelveDataApiKey: "",
+    finnhubApiKey: "",
+    polygonApiKey: "",
     developerMode: false,
     dashboardCurrency: "CNY",
     useNativeTitleBar: false,
@@ -26,7 +27,6 @@ export const defaultSettings: AppSettings = {
 // Normalize a backend settings snapshot into the frontend-owned settings shape.
 export function normaliseSettings(input: Partial<AppSettings> | null | undefined): AppSettings {
     return {
-        refreshIntervalSeconds: input?.refreshIntervalSeconds ?? defaultSettings.refreshIntervalSeconds,
         hotCacheTTLSeconds: input?.hotCacheTTLSeconds ?? defaultSettings.hotCacheTTLSeconds,
         cnQuoteSource: input?.cnQuoteSource ?? defaultSettings.cnQuoteSource,
         hkQuoteSource: input?.hkQuoteSource ?? defaultSettings.hkQuoteSource,
@@ -42,6 +42,8 @@ export function normaliseSettings(input: Partial<AppSettings> | null | undefined
         proxyURL: input?.proxyURL ?? defaultSettings.proxyURL,
         alphaVantageApiKey: input?.alphaVantageApiKey ?? defaultSettings.alphaVantageApiKey,
         twelveDataApiKey: input?.twelveDataApiKey ?? defaultSettings.twelveDataApiKey,
+        finnhubApiKey: input?.finnhubApiKey ?? defaultSettings.finnhubApiKey,
+        polygonApiKey: input?.polygonApiKey ?? defaultSettings.polygonApiKey,
         developerMode: input?.developerMode ?? defaultSettings.developerMode,
         dashboardCurrency: input?.dashboardCurrency ?? defaultSettings.dashboardCurrency,
         useNativeTitleBar: input?.useNativeTitleBar ?? defaultSettings.useNativeTitleBar,
@@ -187,7 +189,7 @@ export function serialiseItemForm(form: ItemFormModel): Omit<
         currency: form.currency,
         quantity: form.quantity || 0,
         costPrice: form.costPrice || 0,
-        acquiredAt: form.acquiredAt ? new Date(form.acquiredAt + "T00:00:00").toISOString() : undefined,
+        acquiredAt: form.acquiredAt ? new Date(form.acquiredAt + "T00:00:00Z").toISOString() : undefined,
         thesis: form.thesis,
         tags: form.tagsText
             .split(",")
@@ -198,7 +200,7 @@ export function serialiseItemForm(form: ItemFormModel): Omit<
             .map(
                 (e): DCAEntry => ({
                     id: e.id.startsWith("tmp-") ? "" : e.id,
-                    date: e.date ? new Date(e.date + "T00:00:00").toISOString() : new Date().toISOString(),
+                    date: e.date ? new Date(e.date + "T00:00:00Z").toISOString() : new Date().toISOString(),
                     amount: e.amount ?? 0,
                     shares: e.shares ?? 0,
                     price: e.price && e.price > 0 ? e.price : undefined,

@@ -2,25 +2,25 @@ import { computed, onBeforeUnmount, ref, watch, type ComputedRef, type Ref } fro
 
 import { ApiAbortError, api } from "../api";
 import { translate } from "../i18n";
-import type { HistoryInterval, HistorySeries, ModuleKey, OptionItem, StatusTone, WatchlistItem } from "../types";
+import type { HistoryInterval, HistorySeries, ModuleKey, StatusTone, WatchlistItem } from "../types";
 
 type StatusReporter = (message: string, tone: StatusTone) => void;
 
 // Cache historical data locally by item and interval to avoid re-fetching the same data when users switch intervals or items.
+interface CachedHistorySeries {
+    series: HistorySeries;
+    expiresAt: number; // Date.now() ms
+}
+const HISTORY_CACHE_MAX_SIZE = 60; // max items x intervals
+
 export function useHistorySeries(items: Ref<WatchlistItem[]>, selectedItem: ComputedRef<WatchlistItem | null>, activeModule: Ref<ModuleKey>, setStatus: StatusReporter) {
     const historyInterval = ref<HistoryInterval>("1d");
     const historySeries = ref<HistorySeries | null>(null);
     const historyLoading = ref(false);
     const historyError = ref("");
-    const historyCache = new Map<string, HistorySeries>();
+    const historyCache = new Map<string, CachedHistorySeries>();
     let inflightController: AbortController | null = null;
 
-    const historyItemOptions = computed<OptionItem<string>[]>(() =>
-        items.value.map((item) => ({
-            label: `${item.name || item.symbol} · ${item.symbol}`,
-            value: item.id,
-        })),
-    );
 
     // Cancel any in-flight history request.
     function cancelInflightHistory(resetLoading = false): void {
@@ -44,9 +44,13 @@ export function useHistorySeries(items: Ref<WatchlistItem[]>, selectedItem: Comp
         const key = `${item.id}:${historyInterval.value}`;
         const keepCurrentSeries = silent && Boolean(historySeries.value);
         // During silent refresh, prefer keeping the current chart to avoid a blank flash when switching items or intervals.
-        if (!forceRefresh && historyCache.has(key)) {
+        const cached = historyCache.get(key);
+        if (!forceRefresh && cached && Date.now() < cached.expiresAt) {
             cancelInflightHistory(true);
-            historySeries.value = historyCache.get(key) ?? null;
+            // The series is served from the in-process memory cache, so mark it as
+            // a cache hit regardless of the original backend Cached value (which
+            // was false when the data was first fetched live from the provider).
+            historySeries.value = { ...cached.series, cached: true };
             historyError.value = "";
             return;
         }
@@ -63,7 +67,14 @@ export function useHistorySeries(items: Ref<WatchlistItem[]>, selectedItem: Comp
         }
 
         try {
-            const series = await api<HistorySeries>(`/api/history?itemId=${encodeURIComponent(item.id)}&interval=${encodeURIComponent(historyInterval.value)}`, {
+            const params = new URLSearchParams({
+                itemId: item.id,
+                interval: historyInterval.value,
+            });
+            if (forceRefresh) {
+                params.set("force", "1");
+            }
+            const series = await api<HistorySeries>(`/api/history?${params.toString()}`, {
                 signal: controller.signal,
                 timeoutMs: 12000,
             });
@@ -71,7 +82,15 @@ export function useHistorySeries(items: Ref<WatchlistItem[]>, selectedItem: Comp
             if (inflightController !== controller) {
                 return;
             }
-            historyCache.set(key, series);
+            const expiresAt = series.cacheExpiresAt
+                ? new Date(series.cacheExpiresAt).getTime()
+                : Date.now() + 5 * 60 * 1000; // 5-min fallback
+            historyCache.set(key, { series, expiresAt });
+            // Evict oldest entries if over limit
+            if (historyCache.size > HISTORY_CACHE_MAX_SIZE) {
+                const oldest = historyCache.keys().next().value;
+                if (oldest !== undefined) historyCache.delete(oldest);
+            }
             historySeries.value = series;
             historyError.value = "";
             if (!silent) {
@@ -138,7 +157,6 @@ export function useHistorySeries(items: Ref<WatchlistItem[]>, selectedItem: Comp
         historySeries,
         historyLoading,
         historyError,
-        historyItemOptions,
         loadHistory,
         clearHistoryCache,
         selectHistoryInterval,

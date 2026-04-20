@@ -8,7 +8,7 @@ import Select from "primevue/select";
 import Textarea from "primevue/textarea";
 
 import { currencyOptions, getMarketOptions } from "../../constants";
-import { formatMoney, formatPercent, formatUnitPrice, resolvedLocale } from "../../format";
+import { formatMoney, formatPercent, formatShares, formatUnitPrice, resolvedLocale } from "../../format";
 import { useI18n } from "../../i18n";
 import type { DCAEntryRow, ItemFormModel } from "../../types";
 
@@ -141,17 +141,17 @@ function pnlTone(value: number | null): string {
             <!-- Quantity is read-only when DCA records exist; otherwise it remains manually editable. -->
             <label v-if="!hasDCA && !props.watchOnly">
                 <span>{{ t("dialogs.item.labels.quantity") }}</span>
-                <InputNumber v-model="form.quantity" :min="0" :step="0.001" :max-fraction-digits="3" fluid />
+                <InputNumber v-model="form.quantity" :min="0" :step="0.0001" :max-fraction-digits="4" fluid />
             </label>
             <div v-else-if="hasDCA && !props.watchOnly" class="dca-derived-field">
                 <span>{{ t("dialogs.item.labels.quantity") }}</span>
-                <div class="dca-derived-value">{{ t("dialogs.item.derived.shares", { value: dcaSummary.totalShares.toLocaleString(resolvedLocale(), { maximumFractionDigits: 4 }) }) }}</div>
+                <div class="dca-derived-value">{{ t("dialogs.item.derived.shares", { value: formatShares(dcaSummary.totalShares) }) }}</div>
             </div>
 
             <!-- Cost price is read-only when DCA records exist; otherwise it remains manually editable. -->
             <label v-if="!hasDCA && !props.watchOnly">
                 <span>{{ t("dialogs.item.labels.costPrice") }}</span>
-                <InputNumber v-model="form.costPrice" :min="0" :step="0.001" :max-fraction-digits="3" fluid />
+                <InputNumber v-model="form.costPrice" :min="0" :step="0.0001" :max-fraction-digits="4" fluid />
             </label>
             <div v-else-if="hasDCA && !props.watchOnly" class="dca-derived-field">
                 <span>{{ t("dialogs.item.labels.costPrice") }}</span>
@@ -204,16 +204,16 @@ function pnlTone(value: number | null): string {
                     <input v-model="entry.date" type="date" class="dca-date-input" />
 
                     <!-- Invested amount -->
-                    <InputNumber v-model="entry.amount" :min="0" :step="100" :max-fraction-digits="3" fluid :placeholder="t('dialogs.item.placeholders.amount')" />
+                    <InputNumber v-model="entry.amount" :min="0" :step="0.0001" :max-fraction-digits="4" fluid :placeholder="t('dialogs.item.placeholders.amount')" />
 
                     <!-- Shares purchased -->
                     <InputNumber v-model="entry.shares" :min="0" :step="0.001" :max-fraction-digits="4" fluid :placeholder="t('dialogs.item.placeholders.shares')" />
 
                     <!-- Buy price, when entered manually -->
-                    <InputNumber v-model="entry.price" :min="0" :step="0.001" :max-fraction-digits="3" fluid :placeholder="t('dialogs.item.placeholders.buyPrice')" />
+                    <InputNumber v-model="entry.price" :min="0" :step="0.0001" :max-fraction-digits="4" fluid :placeholder="t('dialogs.item.placeholders.buyPrice')" />
 
                     <!-- Fee or commission -->
-                    <InputNumber v-model="entry.fee" :min="0" :step="1" :max-fraction-digits="3" fluid :placeholder="t('dialogs.item.placeholders.fee')" />
+                    <InputNumber v-model="entry.fee" :min="0" :step="0.0001" :max-fraction-digits="4" fluid :placeholder="t('dialogs.item.placeholders.fee')" />
 
                     <!-- Note -->
                     <InputText v-model="entry.note" :placeholder="t('dialogs.item.placeholders.note')" style="font-size: 12px" />
@@ -245,12 +245,12 @@ function pnlTone(value: number | null): string {
                 <div class="dca-summary-cell">
                     <span class="dca-summary-label">{{ t("dialogs.item.labels.totalShares") }}</span>
                     <span class="dca-summary-value">
-                        {{ dcaSummary.totalShares.toLocaleString(resolvedLocale(), { maximumFractionDigits: 4 }) }}
+                        {{ formatShares(dcaSummary.totalShares) }}
                     </span>
                 </div>
                 <div class="dca-summary-cell">
                     <span class="dca-summary-label">{{ t("dialogs.item.labels.weightedAvgPrice") }}</span>
-                    <span class="dca-summary-value">{{ formatUnitPrice(dcaSummary.avgCost, form.currency) }}</span>
+                    <span class="dca-summary-value">{{ formatUnitPrice(dcaSummary.avgCost, form.currency, 4) }}</span>
                 </div>
                 <template v-if="dcaSummary.hasCurPrice">
                     <div class="dca-summary-cell">

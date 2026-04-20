@@ -107,7 +107,7 @@ const lastSyncedAt = computed(() => {
                         </td>
                         <td>
                             <div class="value-stack">
-                                <strong>{{ formatRange(item.dayLow, item.dayHigh, item.currency) }}</strong>
+                                <strong>{{ formatRange(item.dayLow, item.dayHigh) }}</strong>
                                 <span>{{ item.openPrice > 0 ? t("holdings.openPrice", { price: formatUnitPrice(item.openPrice, item.currency) }) : t("holdings.rangePending") }}</span>
                             </div>
                         </td>

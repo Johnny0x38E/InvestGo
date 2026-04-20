@@ -11,13 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"investgo/internal/datasource"
 	"investgo/internal/monitor"
-)
-
-const (
-	sinaReferer  = "https://finance.sina.com.cn/"
-	sinaHotAPI   = "https://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeData"
-	sinaCountAPI = "https://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeStockCount"
 )
 
 // sinaHotItem mirrors a single element from the Sina Finance ranking JSON array.
@@ -70,11 +65,11 @@ func (s *HotService) listSina(ctx context.Context, category monitor.HotCategory,
 	params.Set("node", node)
 	params.Set("_s_r_a", "auto")
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, sinaHotAPI+"?"+params.Encode(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, datasource.SinaHotAPI+"?"+params.Encode(), nil)
 	if err != nil {
 		return monitor.HotListResponse{}, err
 	}
-	req.Header.Set("Referer", sinaReferer)
+	req.Header.Set("Referer", datasource.SinaFinanceReferer)
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
 
 	resp, err := s.client.Do(req)
@@ -130,14 +125,15 @@ func (s *HotService) listSina(ctx context.Context, category monitor.HotCategory,
 		GeneratedAt: time.Now(),
 	}, nil
 }
+
 // fetchSinaCount retrieves the total number of instruments from Sina for the given node.
 // The API returns a quoted number string like "5505".
 func (s *HotService) fetchSinaCount(ctx context.Context, node string) (int, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, sinaCountAPI+"?node="+node, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, datasource.SinaCountAPI+"?node="+node, nil)
 	if err != nil {
 		return 0, err
 	}
-	req.Header.Set("Referer", sinaReferer)
+	req.Header.Set("Referer", datasource.SinaFinanceReferer)
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
 
 	resp, err := s.client.Do(req)

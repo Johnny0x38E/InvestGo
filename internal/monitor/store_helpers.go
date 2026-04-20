@@ -1,12 +1,16 @@
 package monitor
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"strings"
+	"time"
 )
 
-// joinProblems combines multiple validation problems into a single error, removing duplicates and empty messages.
-func joinProblems(problems []string) error {
+// JoinProblems combines multiple validation problems into a single error, removing duplicates and empty messages.
+func JoinProblems(problems []string) error {
 	if len(problems) == 0 {
 		return nil
 	}
@@ -72,4 +76,27 @@ func countLiveQuotes(items []WatchlistItem) int {
 		}
 	}
 	return total
+}
+
+// newID generates a prefixed random ID; falls back to timestamp scheme when random numbers are unavailable.
+func newID(prefix string) string {
+	buffer := make([]byte, 6)
+	if _, err := rand.Read(buffer); err != nil {
+		return fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())
+	}
+	return prefix + "-" + hex.EncodeToString(buffer)
+}
+
+// ptrTime returns an independent pointer copy of the given time value.
+func ptrTime(value time.Time) *time.Time {
+	copy := value
+	return &copy
+}
+
+// nonZeroTime falls back zero-value time to current time.
+func nonZeroTime(value time.Time) time.Time {
+	if value.IsZero() {
+		return time.Now()
+	}
+	return value
 }

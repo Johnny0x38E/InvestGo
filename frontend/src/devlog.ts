@@ -9,6 +9,9 @@ const clientLogsState = ref<DeveloperLogEntry[]>([]);
 let installed = false;
 let sequence = 0;
 
+const mirrorQueue: Array<{ source: string; scope: string; level: DeveloperLogLevel; message: string }> = [];
+let mirrorFlushTimer = 0;
+
 export const clientLogs = clientLogsState;
 
 export function installClientLogCapture(): void {
@@ -54,6 +57,11 @@ export function installClientLogCapture(): void {
     window.addEventListener("unhandledrejection", (event) => {
         appendClientLog("error", "promise", formatValue(event.reason));
     });
+
+    window.addEventListener("beforeunload", () => {
+        window.clearTimeout(mirrorFlushTimer);
+        flushMirrorQueue();
+    });
 }
 
 export function appendClientLog(level: DeveloperLogLevel, scope: string, message: string, source: DeveloperLogSource = frontendSource): void {
@@ -85,21 +93,29 @@ function pushClientLog(level: DeveloperLogLevel, scope: string, args: unknown[])
 }
 
 function mirrorClientLog(entry: DeveloperLogEntry): void {
-    void fetch("/api/client-logs", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-            source: entry.source,
-            scope: entry.scope,
-            level: entry.level,
-            message: entry.message,
-        }),
-        keepalive: true,
-    }).catch(() => {
-        // Terminal mirroring is for auxiliary debugging only; it should not pollute frontend logs or affect the main flow.
+    mirrorQueue.push({
+        source: entry.source,
+        scope: entry.scope,
+        level: entry.level,
+        message: entry.message,
     });
+    window.clearTimeout(mirrorFlushTimer);
+    mirrorFlushTimer = window.setTimeout(flushMirrorQueue, 1000);
+}
+
+function flushMirrorQueue(): void {
+    if (mirrorQueue.length === 0) return;
+    const batch = mirrorQueue.splice(0, mirrorQueue.length);
+    // Send each entry individually (backend accepts one at a time)
+    // Use keepalive for reliability on page unload
+    for (const entry of batch) {
+        void fetch("/api/client-logs", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(entry),
+            keepalive: true,
+        }).catch(() => {});
+    }
 }
 
 function formatValue(value: unknown): string {
@@ -122,7 +138,7 @@ function formatValue(value: unknown): string {
 
 export function redactSensitiveText(message: string): string {
     return message
-        .replace(/(alphaVantageApiKey|twelveDataApiKey)\s*[:=]\s*["']?[^"'\s,;]+["']?/gi, "$1: ***")
+        .replace(/(alphaVantageApiKey|twelveDataApiKey|finnhubApiKey|polygonApiKey)\s*[:=]\s*["']?[^"'\s,;]+["']?/gi, "$1: ***")
         .replace(/([?&](?:apikey|api_key|key)=)[^&\s]+/gi, "$1***")
         .replace(/\b(?:apikey|api_key|key)=([^&\s]+)/gi, (match, _value, offset, input) => {
             const prefix = input.slice(Math.max(0, offset - 1), offset);

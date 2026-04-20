@@ -1,60 +1,10 @@
 package monitor
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 )
-
-// DefaultQuoteSourceID is the identifier of the default enabled quote source.
-const DefaultQuoteSourceID = "eastmoney"
-
-const (
-	DefaultCNQuoteSourceID = "sina"
-	DefaultHKQuoteSourceID = "xueqiu"
-	DefaultUSQuoteSourceID = "yahoo"
-)
-
-// Quote holds real-time market data for one instrument, shared between quote providers and the frontend.
-type Quote struct {
-	Symbol        string
-	Name          string
-	Market        string
-	Currency      string
-	CurrentPrice  float64
-	PreviousClose float64
-	OpenPrice     float64
-	DayHigh       float64
-	DayLow        float64
-	Change        float64
-	ChangePercent float64
-	Source        string
-	UpdatedAt     time.Time
-}
-
-// QuoteProvider defines the unified contract for real-time quote providers.
-type QuoteProvider interface {
-	Fetch(ctx context.Context, items []WatchlistItem) (map[string]Quote, error)
-	Name() string
-}
-
-// QuoteSourceOption describes a quote source available for user selection.
-type QuoteSourceOption struct {
-	ID               string   `json:"id"`
-	Name             string   `json:"name"`
-	Description      string   `json:"description"`
-	SupportedMarkets []string `json:"supportedMarkets"`
-}
-
-// QuoteTarget is the normalized, canonical market identity of a tracked item, used as the lookup key across all quote providers.
-type QuoteTarget struct {
-	Key           string
-	DisplaySymbol string
-	Market        string
-	Currency      string
-}
 
 type quoteAffixRule struct {
 	token    string
@@ -95,7 +45,7 @@ func resolveQuoteTarget(symbol, market, currency string) (QuoteTarget, error) {
 		return target, err
 	}
 
-	if isDigits(rawSymbol) {
+	if IsDigits(rawSymbol) {
 		return buildNumericTarget(rawSymbol, market, currency)
 	}
 	if isUSSymbol(rawSymbol) {
@@ -131,7 +81,7 @@ func resolveAffixedQuoteTarget(
 ) (QuoteTarget, bool, error) {
 	for _, rule := range rules {
 		code, ok := trim(rawSymbol, rule.token)
-		if !ok || !isDigits(code) {
+		if !ok || !IsDigits(code) {
 			continue
 		}
 
@@ -224,7 +174,7 @@ func buildBJTarget(rawSymbol, currency string) (QuoteTarget, error) {
 
 // buildHKTarget constructs the standard target for Hong Kong stock items.
 func buildHKTarget(rawSymbol, market, currency string) (QuoteTarget, error) {
-	if !isDigits(rawSymbol) {
+	if !IsDigits(rawSymbol) {
 		return QuoteTarget{}, fmt.Errorf("Hong Kong symbol must be numeric: %s", rawSymbol)
 	}
 	if len(rawSymbol) > 5 {
@@ -355,12 +305,12 @@ func defaultCurrency(currency, fallback string) string {
 	return currency
 }
 
-// isDigits checks whether a string consists entirely of digits.
-func isDigits(value string) bool {
-	if value == "" {
+// IsDigits reports whether s consists entirely of ASCII digit characters.
+func IsDigits(s string) bool {
+	if s == "" {
 		return false
 	}
-	for _, r := range value {
+	for _, r := range s {
 		if r < '0' || r > '9' {
 			return false
 		}

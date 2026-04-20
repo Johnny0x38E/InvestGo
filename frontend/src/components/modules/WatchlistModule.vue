@@ -3,7 +3,7 @@ import { computed } from "vue";
 import Button from "primevue/button";
 import PriceChart from "../PriceChart.vue";
 import { getHistoryRangeOptions } from "../../constants";
-import { formatDateTime, formatMoney, formatPercent, formatUnitPrice, historyRangeLabel } from "../../format";
+import { formatDateTime, formatMoney, formatPercent, formatShares, formatUnitPrice, historyRangeLabel } from "../../format";
 import { useI18n } from "../../i18n";
 import type { HistoryInterval, HistorySeries, MarketMetricCard, WatchlistItem } from "../../types";
 
@@ -23,6 +23,7 @@ defineEmits<{
 
 const { t } = useI18n();
 const historyRangeOptions = computed(() => getHistoryRangeOptions());
+const historyCacheSummary = computed(() => (props.historySeries?.cached ? t("common.cacheHit") : t("common.cacheMiss")));
 
 const marketSnapshot = computed(() => {
     const item = props.selectedItem;
@@ -96,7 +97,7 @@ const positionDetail = computed(() => {
         pnl: hasPosition ? formatMoney(snapshot.positionPnL, true) : "-",
         pnlPct: hasPosition ? formatPercent(snapshot.positionPnLPct) : "-",
         costBasis: hasPosition ? formatUnitPrice(snapshot.positionBaseline, snapshot.item.currency) : "-",
-        costPrice: hasPosition ? formatUnitPrice(snapshot.item.costPrice, snapshot.item.currency) : "-",
+        costPrice: hasPosition ? formatUnitPrice(snapshot.item.costPrice, snapshot.item.currency, 4) : "-",
         quantity: snapshot.item.quantity,
         tone: snapshot.positionTone,
     };
@@ -200,6 +201,8 @@ const marketCards = computed<MarketMetricCard[]>(() => {
                                     time: marketOverview.syncedAt,
                                 })
                             }}</span>
+                            <span v-if="historySeries" class="market-hero-badge">{{ t("watchlist.meta.cache", { state: historyCacheSummary }) }}</span>
+                            <span v-if="historySeries?.cacheExpiresAt" class="market-hero-badge">{{ t("watchlist.meta.cacheFreshUntil", { time: formatDateTime(historySeries.cacheExpiresAt) }) }}</span>
                         </footer>
                     </section>
 
@@ -226,7 +229,7 @@ const marketCards = computed<MarketMetricCard[]>(() => {
                                         <span class="market-pos-stat-label">{{ t("watchlist.position.quantity") }}</span>
                                         <span class="market-pos-detail-val">{{
                                             t("watchlist.position.quantityValue", {
-                                                count: positionDetail.quantity,
+                                                count: formatShares(positionDetail.quantity),
                                             })
                                         }}</span>
                                     </div>

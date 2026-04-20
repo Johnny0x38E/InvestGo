@@ -46,7 +46,6 @@ let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 const { t } = useI18n();
 
 const trackedSet = computed(() => new Set(props.trackedKeys));
-const normalizedKeyword = computed(() => activeKeyword.value);
 const hotCategoryOptions = computed(() => getHotCategoryOptions());
 const categoryOptions = computed(() => hotCategoryOptions.value[props.marketGroup]);
 
@@ -66,15 +65,11 @@ const sortedItems = computed(() => {
     });
 });
 
-const visibleItems = computed(() => {
-    return sortedItems.value;
-});
-
 const emptyMessage = computed(() => {
     if (error.value && !items.value.length) {
         return error.value;
     }
-    if (normalizedKeyword.value) {
+    if (activeKeyword.value) {
         return t("hot.noMatch");
     }
     return t("hot.noData");
@@ -368,7 +363,7 @@ function unbindObserver(): void {
         </div>
 
         <div class="hot-summary">
-            <span v-if="normalizedKeyword">{{ t("hot.searchResults", { count: items.length, total }) }}</span>
+            <span v-if="activeKeyword">{{ t("hot.searchResults", { count: items.length, total }) }}</span>
             <span v-else>{{ t("hot.loadedSummary", { count: items.length, total }) }}</span>
             <span>{{ t("hot.meta.source", { source: sourceSummary }) }}</span>
             <span>{{ t("hot.meta.updatedAt", { time: updatedAtSummary ? formatDateTime(updatedAtSummary) : t("common.notAvailable") }) }}</span>
@@ -400,8 +395,8 @@ function unbindObserver(): void {
                         <th class="hot-table-sticky hot-table-sticky-actions"></th>
                     </tr>
                 </thead>
-                <tbody v-if="visibleItems.length">
-                    <tr v-for="item in visibleItems" :key="hotKey(item)">
+                <tbody v-if="sortedItems.length">
+                    <tr v-for="item in sortedItems" :key="hotKey(item)">
                         <td>
                             <div class="item-block">
                                 <strong>{{ item.name }}</strong>

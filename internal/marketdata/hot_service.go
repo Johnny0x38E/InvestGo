@@ -11,9 +11,9 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
+	ttlcache "investgo/internal/cache"
 	"investgo/internal/datasource"
 	"investgo/internal/monitor"
 )
@@ -26,44 +26,57 @@ const (
 
 // HotListOptions carries request-scoped settings that affect hot list quote fetching.
 type HotListOptions struct {
-	CNQuoteSource      string
-	HKQuoteSource      string
-	USQuoteSource      string
-	AlphaVantageAPIKey string
-	TwelveDataAPIKey   string
-	CacheTTL           time.Duration
-	BypassCache        bool
+	CNQuoteSource string
+	HKQuoteSource string
+	USQuoteSource string
+	CacheTTL      time.Duration
+	BypassCache   bool
 }
 
 // HotService handles real-time data fetching and pagination for hot lists.
-// CN-A/HK hot membership currently comes from the EastMoney list API.
-// ETF and US categories still rely on provider-independent symbol pools, while
+// Category membership may come from different upstream ranking sources, while
 // displayed quote data should follow the configured market quote source.
 type HotService struct {
 	client        *http.Client
 	log           *slog.Logger
-	mu            sync.RWMutex
-	searchCache   map[string]cachedHotPage
-	responseCache map[string]cachedHotResponse
-}
-
-type cachedHotPage struct {
-	items     []monitor.HotItem
-	total     int
-	expiresAt time.Time
-}
-
-type cachedHotResponse struct {
-	response  monitor.HotListResponse
-	expiresAt time.Time
+	registry      *Registry
+	searchCache   *ttlcache.TTL[string, []monitor.HotItem]
+	responseCache *ttlcache.TTL[string, monitor.HotListResponse]
 }
 
 type eastMoneyHotResponse struct {
 	RC   int `json:"rc"`
 	Data struct {
-		Total int                `json:"total"`
-		Diff  []eastMoneyHotDiff `json:"diff"`
+		Total int                  `json:"total"`
+		Diff  eastMoneyHotDiffList `json:"diff"`
 	} `json:"data"`
+}
+
+type eastMoneyHotDiffList []eastMoneyHotDiff
+
+func (l *eastMoneyHotDiffList) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" {
+		*l = nil
+		return nil
+	}
+
+	var asArray []eastMoneyHotDiff
+	if err := json.Unmarshal(data, &asArray); err == nil {
+		*l = asArray
+		return nil
+	}
+
+	var asMap map[string]eastMoneyHotDiff
+	if err := json.Unmarshal(data, &asMap); err != nil {
+		return err
+	}
+
+	out := make([]eastMoneyHotDiff, 0, len(asMap))
+	for _, item := range asMap {
+		out = append(out, item)
+	}
+	*l = out
+	return nil
 }
 
 type eastMoneyHotDiff struct {
@@ -89,8 +102,21 @@ type yahooSearchResponse struct {
 	} `json:"quotes"`
 }
 
+type eastMoneySuggestResponse struct {
+	QuotationCodeTable struct {
+		Data []eastMoneySuggestItem `json:"Data"`
+	} `json:"QuotationCodeTable"`
+}
+
+type eastMoneySuggestItem struct {
+	Code             string `json:"Code"`
+	Name             string `json:"Name"`
+	MktNum           string `json:"MktNum"`
+	SecurityTypeName string `json:"SecurityTypeName"`
+}
+
 // NewHotService creates a hot list service.
-func NewHotService(client *http.Client, logger *slog.Logger) *HotService {
+func NewHotService(client *http.Client, logger *slog.Logger, registry *Registry) *HotService {
 	if client == nil {
 		client = &http.Client{Timeout: 12 * time.Second}
 	}
@@ -100,8 +126,9 @@ func NewHotService(client *http.Client, logger *slog.Logger) *HotService {
 	return &HotService{
 		client:        client,
 		log:           logger,
-		searchCache:   make(map[string]cachedHotPage),
-		responseCache: make(map[string]cachedHotResponse),
+		registry:      registry,
+		searchCache:   ttlcache.NewTTL[string, []monitor.HotItem](),
+		responseCache: ttlcache.NewTTL[string, monitor.HotListResponse](),
 	}
 }
 
@@ -130,10 +157,10 @@ func (s *HotService) List(ctx context.Context, category monitor.HotCategory, sor
 		switch {
 		case category == monitor.HotCategoryCNA,
 			category == monitor.HotCategoryCNETF,
-			category == monitor.HotCategoryHK,
-			category == monitor.HotCategoryHKETF:
+			category == monitor.HotCategoryHK:
 			response, err = s.listConfiguredCategory(ctx, category, sortBy, page, pageSize, options)
-		case isUSHotCategory(category):
+		case category == monitor.HotCategoryHKETF,
+			isUSHotCategory(category):
 			response, err = s.listFromPool(ctx, category, sortBy, page, pageSize, options)
 		default:
 			err = fmt.Errorf("Hot category is unsupported: %s", category)
@@ -149,36 +176,26 @@ func (s *HotService) List(ctx context.Context, category monitor.HotCategory, sor
 	return response, nil
 }
 
-// search filters the data pool by keyword and handles the US ETF category specially:
-// filter from the pool first, then call the Yahoo Finance search API for more matches,
-// merge and deduplicate, and fetch real-time quotes.
+// search filters the data pool by keyword. Each market uses a lightweight search approach:
+// CN/HK uses EastMoney suggest API, US equities use local seed filtering + Yahoo search,
+// US ETFs combine local pool + Yahoo search.
 func (s *HotService) search(ctx context.Context, category monitor.HotCategory, sortBy monitor.HotSort, keyword string, page, pageSize int, options HotListOptions) (monitor.HotListResponse, error) {
 	if category == monitor.HotCategoryUSETF {
 		return s.searchUSETFs(ctx, sortBy, keyword, page, pageSize, options)
 	}
 
-	items, err := s.listAllSearchableItems(ctx, category, sortBy, options)
-	if err != nil {
-		return monitor.HotListResponse{}, err
+	// Pool-backed categories (US equities) filter seeds locally first, then use
+	// Yahoo search for broader coverage (e.g. name search beyond local seed names).
+	if isUSHotCategory(category) {
+		return s.searchUSStocks(ctx, category, sortBy, keyword, page, pageSize, options)
 	}
 
-	filtered := filterHotItems(items, keyword)
-	start, end := paginateHotItems(len(filtered), page, pageSize)
-	pageItems, err := s.applyConfiguredQuotes(ctx, category, filtered[start:end], options)
-	if err != nil {
-		return monitor.HotListResponse{}, err
+	// CN/HK categories use EastMoney suggest API for fast keyword search.
+	if isCNHotCategory(category) || isHKHotCategory(category) {
+		return s.searchCNHK(ctx, category, sortBy, keyword, page, pageSize, options)
 	}
 
-	return monitor.HotListResponse{
-		Category:    category,
-		Sort:        sortBy,
-		Page:        page,
-		PageSize:    pageSize,
-		Total:       len(filtered),
-		HasMore:     end < len(filtered),
-		Items:       pageItems,
-		GeneratedAt: time.Now(),
-	}, nil
+	return monitor.HotListResponse{}, fmt.Errorf("Hot search is unsupported for category: %s", category)
 }
 
 // searchUSETFs handles US ETF search specially:
@@ -211,9 +228,110 @@ func (s *HotService) searchUSETFs(ctx context.Context, sortBy monitor.HotSort, k
 	}, nil
 }
 
+// searchUSStocks handles keyword search for US equity categories.
+// It first filters the local seed pool by name/symbol, then calls Yahoo search for
+// broader coverage (e.g. matching by company name that may not be in the local seed names),
+// merges and deduplicates, then fetches quotes for the combined matches.
+func (s *HotService) searchUSStocks(ctx context.Context, category monitor.HotCategory, sortBy monitor.HotSort, keyword string, page, pageSize int, options HotListOptions) (monitor.HotListResponse, error) {
+	pool := normalizedUSHotSeeds(category, hotConstituents[category])
+
+	// Filter seeds locally — no network I/O.
+	seeds := filterHotSeeds(pool, keyword)
+
+	// Call Yahoo search for broader coverage (e.g. name-based search).
+	remoteSeeds, err := s.searchYahooUSStockSeeds(ctx, keyword, category)
+	if err == nil && len(remoteSeeds) > 0 {
+		seeds = mergeHotSeeds(seeds, remoteSeeds)
+	}
+
+	if len(seeds) == 0 {
+		return monitor.HotListResponse{
+			Category:    category,
+			Sort:        sortBy,
+			Page:        page,
+			PageSize:    pageSize,
+			Total:       0,
+			HasMore:     false,
+			Items:       []monitor.HotItem{},
+			GeneratedAt: time.Now(),
+		}, nil
+	}
+
+	// Only fetch quotes for the (small) set of matching seeds.
+	items, err := s.loadHotItemsForSeeds(ctx, seeds, options)
+	if err != nil {
+		return monitor.HotListResponse{}, err
+	}
+
+	sortHotItems(items, sortBy)
+	start, end := paginateHotItems(len(items), page, pageSize)
+	return monitor.HotListResponse{
+		Category:    category,
+		Sort:        sortBy,
+		Page:        page,
+		PageSize:    pageSize,
+		Total:       len(items),
+		HasMore:     end < len(items),
+		Items:       items[start:end],
+		GeneratedAt: time.Now(),
+	}, nil
+}
+
+// searchCNHK handles keyword search for CN and HK categories using the EastMoney suggest API.
+// This replaces the old fetch-all-then-filter approach that would download thousands of items.
+func (s *HotService) searchCNHK(ctx context.Context, category monitor.HotCategory, sortBy monitor.HotSort, keyword string, page, pageSize int, options HotListOptions) (monitor.HotListResponse, error) {
+	// Call EastMoney suggest API — single lightweight request, returns only matches.
+	seeds := s.searchEastMoneySeeds(ctx, keyword, category)
+
+	// Also try to filter from cached items (from previous normal browsing).
+	if cachedItems, ok := s.loadCachedItems(hotSearchCacheKey(category, sortBy, resolveHotQuoteSource(category, options))); ok {
+		cachedMatches := filterHotItems(cachedItems, keyword)
+		for _, item := range cachedMatches {
+			seeds = mergeHotSeeds(seeds, []hotSeed{{
+				Symbol:   item.Symbol,
+				Name:     item.Name,
+				Market:   item.Market,
+				Currency: item.Currency,
+			}})
+		}
+	}
+
+	if len(seeds) == 0 {
+		return monitor.HotListResponse{
+			Category:    category,
+			Sort:        sortBy,
+			Page:        page,
+			PageSize:    pageSize,
+			Total:       0,
+			HasMore:     false,
+			Items:       []monitor.HotItem{},
+			GeneratedAt: time.Now(),
+		}, nil
+	}
+
+	// Fetch quotes only for the small set of matching seeds.
+	items, err := s.loadHotItemsForSeeds(ctx, seeds, options)
+	if err != nil {
+		return monitor.HotListResponse{}, err
+	}
+
+	sortHotItems(items, sortBy)
+	start, end := paginateHotItems(len(items), page, pageSize)
+	return monitor.HotListResponse{
+		Category:    category,
+		Sort:        sortBy,
+		Page:        page,
+		PageSize:    pageSize,
+		Total:       len(items),
+		HasMore:     end < len(items),
+		Items:       items[start:end],
+		GeneratedAt: time.Now(),
+	}, nil
+}
+
 // listAllSearchableItems lists all searchable instruments for the given category, used for full-match search.
-// For categories supported by EastMoney, prefer the clist API to fetch the full list and cache it;
-// for others, use the data pool directly.
+// For categories backed by upstream ranking APIs, fetch and cache the full list;
+// for pool-backed categories, use the maintained local pool directly.
 func (s *HotService) listAllSearchableItems(ctx context.Context, category monitor.HotCategory, sortBy monitor.HotSort, options HotListOptions) ([]monitor.HotItem, error) {
 	cacheKey := hotSearchCacheKey(category, sortBy, resolveHotQuoteSource(category, options))
 	if !options.BypassCache {
@@ -268,13 +386,11 @@ func (s *HotService) fetchAllHotPages(ctx context.Context, loadPage func(context
 // loadCachedItems loads the hot instrument list from cache;
 // returns false if cache is missing or expired.
 func (s *HotService) loadCachedItems(key string) ([]monitor.HotItem, bool) {
-	s.mu.RLock()
-	cached, ok := s.searchCache[key]
-	s.mu.RUnlock()
-	if !ok || time.Now().After(cached.expiresAt) {
+	cached, _, ok := s.searchCache.Get(key)
+	if !ok {
 		return nil, false
 	}
-	return cloneHotItems(cached.items), true
+	return cloneHotItems(cached), true
 }
 
 // storeCachedItems stores the hot instrument list into cache and sets an expiration time.
@@ -282,25 +398,17 @@ func (s *HotService) storeCachedItems(key string, items []monitor.HotItem, ttl t
 	if ttl <= 0 {
 		ttl = defaultHotCacheTTL
 	}
-	s.mu.Lock()
-	s.searchCache[key] = cachedHotPage{
-		items:     cloneHotItems(items),
-		total:     len(items),
-		expiresAt: time.Now().Add(ttl),
-	}
-	s.mu.Unlock()
+	s.searchCache.Set(key, cloneHotItems(items), ttl)
 }
 
 func (s *HotService) loadCachedResponse(key string) (monitor.HotListResponse, bool) {
-	s.mu.RLock()
-	cached, ok := s.responseCache[key]
-	s.mu.RUnlock()
-	if !ok || time.Now().After(cached.expiresAt) {
+	cached, expiresAt, ok := s.responseCache.Get(key)
+	if !ok {
 		return monitor.HotListResponse{}, false
 	}
-	response := cloneHotListResponse(cached.response)
+	response := cloneHotListResponse(cached)
 	response.Cached = true
-	response.CacheExpiresAt = ptrTime(cached.expiresAt)
+	response.CacheExpiresAt = ptrTime(expiresAt)
 	return response, true
 }
 
@@ -313,12 +421,7 @@ func (s *HotService) storeCachedResponse(key string, response monitor.HotListRes
 	cached.Cached = false
 	cached.CacheExpiresAt = ptrTime(expiresAt)
 
-	s.mu.Lock()
-	s.responseCache[key] = cachedHotResponse{
-		response:  cached,
-		expiresAt: expiresAt,
-	}
-	s.mu.Unlock()
+	expiresAt = s.responseCache.Set(key, cached, ttl)
 
 	return expiresAt
 }
@@ -348,8 +451,7 @@ func (s *HotService) listEastMoney(ctx context.Context, category monitor.HotCate
 	if err != nil {
 		return monitor.HotListResponse{}, err
 	}
-	req.Header.Set("Referer", datasource.EastMoneyWebReferer)
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36")
+	setEastMoneyHeaders(req, datasource.EastMoneyWebReferer)
 
 	resp, err := s.client.Do(req)
 	if err != nil {
@@ -430,15 +532,46 @@ func (s *HotService) listFromPool(ctx context.Context, category monitor.HotCateg
 func (s *HotService) listConfiguredCategory(ctx context.Context, category monitor.HotCategory, sortBy monitor.HotSort, page, pageSize int, options HotListOptions) (monitor.HotListResponse, error) {
 	sourceID := resolveHotQuoteSource(category, options)
 
+	if sourceID == "yahoo" {
+		return monitor.HotListResponse{}, fmt.Errorf("Yahoo hot list is unsupported for category: %s", category)
+	}
+
+	if sourceSupportsCategoryList(sourceID, category) {
+		return s.listCategoryBySource(ctx, sourceID, category, sortBy, page, pageSize)
+	}
+
+	return s.listConfiguredCategoryWithOverlay(ctx, category, sortBy, page, pageSize, options)
+}
+
+func (s *HotService) listConfiguredCategoryWithOverlay(ctx context.Context, category monitor.HotCategory, sortBy monitor.HotSort, page, pageSize int, options HotListOptions) (monitor.HotListResponse, error) {
+	baseSource := membershipSourceForCategory(category)
+	if baseSource == "" {
+		return monitor.HotListResponse{}, fmt.Errorf("Hot quote source is unsupported: %s", resolveHotQuoteSource(category, options))
+	}
+
+	response, err := s.listCategoryBySource(ctx, baseSource, category, sortBy, page, pageSize)
+	if err != nil {
+		return monitor.HotListResponse{}, err
+	}
+
+	items, err := s.applyConfiguredQuotes(ctx, category, response.Items, options)
+	if err != nil {
+		return monitor.HotListResponse{}, err
+	}
+	sortHotItems(items, sortBy)
+	response.Items = items
+	response.GeneratedAt = time.Now()
+	return response, nil
+}
+
+func (s *HotService) listCategoryBySource(ctx context.Context, sourceID string, category monitor.HotCategory, sortBy monitor.HotSort, page, pageSize int) (monitor.HotListResponse, error) {
 	switch sourceID {
 	case "eastmoney":
 		return s.listEastMoney(ctx, category, sortBy, page, pageSize)
-	case "xueqiu":
-		return s.listXueqiu(ctx, category, sortBy, page, pageSize)
 	case "sina":
 		return s.listSina(ctx, category, sortBy, page, pageSize)
-	case "yahoo":
-		return monitor.HotListResponse{}, fmt.Errorf("Yahoo hot list is unsupported for category: %s", category)
+	case "xueqiu":
+		return s.listXueqiu(ctx, category, sortBy, page, pageSize)
 	default:
 		return monitor.HotListResponse{}, fmt.Errorf("Hot quote source is unsupported: %s", sourceID)
 	}
@@ -446,7 +579,12 @@ func (s *HotService) listConfiguredCategory(ctx context.Context, category monito
 
 // loadPoolItems loads instruments from the predefined data pool and fetches real-time quotes.
 func (s *HotService) loadPoolItems(ctx context.Context, category monitor.HotCategory, sortBy monitor.HotSort, options HotListOptions) ([]monitor.HotItem, error) {
-	pool := normalizedUSHotSeeds(category, hotConstituents[category])
+	var pool []hotSeed
+	if category == monitor.HotCategoryHKETF {
+		pool = hkETFConstituents
+	} else {
+		pool = normalizedUSHotSeeds(category, hotConstituents[category])
+	}
 	if len(pool) == 0 {
 		return nil, fmt.Errorf("No available hot pool for category: %s", category)
 	}
@@ -466,12 +604,14 @@ func (s *HotService) loadHotItemsForSeeds(ctx context.Context, seeds []hotSeed, 
 		return []monitor.HotItem{}, nil
 	}
 
-	items, err := s.fetchPoolQuotes(ctx, seeds, resolveHotQuoteSource(categoryForHotSeeds(seeds), options), options)
+	category := categoryForHotSeeds(seeds)
+	sourceID := effectivePoolQuoteSource(category, resolveHotQuoteSource(category, options))
+	items, err := s.fetchPoolQuotes(ctx, seeds, sourceID, options)
 	if err != nil {
 		return nil, err
 	}
 
-	return s.enrichUSHotItemsWithEastMoneyNames(ctx, items)
+	return items, nil
 }
 
 func categoryForHotSeeds(seeds []hotSeed) monitor.HotCategory {
@@ -483,8 +623,10 @@ func categoryForHotSeeds(seeds []hotSeed) monitor.HotCategory {
 		return monitor.HotCategoryUSSP500
 	case "US-ETF":
 		return monitor.HotCategoryUSETF
-	case "HK-MAIN", "HK-GEM", "HK-ETF":
+	case "HK-MAIN", "HK-GEM":
 		return monitor.HotCategoryHK
+	case "HK-ETF":
+		return monitor.HotCategoryHKETF
 	default:
 		return monitor.HotCategoryCNA
 	}
@@ -556,10 +698,16 @@ func normaliseHotQuoteSourceID(sourceID string) string {
 		return "alpha-vantage"
 	case "twelve-data":
 		return "twelve-data"
+	case "finnhub":
+		return "finnhub"
+	case "polygon":
+		return "polygon"
 	case "sina":
 		return "sina"
 	case "xueqiu":
 		return "xueqiu"
+	case "tencent":
+		return "tencent"
 	default:
 		return "eastmoney"
 	}
@@ -578,35 +726,63 @@ func resolveHotQuoteSource(category monitor.HotCategory, options HotListOptions)
 	return "eastmoney"
 }
 
+// effectivePoolQuoteSource applies per-category overrides for pool quote sources.
+// For HK ETF, EastMoney push2 is unreliable; fall back to Tencent when the
+// configured source is the eastmoney default and the user hasn't changed it.
+func effectivePoolQuoteSource(category monitor.HotCategory, sourceID string) string {
+	if category == monitor.HotCategoryHKETF && sourceID == "eastmoney" {
+		return "tencent"
+	}
+	return sourceID
+}
+
+func membershipSourceForCategory(category monitor.HotCategory) string {
+	switch category {
+	case monitor.HotCategoryCNA, monitor.HotCategoryCNETF:
+		return "sina"
+	case monitor.HotCategoryHK, monitor.HotCategoryHKETF:
+		return "xueqiu"
+	default:
+		return ""
+	}
+}
+
+func sourceSupportsCategoryList(sourceID string, category monitor.HotCategory) bool {
+	switch sourceID {
+	case "eastmoney":
+		return category == monitor.HotCategoryCNA || category == monitor.HotCategoryHK
+	case "sina":
+		return category == monitor.HotCategoryCNA || category == monitor.HotCategoryCNETF
+	case "xueqiu":
+		return category == monitor.HotCategoryCNA || category == monitor.HotCategoryCNETF || category == monitor.HotCategoryHK || category == monitor.HotCategoryHKETF
+	default:
+		return false
+	}
+}
+
 func (s *HotService) applyConfiguredQuotes(ctx context.Context, category monitor.HotCategory, items []monitor.HotItem, options HotListOptions) ([]monitor.HotItem, error) {
 	sourceID := resolveHotQuoteSource(category, options)
+
+	// EastMoney is the default membership source — no overlay needed.
 	if sourceID == "eastmoney" {
 		return cloneHotItems(items), nil
 	}
-	if sourceID == "xueqiu" && hotItemsAlreadyUseSource(items, "Xueqiu") {
-		return cloneHotItems(items), nil
+
+	// Look up the provider from the registry.
+	var provider monitor.QuoteProvider
+	if s.registry != nil {
+		provider = s.registry.QuoteProvider(sourceID)
 	}
-	if sourceID == "sina" && hotItemsAlreadyUseSource(items, "Sina") {
+
+	if provider != nil && hotItemsAlreadyUseSource(items, provider.Name()) {
 		return cloneHotItems(items), nil
 	}
 
-	switch sourceID {
-	case "yahoo":
-		if hotItemsAlreadyUseSource(items, "Yahoo Finance") {
-			return cloneHotItems(items), nil
-		}
-		return s.applyYahooQuotes(ctx, items)
-	case "alpha-vantage":
-		return s.applyProviderQuotes(ctx, items, NewAlphaVantageQuoteProvider(s.client, func() monitor.AppSettings {
-			return monitor.AppSettings{AlphaVantageAPIKey: options.AlphaVantageAPIKey}
-		}))
-	case "twelve-data":
-		return s.applyProviderQuotes(ctx, items, NewTwelveDataQuoteProvider(s.client, func() monitor.AppSettings {
-			return monitor.AppSettings{TwelveDataAPIKey: options.TwelveDataAPIKey}
-		}))
-	default:
-		return nil, fmt.Errorf("Hot quote source is unsupported: %s", sourceID)
+	if provider == nil {
+		return nil, fmt.Errorf("hot quote source is unsupported: %s", sourceID)
 	}
+
+	return s.applyProviderQuotes(ctx, items, provider)
 }
 
 func (s *HotService) applyProviderQuotes(ctx context.Context, items []monitor.HotItem, provider monitor.QuoteProvider) ([]monitor.HotItem, error) {
@@ -642,6 +818,12 @@ func (s *HotService) applyProviderQuotes(ctx context.Context, items []monitor.Ho
 		item.Change = quote.Change
 		item.ChangePercent = quote.ChangePercent
 		item.QuoteSource = quote.Source
+		if quote.Volume > 0 {
+			item.Volume = quote.Volume
+		}
+		if quote.MarketCap > 0 {
+			item.MarketCap = quote.MarketCap
+		}
 		if !quote.UpdatedAt.IsZero() {
 			item.UpdatedAt = quote.UpdatedAt
 		}
@@ -650,62 +832,6 @@ func (s *HotService) applyProviderQuotes(ctx context.Context, items []monitor.Ho
 	if len(enriched) == 0 {
 		return nil, fmt.Errorf("No live hot quotes are available from %s", provider.Name())
 	}
-	return enriched, nil
-}
-
-func (s *HotService) applyYahooQuotes(ctx context.Context, items []monitor.HotItem) ([]monitor.HotItem, error) {
-	if len(items) == 0 {
-		return []monitor.HotItem{}, nil
-	}
-
-	watchItems := make([]monitor.WatchlistItem, 0, len(items))
-	for _, item := range items {
-		watchItems = append(watchItems, monitor.WatchlistItem{
-			Symbol:   item.Symbol,
-			Name:     item.Name,
-			Market:   item.Market,
-			Currency: item.Currency,
-		})
-	}
-
-	quotes, err := NewYahooQuoteProvider(s.client).Fetch(ctx, watchItems)
-	if err != nil {
-		return nil, err
-	}
-
-	enriched := make([]monitor.HotItem, 0, len(items))
-	for _, item := range items {
-		target, err := monitor.ResolveQuoteTarget(monitor.WatchlistItem{
-			Symbol:   item.Symbol,
-			Name:     item.Name,
-			Market:   item.Market,
-			Currency: item.Currency,
-		})
-		if err != nil {
-			continue
-		}
-
-		quote, ok := quotes[target.Key]
-		if !ok {
-			continue
-		}
-
-		item.Name = firstNonEmpty(quote.Name, item.Name)
-		item.Currency = firstNonEmpty(quote.Currency, item.Currency)
-		item.CurrentPrice = quote.CurrentPrice
-		item.Change = quote.Change
-		item.ChangePercent = quote.ChangePercent
-		item.QuoteSource = quote.Source
-		if !quote.UpdatedAt.IsZero() {
-			item.UpdatedAt = quote.UpdatedAt
-		}
-		enriched = append(enriched, item)
-	}
-
-	if len(enriched) == 0 {
-		return nil, fmt.Errorf("No live hot quotes are available from Yahoo Finance")
-	}
-
 	return enriched, nil
 }
 
@@ -763,11 +889,11 @@ func normaliseEastMoneyCode(code string, marketID int) string {
 	code = strings.ToUpper(strings.TrimSpace(code))
 	switch marketID {
 	case 116, 128:
-		if len(code) < 5 && isDigits(code) {
+		if len(code) < 5 && monitor.IsDigits(code) {
 			return strings.Repeat("0", 5-len(code)) + code
 		}
 	case 0, 1:
-		if len(code) < 6 && isDigits(code) {
+		if len(code) < 6 && monitor.IsDigits(code) {
 			return strings.Repeat("0", 6-len(code)) + code
 		}
 	}
@@ -915,6 +1041,43 @@ func ptrTime(value time.Time) *time.Time {
 	return &copy
 }
 
+// searchYahooUSStockSeeds calls Yahoo Finance search API and returns US stock seeds matching the keyword.
+func (s *HotService) searchYahooUSStockSeeds(ctx context.Context, keyword string, category monitor.HotCategory) ([]hotSeed, error) {
+	parsed, err := fetchYahooSearch(ctx, s.client, keyword)
+	if err != nil {
+		return nil, err
+	}
+
+	seeds := make([]hotSeed, 0, len(parsed.Quotes))
+	seen := make(map[string]struct{}, len(parsed.Quotes))
+	for _, quote := range parsed.Quotes {
+		quoteType := strings.ToUpper(strings.TrimSpace(quote.QuoteType))
+		if quoteType != "EQUITY" && quoteType != "" {
+			continue
+		}
+		if !isLikelyUSExchange(quote.Exchange, quote.ExchDisp) {
+			continue
+		}
+
+		symbol := strings.ToUpper(strings.TrimSpace(quote.Symbol))
+		if symbol == "" {
+			continue
+		}
+
+		if _, ok := seen[symbol]; ok {
+			continue
+		}
+		seen[symbol] = struct{}{}
+		seeds = append(seeds, hotSeed{
+			Symbol:   symbol,
+			Name:     firstNonEmpty(quote.LongName, quote.ShortName, symbol),
+			Market:   "US-STOCK",
+			Currency: "USD",
+		})
+	}
+	return seeds, nil
+}
+
 // searchYahooUSSeeds fetches a list of US ETF instruments matching the keyword and filters for those likely listed on US exchanges.
 func (s *HotService) searchYahooUSSeeds(ctx context.Context, keyword string) ([]hotSeed, error) {
 	parsed, err := fetchYahooSearch(ctx, s.client, keyword)
@@ -948,6 +1111,104 @@ func (s *HotService) searchYahooUSSeeds(ctx context.Context, keyword string) ([]
 	return seeds, nil
 }
 
+// fetchEastMoneySuggest calls the EastMoney suggest API to search stocks by keyword (name or code).
+// Returns up to the requested number of matching items across all markets.
+func fetchEastMoneySuggest(ctx context.Context, client *http.Client, keyword string, count int) ([]eastMoneySuggestItem, error) {
+	if client == nil {
+		client = &http.Client{}
+	}
+	if count <= 0 {
+		count = 30
+	}
+
+	params := url.Values{}
+	params.Set("input", strings.TrimSpace(keyword))
+	params.Set("type", "14")
+	params.Set("token", "D43BF722C8E33BDC906FB84D85E326E8")
+	params.Set("count", strconv.Itoa(count))
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, datasource.EastMoneySuggestAPI+"?"+params.Encode(), nil)
+	if err != nil {
+		return nil, err
+	}
+	setEastMoneyHeaders(req, datasource.EastMoneyWebReferer)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("EastMoney suggest request failed: status %d", resp.StatusCode)
+	}
+
+	var parsed eastMoneySuggestResponse
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		return nil, err
+	}
+	return parsed.QuotationCodeTable.Data, nil
+}
+
+// searchEastMoneySeeds calls the EastMoney suggest API and returns matching seeds for the given category.
+func (s *HotService) searchEastMoneySeeds(ctx context.Context, keyword string, category monitor.HotCategory) []hotSeed {
+	items, err := fetchEastMoneySuggest(ctx, s.client, keyword, 30)
+	if err != nil {
+		s.log.Warn("EastMoney suggest failed", "keyword", keyword, "error", err)
+		return nil
+	}
+
+	seeds := make([]hotSeed, 0, len(items))
+	seen := make(map[string]struct{}, len(items))
+	for _, item := range items {
+		seed, ok := eastMoneySuggestToSeed(item, category)
+		if !ok {
+			continue
+		}
+		key := seed.Market + "|" + seed.Symbol
+		if _, dup := seen[key]; dup {
+			continue
+		}
+		seen[key] = struct{}{}
+		seeds = append(seeds, seed)
+	}
+	return seeds
+}
+
+// eastMoneySuggestToSeed converts an EastMoney suggest item to a hotSeed,
+// returning false if the item does not belong to the given category.
+func eastMoneySuggestToSeed(item eastMoneySuggestItem, category monitor.HotCategory) (hotSeed, bool) {
+	code := strings.TrimSpace(item.Code)
+	name := strings.TrimSpace(item.Name)
+	if code == "" {
+		return hotSeed{}, false
+	}
+
+	switch item.MktNum {
+	case "1": // Shanghai
+		if !isCNHotCategory(category) {
+			return hotSeed{}, false
+		}
+		return hotSeed{Symbol: strings.ToUpper(code) + ".SH", Name: name, Market: "CN-A", Currency: "CNY"}, true
+	case "0": // Shenzhen
+		if !isCNHotCategory(category) {
+			return hotSeed{}, false
+		}
+		return hotSeed{Symbol: strings.ToUpper(code) + ".SZ", Name: name, Market: "CN-A", Currency: "CNY"}, true
+	case "128": // Hong Kong
+		if !isHKHotCategory(category) {
+			return hotSeed{}, false
+		}
+		return hotSeed{Symbol: strings.ToUpper(code) + ".HK", Name: name, Market: "HK-MAIN", Currency: "HKD"}, true
+	default:
+		return hotSeed{}, false
+	}
+}
+
 func fetchYahooSearch(ctx context.Context, client *http.Client, keyword string) (yahooSearchResponse, error) {
 	if client == nil {
 		client = &http.Client{}
@@ -968,7 +1229,7 @@ func fetchYahooSearch(ctx context.Context, client *http.Client, keyword string) 
 		problems = append(problems, fmt.Sprintf("%s: %v", host, err))
 	}
 
-	return yahooSearchResponse{}, collapseProblems(problems)
+	return yahooSearchResponse{}, monitor.JoinProblems(problems)
 }
 
 // fetchYahooSearchFromHost fetches search results from the specified Yahoo Search API host and parses them into the yahooSearchResponse struct.

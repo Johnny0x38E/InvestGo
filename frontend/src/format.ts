@@ -10,34 +10,56 @@ const currencySymbolMap: Record<string, string> = {
     USD: "$",
 };
 
+// Formatter cache: keyed by a string describing the options
+const formatterCache = new Map<string, Intl.NumberFormat>();
+
+function getCachedFormatter(key: string, factory: () => Intl.NumberFormat): Intl.NumberFormat {
+    let formatter = formatterCache.get(key);
+    if (!formatter) {
+        formatter = factory();
+        formatterCache.set(key, formatter);
+    }
+    return formatter;
+}
+
 // Update the global settings snapshot read by formatting functions.
 export function setFormatterSettings(next: AppSettings): void {
     settings = next;
+    formatterCache.clear();
 }
 
 export function formatMoney(value: number, signed = false): string {
     const amount = Number(value || 0);
-    const formatter =
-        settings.amountDisplay === "compact"
-            ? new Intl.NumberFormat(resolvedLocale(), {
-                  notation: "compact",
-                  minimumFractionDigits: 0,
-                  maximumFractionDigits: 2,
-              })
-            : new Intl.NumberFormat(resolvedLocale(), {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-              });
-
+    const locale = resolvedLocale();
+    const compact = settings.amountDisplay === "compact";
+    const key = compact ? `money-compact-${locale}` : `money-full-${locale}`;
+    const formatter = getCachedFormatter(key, () =>
+        compact
+            ? new Intl.NumberFormat(locale, { notation: "compact", minimumFractionDigits: 0, maximumFractionDigits: 2 })
+            : new Intl.NumberFormat(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+    );
     const prefix = signed && amount > 0 ? "+" : "";
     return `${prefix}${formatter.format(amount)}`;
 }
 
 export function formatNumber(value: number, digits = 2): string {
-    return new Intl.NumberFormat(resolvedLocale(), {
-        minimumFractionDigits: digits,
-        maximumFractionDigits: digits,
-    }).format(Number(value || 0));
+    const locale = resolvedLocale();
+    const key = `number-${locale}-${digits}`;
+    const formatter = getCachedFormatter(key, () =>
+        new Intl.NumberFormat(locale, { minimumFractionDigits: digits, maximumFractionDigits: digits }),
+    );
+    return formatter.format(Number(value || 0));
+}
+
+// formatFlexNumber formats value with at least minDigits and at most maxDigits decimal places,
+// trimming unnecessary trailing zeros beyond minDigits.
+export function formatFlexNumber(value: number, minDigits: number, maxDigits: number): string {
+    const locale = resolvedLocale();
+    const key = `number-flex-${locale}-${minDigits}-${maxDigits}`;
+    const formatter = getCachedFormatter(key, () =>
+        new Intl.NumberFormat(locale, { minimumFractionDigits: minDigits, maximumFractionDigits: maxDigits }),
+    );
+    return formatter.format(Number(value || 0));
 }
 
 export function formatPercent(value: number): string {
@@ -46,8 +68,11 @@ export function formatPercent(value: number): string {
     return `${prefix}${formatNumber(amount, 2)}%`;
 }
 
-export function formatUnitPrice(value: number, currency: string): string {
-    const numeric = formatNumber(value, 2);
+// formatUnitPrice formats a price/amount in the given currency.
+// Pass maxFractionDigits > 2 (e.g. 4) when the stored value may have more decimal places
+// that should be shown in full (e.g. cost-price, DCA buy-price).
+export function formatUnitPrice(value: number, currency: string, maxFractionDigits = 2): string {
+    const numeric = formatFlexNumber(value, 2, maxFractionDigits);
     if (settings.currencyDisplay === "code") {
         return `${currency} ${numeric}`;
     }
@@ -55,7 +80,13 @@ export function formatUnitPrice(value: number, currency: string): string {
     return symbol ? `${symbol} ${numeric}` : numeric;
 }
 
-export function formatRange(low: number, high: number, currency: string): string {
+// formatShares formats a share / unit count with at most 4 decimal places,
+// trimming trailing zeros (100 → "100", 0.1234 → "0.1234", 15.50 → "15.5").
+export function formatShares(value: number): string {
+    return formatFlexNumber(value, 0, 4);
+}
+
+export function formatRange(low: number, high: number): string {
     if (!(low > 0) || !(high > 0)) {
         return "-";
     }

@@ -2,7 +2,7 @@
 export type HistoryInterval = "1h" | "1d" | "1w" | "1mo" | "1y" | "3y" | "all";
 export type AlertCondition = "above" | "below";
 export type ModuleKey = "overview" | "watchlist" | "hot" | "holdings" | "alerts" | "settings";
-export type SettingsTabKey = "general" | "display" | "region" | "developer" | "about";
+export type SettingsTabKey = "general" | "display" | "region" | "network" | "developer" | "about";
 export type StatusTone = "success" | "warn" | "error";
 export type CardTone = "neutral" | "rise" | "fall" | "warn";
 export type DeveloperLogLevel = "debug" | "info" | "warn" | "error";
@@ -110,7 +110,6 @@ export interface AlertRule {
 }
 
 export interface AppSettings {
-    refreshIntervalSeconds: number;
     hotCacheTTLSeconds: number;
     cnQuoteSource: string;
     hkQuoteSource: string;
@@ -126,6 +125,8 @@ export interface AppSettings {
     proxyURL: string;
     alphaVantageApiKey: string;
     twelveDataApiKey: string;
+    finnhubApiKey: string;
+    polygonApiKey: string;
     developerMode: boolean;
     dashboardCurrency: string;
     useNativeTitleBar: boolean;
@@ -194,6 +195,8 @@ export interface OverviewAnalytics {
     displayCurrency: string;
     breakdown: OverviewHoldingSlice[];
     trend: OverviewTrend;
+    cached: boolean;
+    cacheExpiresAt?: string;
     generatedAt: string;
 }
 
@@ -234,6 +237,8 @@ export interface HistorySeries {
         positionPnL: number;
         positionPnLPct: number;
     };
+    cached: boolean;
+    cacheExpiresAt?: string;
     generatedAt: string;
 }
 

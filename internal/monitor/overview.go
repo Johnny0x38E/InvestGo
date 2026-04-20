@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -22,6 +23,15 @@ type overviewTrendSeed struct {
 	history      HistorySeries
 	hasPosition  bool
 }
+
+type overviewTrendCandidate struct {
+	item        WatchlistItem
+	firstBuy    time.Time
+	hasPosition bool
+	interval    HistoryInterval
+}
+
+const overviewHistoryConcurrency = 4
 
 func newOverviewCalculator(fx *FxRates, displayCurrency string, loadHistory overviewHistoryLoader) overviewCalculator {
 	if strings.TrimSpace(displayCurrency) == "" {
@@ -87,10 +97,8 @@ func (c overviewCalculator) buildBreakdown(items []WatchlistItem) []OverviewHold
 }
 
 func (c overviewCalculator) buildTrend(ctx context.Context, items []WatchlistItem) (OverviewTrend, error) {
-	seeds := make([]overviewTrendSeed, 0, len(items))
+	candidates := make([]overviewTrendCandidate, 0, len(items))
 	var problems []string
-	var overallStart time.Time
-	var overallEnd time.Time
 
 	for _, item := range items {
 		entries := validOverviewDCAEntries(item.DCAEntries)
@@ -116,40 +124,24 @@ func (c overviewCalculator) buildTrend(ctx context.Context, items []WatchlistIte
 			continue
 		}
 
-		// Choose a history window from the holding start date so each asset loads
-		// enough data for its own timeline instead of forcing the whole overview
-		// onto one fixed interval.
-		historyInterval := overviewHistoryIntervalFor(firstBuy)
-		history, err := c.loadHistory(ctx, item, historyInterval)
-		if err != nil {
-			problems = append(problems, fmt.Sprintf("%s: %v", item.Symbol, err))
-			continue
-		}
-		if len(history.Points) == 0 {
-			continue
-		}
-
-		// When no AcquiredAt was provided, anchor firstBuy to the oldest available history point
-		// so that the item still participates in the trend with its full available history.
-		if firstBuy.IsZero() {
-			for _, p := range history.Points {
-				if firstBuy.IsZero() || p.Timestamp.Before(firstBuy) {
-					firstBuy = p.Timestamp
-				}
-			}
-		}
-
-		seeds = append(seeds, overviewTrendSeed{
-			item:         item,
-			firstBuyDate: normalizeTrendDay(firstBuy),
-			history:      history,
-			hasPosition:  hasPosition,
+		candidates = append(candidates, overviewTrendCandidate{
+			item:        item,
+			firstBuy:    firstBuy,
+			hasPosition: hasPosition,
+			interval:    overviewHistoryIntervalFor(firstBuy),
 		})
+	}
 
-		if overallStart.IsZero() || firstBuy.Before(overallStart) {
-			overallStart = firstBuy
+	seeds, loadProblems := c.loadTrendSeeds(ctx, candidates)
+	problems = append(problems, loadProblems...)
+
+	var overallStart time.Time
+	var overallEnd time.Time
+	for _, seed := range seeds {
+		if overallStart.IsZero() || seed.firstBuyDate.Before(overallStart) {
+			overallStart = seed.firstBuyDate
 		}
-		lastPointDay := normalizeTrendDay(history.Points[len(history.Points)-1].Timestamp)
+		lastPointDay := normalizeTrendDay(seed.history.Points[len(seed.history.Points)-1].Timestamp)
 		if overallEnd.IsZero() || lastPointDay.After(overallEnd) {
 			overallEnd = lastPointDay
 		}
@@ -157,7 +149,7 @@ func (c overviewCalculator) buildTrend(ctx context.Context, items []WatchlistIte
 
 	if len(seeds) == 0 || overallStart.IsZero() || overallEnd.IsZero() {
 		if len(problems) > 0 {
-			return OverviewTrend{}, joinProblems(problems)
+			return OverviewTrend{}, JoinProblems(problems)
 		}
 		return OverviewTrend{}, nil
 	}
@@ -204,6 +196,76 @@ func (c overviewCalculator) buildTrend(ctx context.Context, items []WatchlistIte
 		Series:     series,
 		TotalValue: totalValue,
 	}, nil
+}
+
+func (c overviewCalculator) loadTrendSeeds(ctx context.Context, candidates []overviewTrendCandidate) ([]overviewTrendSeed, []string) {
+	if len(candidates) == 0 {
+		return nil, nil
+	}
+
+	type result struct {
+		seed    overviewTrendSeed
+		problem string
+	}
+
+	sem := make(chan struct{}, overviewHistoryConcurrency)
+	results := make(chan result, len(candidates))
+	var wg sync.WaitGroup
+
+	for _, candidate := range candidates {
+		candidate := candidate
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			history, err := c.loadHistory(ctx, candidate.item, candidate.interval)
+			if err != nil {
+				results <- result{problem: fmt.Sprintf("%s: %v", candidate.item.Symbol, err)}
+				return
+			}
+			if len(history.Points) == 0 {
+				return
+			}
+
+			firstBuy := candidate.firstBuy
+			if firstBuy.IsZero() {
+				for _, p := range history.Points {
+					if firstBuy.IsZero() || p.Timestamp.Before(firstBuy) {
+						firstBuy = p.Timestamp
+					}
+				}
+			}
+
+			results <- result{
+				seed: overviewTrendSeed{
+					item:         candidate.item,
+					firstBuyDate: normalizeTrendDay(firstBuy),
+					history:      history,
+					hasPosition:  candidate.hasPosition,
+				},
+			}
+		}()
+	}
+
+	wg.Wait()
+	close(results)
+
+	seeds := make([]overviewTrendSeed, 0, len(candidates))
+	problems := make([]string, 0)
+	for result := range results {
+		if result.problem != "" {
+			problems = append(problems, result.problem)
+			continue
+		}
+		if len(result.seed.history.Points) == 0 {
+			continue
+		}
+		seeds = append(seeds, result.seed)
+	}
+
+	return seeds, problems
 }
 
 func (c overviewCalculator) buildTrendValues(item WatchlistItem, dates []time.Time, history HistorySeries, hasPosition bool) []float64 {

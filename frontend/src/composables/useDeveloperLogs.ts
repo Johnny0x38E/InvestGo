@@ -8,6 +8,10 @@ import type { DeveloperLogEntry, DeveloperLogSnapshot, StatusTone } from "../typ
 type StatusReporter = (message: string, tone: StatusTone) => void;
 
 // Unified management of frontend and backend developer logs, preventing the root component from handling polling, merging, copying, and cleanup all at once.
+// Combined log list cap: backend returns up to 160, client buffer holds up to 200;
+// 250 gives comfortable headroom when both sources are saturated.
+const MAX_COMBINED_LOGS = 250;
+
 export function useDeveloperLogs(setStatus: StatusReporter) {
     const backendLogs = ref<DeveloperLogEntry[]>([]);
     const logFilePath = ref("");
@@ -15,7 +19,7 @@ export function useDeveloperLogs(setStatus: StatusReporter) {
 
     // Frontend and backend logs share a single reverse-chronological list for unified viewing on the settings page.
     const developerLogs = computed<DeveloperLogEntry[]>(() =>
-        [...backendLogs.value, ...clientLogs.value].sort((left, right) => new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime()).slice(0, 250),
+        [...backendLogs.value, ...clientLogs.value].sort((left, right) => new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime()).slice(0, MAX_COMBINED_LOGS),
     );
 
     // Silent mode is primarily for polling refresh; on failure it does not disrupt the current page state.

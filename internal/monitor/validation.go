@@ -1,14 +1,12 @@
-package validation
+package monitor
 
 import (
 	"errors"
 	"strings"
-
-	"investgo/internal/monitor/domain"
 )
 
-// NormalizeTags removes empty tags and keeps the tag set unique.
-func NormalizeTags(tags []string) []string {
+// normalizeTags removes empty tags and deduplicates the set while preserving order.
+func normalizeTags(tags []string) []string {
 	seen := make(map[string]struct{}, len(tags))
 	result := make([]string, 0, len(tags))
 	for _, tag := range tags {
@@ -25,35 +23,35 @@ func NormalizeTags(tags []string) []string {
 	return result
 }
 
-// SanitizeAlert normalizes alert rules and performs basic validation.
-func SanitizeAlert(input domain.AlertRule) (domain.AlertRule, error) {
+// sanitiseAlertRule normalizes an alert rule and validates its fields.
+func sanitiseAlertRule(input AlertRule) (AlertRule, error) {
 	alert := input
 	alert.Name = strings.TrimSpace(alert.Name)
 	alert.ItemID = strings.TrimSpace(alert.ItemID)
 
 	if alert.Name == "" {
-		return domain.AlertRule{}, errors.New("Alert name is required")
+		return AlertRule{}, errors.New("Alert name is required")
 	}
 	if alert.ItemID == "" {
-		return domain.AlertRule{}, errors.New("Alert must reference an item")
+		return AlertRule{}, errors.New("Alert must reference an item")
 	}
-	if alert.Condition != domain.AlertAbove && alert.Condition != domain.AlertBelow {
-		return domain.AlertRule{}, errors.New("Alert condition is invalid")
+	if alert.Condition != AlertAbove && alert.Condition != AlertBelow {
+		return AlertRule{}, errors.New("Alert condition is invalid")
 	}
 	if alert.Threshold <= 0 {
-		return domain.AlertRule{}, errors.New("Alert threshold must be greater than 0")
+		return AlertRule{}, errors.New("Alert threshold must be greater than 0")
 	}
-
 	return alert, nil
 }
 
-// NormalizeDCAEntries filters invalid entries, ensures IDs exist, and derives quantity plus weighted average cost.
-func NormalizeDCAEntries(entries []domain.DCAEntry, newID func(string) string) ([]domain.DCAEntry, float64, float64) {
+// normalizeDCAEntries filters out invalid entries, ensures every entry has an ID,
+// and returns the cleaned slice together with total shares and weighted-average cost.
+func normalizeDCAEntries(entries []DCAEntry, newID func(string) string) ([]DCAEntry, float64, float64) {
 	if len(entries) == 0 {
 		return nil, 0, 0
 	}
 
-	valid := make([]domain.DCAEntry, 0, len(entries))
+	valid := make([]DCAEntry, 0, len(entries))
 	for _, entry := range entries {
 		if entry.Shares <= 0 || entry.Amount <= 0 {
 			continue
