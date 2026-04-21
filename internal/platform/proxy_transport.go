@@ -79,7 +79,29 @@ func chromeTLSDialer(dialer *net.Dialer) func(ctx context.Context, network, addr
 			host = addr
 		}
 
-		tlsConn := utls.UClient(rawConn, &utls.Config{ServerName: host}, utls.HelloChrome_Auto)
+		// Build a Chrome ClientHello spec but force ALPN to http/1.1 only.
+		// The default HelloChrome_Auto advertises h2, causing servers to
+		// negotiate HTTP/2 over ALPN — but Go's http.Transport with a
+		// custom DialTLSContext only speaks HTTP/1.x, leading to
+		// "malformed HTTP response" errors on HTTP/2 frames.
+		spec, specErr := utls.UTLSIdToSpec(utls.HelloChrome_Auto)
+		if specErr != nil {
+			rawConn.Close()
+			return nil, specErr
+		}
+		for i, ext := range spec.Extensions {
+			if alpn, ok := ext.(*utls.ALPNExtension); ok {
+				alpn.AlpnProtocols = []string{"http/1.1"}
+				spec.Extensions[i] = alpn
+				break
+			}
+		}
+
+		tlsConn := utls.UClient(rawConn, &utls.Config{ServerName: host}, utls.HelloCustom)
+		if err := tlsConn.ApplyPreset(&spec); err != nil {
+			rawConn.Close()
+			return nil, err
+		}
 		if err := tlsConn.HandshakeContext(ctx); err != nil {
 			rawConn.Close()
 			return nil, err

@@ -6,16 +6,19 @@ import (
 	"net/url"
 	"strings"
 
-	"investgo/internal/marketdata"
-	"investgo/internal/monitor"
+	"investgo/internal/api/i18n"
+	"investgo/internal/core"
+	"investgo/internal/core/hot"
+	"investgo/internal/core/store"
+	"investgo/internal/logger"
 	"investgo/internal/platform"
 )
 
 // Handler handles `/api/*` requests and coordinates backend services.
 type Handler struct {
-	store          *monitor.Store
-	hot            *marketdata.HotService
-	logs           *monitor.LogBook
+	store          *store.Store
+	hot            *hot.HotService
+	logs           *logger.LogBook
 	proxyTransport *platform.ProxyTransport
 	mux            *http.ServeMux // internal router (Go 1.22+ pattern matching)
 }
@@ -24,10 +27,10 @@ const localeHeader = "X-InvestGo-Locale"
 
 // clientLogRequest defines the JSON structure for log requests sent by the frontend.
 type clientLogRequest struct {
-	Source  string                    `json:"source"`
-	Scope   string                    `json:"scope"`
-	Level   monitor.DeveloperLogLevel `json:"level"`
-	Message string                    `json:"message"`
+	Source  string                   `json:"source"`
+	Scope   string                   `json:"scope"`
+	Level   logger.DeveloperLogLevel `json:"level"`
+	Message string                   `json:"message"`
 }
 
 type openExternalRequest struct {
@@ -39,7 +42,7 @@ type pinItemRequest struct {
 }
 
 // NewHandler returns the unified API handler.
-func NewHandler(store *monitor.Store, hot *marketdata.HotService, logs *monitor.LogBook, proxyTransport *platform.ProxyTransport) *Handler {
+func NewHandler(store *store.Store, hot *hot.HotService, logs *logger.LogBook, proxyTransport *platform.ProxyTransport) *Handler {
 	h := &Handler{
 		store:          store,
 		hot:            hot,
@@ -50,7 +53,7 @@ func NewHandler(store *monitor.Store, hot *marketdata.HotService, logs *monitor.
 	return h
 }
 
-// buildMux registers all API routes on an http.ServeMux using Go 1.22+ method+pattern syntax.
+// buildMux registers all API routes on an http.ServeMux.
 // Path parameters (e.g. {id}) are retrieved via r.PathValue("id") inside handlers.
 func (h *Handler) buildMux() *http.ServeMux {
 	mux := http.NewServeMux()
@@ -122,7 +125,7 @@ func writeJSON(writer http.ResponseWriter, status int, payload any) {
 // writeError encodes errors into a consistent JSON shape with a localized user message.
 func writeError(writer http.ResponseWriter, request *http.Request, status int, err error) {
 	debugMessage := strings.TrimSpace(err.Error())
-	localizedMessage := monitor.LocalizeErrorMessage(requestLocale(request), debugMessage)
+	localizedMessage := i18n.LocalizeErrorMessage(requestLocale(request), debugMessage)
 
 	payload := map[string]string{
 		"error": localizedMessage,
@@ -140,12 +143,12 @@ func errNotFound(path string) error {
 }
 
 // sanitiseDeveloperLogLevel falls back unknown log levels to info.
-func sanitiseDeveloperLogLevel(level monitor.DeveloperLogLevel) monitor.DeveloperLogLevel {
+func sanitiseDeveloperLogLevel(level logger.DeveloperLogLevel) logger.DeveloperLogLevel {
 	switch level {
-	case monitor.DeveloperLogDebug, monitor.DeveloperLogInfo, monitor.DeveloperLogWarn, monitor.DeveloperLogError:
+	case logger.DeveloperLogDebug, logger.DeveloperLogInfo, logger.DeveloperLogWarn, logger.DeveloperLogError:
 		return level
 	default:
-		return monitor.DeveloperLogInfo
+		return logger.DeveloperLogInfo
 	}
 }
 
@@ -184,9 +187,9 @@ func requestLocale(request *http.Request) string {
 	return "en-US"
 }
 
-func localizeSnapshot(snapshot monitor.StateSnapshot, locale string) monitor.StateSnapshot {
-	snapshot.Runtime.LastQuoteError = monitor.LocalizeErrorMessage(locale, snapshot.Runtime.LastQuoteError)
-	snapshot.Runtime.LastFxError = monitor.LocalizeErrorMessage(locale, snapshot.Runtime.LastFxError)
+func localizeSnapshot(snapshot core.StateSnapshot, locale string) core.StateSnapshot {
+	snapshot.Runtime.LastQuoteError = i18n.LocalizeErrorMessage(locale, snapshot.Runtime.LastQuoteError)
+	snapshot.Runtime.LastFxError = i18n.LocalizeErrorMessage(locale, snapshot.Runtime.LastFxError)
 	snapshot.Runtime.QuoteSource = localizeQuoteSourceSummary(locale, snapshot.Runtime.QuoteSource)
 	snapshot.QuoteSources = localizeQuoteSourceOptions(locale, snapshot.QuoteSources)
 	for index := range snapshot.Items {
@@ -195,20 +198,20 @@ func localizeSnapshot(snapshot monitor.StateSnapshot, locale string) monitor.Sta
 	return snapshot
 }
 
-func localizeHistorySeries(series monitor.HistorySeries, locale string) monitor.HistorySeries {
+func localizeHistorySeries(series core.HistorySeries, locale string) core.HistorySeries {
 	series.Source = localizeQuoteSourceName(locale, series.Source)
 	return series
 }
 
-func localizeHotList(locale string, list monitor.HotListResponse) monitor.HotListResponse {
+func localizeHotList(locale string, list core.HotListResponse) core.HotListResponse {
 	for index := range list.Items {
 		list.Items[index].QuoteSource = localizeQuoteSourceName(locale, list.Items[index].QuoteSource)
 	}
 	return list
 }
 
-func localizeQuoteSourceOptions(locale string, options []monitor.QuoteSourceOption) []monitor.QuoteSourceOption {
-	localized := append([]monitor.QuoteSourceOption(nil), options...)
+func localizeQuoteSourceOptions(locale string, options []core.QuoteSourceOption) []core.QuoteSourceOption {
+	localized := append([]core.QuoteSourceOption(nil), options...)
 	for index := range localized {
 		localized[index].Name = localizeQuoteSourceName(locale, localized[index].Name)
 		localized[index].Description = localizeQuoteSourceDescription(locale, localized[index].ID, localized[index].Description)
@@ -228,15 +231,15 @@ func localizeQuoteSourceName(locale, name string) string {
 	if strings.EqualFold(locale, "zh-CN") || strings.HasPrefix(strings.ToLower(locale), "zh") {
 		switch name {
 		case "EastMoney":
-			return "\u4e1c\u65b9\u8d22\u5bcc"
+			return "东方财富"
 		case "Yahoo Finance":
-			return "\u96c5\u864e\u8d22\u7ecf"
+			return "雅虎财经"
 		case "Sina Finance":
-			return "\u65b0\u6d6a\u8d22\u7ecf"
+			return "新浪财经"
 		case "Xueqiu":
-			return "\u96ea\u7403"
+			return "雪球"
 		case "Tencent Finance":
-			return "\u817e\u8baf\u8d22\u7ecf"
+			return "腾讯财经"
 		case "Alpha Vantage":
 			return "Alpha Vantage"
 		case "Twelve Data":
@@ -254,26 +257,25 @@ func localizeQuoteSourceDescription(locale, sourceID, fallback string) string {
 	if !(strings.EqualFold(locale, "zh-CN") || strings.HasPrefix(strings.ToLower(locale), "zh")) {
 		return fallback
 	}
-
 	switch strings.ToLower(strings.TrimSpace(sourceID)) {
 	case "eastmoney":
-		return "\u8986\u76d6 A \u80a1\u3001\u6e2f\u80a1\u548c\u7f8e\u80a1\uff0c\u5b57\u6bb5\u6700\u5b8c\u6574\uff0c\u9002\u5408\u4f5c\u4e3a\u9ed8\u8ba4\u7efc\u5408\u884c\u60c5\u6e90\u3002"
+		return "覆盖 A 股、港股和美股，字段最完整，适合作为默认综合行情源。"
 	case "yahoo":
-		return "\u6e2f\u80a1\u548c\u7f8e\u80a1\u8986\u76d6\u8f83\u7a33\u5b9a\uff0c\u9002\u5408\u4ee5\u6d77\u5916\u5e02\u573a\u4e3a\u4e3b\u7684\u7ec4\u5408\u3002"
+		return "港股和美股覆盖较稳定，适合以海外市场为主的组合。"
 	case "sina":
-		return "A \u80a1\u4e0e\u5883\u5185 ETF \u5237\u65b0\u8f83\u5feb\uff0c\u9002\u5408\u56fd\u5185\u5e02\u573a\u76ef\u76d8\u3002"
+		return "A 股与境内 ETF 刷新较快，适合国内市场盯盘。"
 	case "xueqiu":
-		return "\u8986\u76d6 A \u80a1\u548c\u6e2f\u80a1\uff0c\u9002\u5408\u4f5c\u4e3a\u793e\u533a\u578b\u8865\u5145\u6765\u6e90\u3002"
+		return "覆盖 A 股和港股，适合作为社区型补充来源。"
 	case "tencent":
-		return "\u817e\u8baf\u8d22\u7ecf\u63d0\u4f9b A \u80a1\u3001\u6e2f\u80a1\u548c\u7f8e\u80a1\u7684\u5b9e\u65f6\u884c\u60c5\uff0c\u5e76\u63d0\u4f9b\u8f7b\u91cf K \u7ebf\u63a5\u53e3\u4f5c\u4e3a\u8865\u5145\u3002"
+		return "腾讯财经提供 A 股、港股和美股的实时行情，并提供轻量 K 线接口作为补充。"
 	case "alpha-vantage":
-		return "\u9002\u5408\u7f8e\u80a1\u548c\u7f8e\u80a1 ETF \u7684 API \u578b\u6570\u636e\u6e90\uff0c\u5b9e\u65f6\u4e0e\u5386\u53f2\u90fd\u53ef\u8d70\u540c\u4e00\u6765\u6e90\u3002"
+		return "适合美股和美股 ETF 的 API 型数据源，实时与历史都可走同一来源。"
 	case "twelve-data":
-		return "\u8f83\u7a33\u5b9a\u7684\u7f8e\u80a1\u4e0e\u7f8e\u80a1 ETF API \u578b\u6570\u636e\u6e90\uff0c\u9002\u5408\u7edf\u4e00\u5b9e\u65f6\u548c\u5386\u53f2\u94fe\u8def\u3002"
+		return "较稳定的美股与美股 ETF API 型数据源，适合统一实时和历史链路。"
 	case "finnhub":
-		return "\u9762\u5411\u7f8e\u80a1\u4e0e ETF \u7684 API \u6570\u636e\u6e90\uff0c\u9002\u5408\u7edf\u4e00\u63a5\u5165\u5b9e\u65f6\u4ef7\u683c\u548c K \u7ebf\u5386\u53f2\u3002"
+		return "面向美股与 ETF 的 API 数据源，适合统一接入实时价格和 K 线历史。"
 	case "polygon":
-		return "Polygon.io\uff08Massive\uff09\u63d0\u4f9b\u7684\u7f8e\u80a1\u4e0e ETF API \u6570\u636e\u6e90\uff0c\u9002\u5408\u9ad8\u8d28\u91cf\u5b9e\u65f6\u4e0e\u5386\u53f2\u94fe\u8def\u3002"
+		return "Polygon.io（Massive）提供的美股与 ETF API 数据源，适合高质量实时与历史链路。"
 	default:
 		return fallback
 	}

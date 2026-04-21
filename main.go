@@ -11,8 +11,11 @@ import (
 	"path/filepath"
 
 	"investgo/internal/api"
-	"investgo/internal/marketdata"
-	"investgo/internal/monitor"
+	"investgo/internal/logger"
+	"investgo/internal/core/marketdata"
+	"investgo/internal/core/hot"
+	"investgo/internal/core"
+	"investgo/internal/core/store"
 	"investgo/internal/platform"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -33,12 +36,12 @@ var frontendAssets embed.FS
 var appIcon []byte
 
 func main() {
-	logs := monitor.NewLogBook(400)
+	logs := logger.NewLogBook(400)
 	if terminalLoggingEnabled() {
 		logs.EnableConsole(os.Stderr)
 	}
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
-	log.SetOutput(logs.Writer("backend", "stdlib", monitor.DeveloperLogError))
+	log.SetOutput(logs.Writer("backend", "stdlib", logger.DeveloperLogError))
 	if err := logs.ConfigureFile(defaultLogPath()); err != nil {
 		log.Printf("configure log file: %v", err)
 	}
@@ -52,14 +55,14 @@ func main() {
 	proxyTransport := platform.NewProxyTransport("system", "")
 	httpClient := platform.NewHTTPClient(proxyTransport)
 
-	var settingsFunc func() monitor.AppSettings = func() monitor.AppSettings { return monitor.AppSettings{} }
-	registry := marketdata.DefaultRegistry(httpClient, func() monitor.AppSettings { return settingsFunc() })
+	var settingsFunc func() core.AppSettings = func() core.AppSettings { return core.AppSettings{} }
+	registry := marketdata.DefaultRegistry(httpClient, func() core.AppSettings { return settingsFunc() })
 
-	store, err := monitor.NewStore(
+	store, err := store.NewStore(
 		defaultStatePath(),
 		registry.QuoteProviders(),
 		registry.QuoteSourceOptions(),
-		registry.NewHistoryRouter(func() monitor.AppSettings { return settingsFunc() }),
+		registry.NewHistoryRouter(func() core.AppSettings { return settingsFunc() }),
 		logs,
 		appVersion,
 		httpClient, // shared http.Client so FX rate requests respect the configured proxy transport
@@ -85,7 +88,7 @@ func main() {
 	}
 	proxyTransport.Update(proxyMode, proxyURL)
 
-	hotService := marketdata.NewHotService(httpClient, logs.NewSlogLogger("hot", slog.LevelInfo), registry)
+	hotService := hot.NewHotService(httpClient, logs.NewSlogLogger("hot", slog.LevelInfo), registry)
 
 	frontendFS, err := fs.Sub(frontendAssets, "frontend/dist")
 	if err != nil {
