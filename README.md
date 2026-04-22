@@ -2,7 +2,13 @@
 
 [English](./README.md) | [简体中文](./README.zh-CN.md) | [License](./LICENSE)
 
-InvestGo is a desktop investment tracker for watchlists, holdings, charts, hot lists, and alerts.
+InvestGo is a Wails desktop investment tracker for watchlists, holdings, portfolio analytics, hot lists, historical charts, developer logs, and price alerts.
+
+InvestGo uses Wails mainly as a lightweight desktop container for a Go backend and Vue frontend. Application data is served through local HTTP `/api/*` endpoints, so the frontend can still run cleanly in a normal Vite browser dev server, while the packaged desktop app does not need to ship its own Chromium and Node.js runtime like Electron. For this project shape, Wails can usually deliver a much smaller app bundle, lower idle memory usage, and faster startup than an equivalent Electron app, while still providing native windowing, embedded assets, lifecycle hooks, DevTools support, and platform integration.
+
+> - Electron has enabled many excellent cross-platform desktop applications, but it has also made repeatedly bundling the browser runtime a common overhead on many everyday devices. We need more lightweight cross-platform desktop solutions, reusing the system WebView as much as possible and keeping the native backend lean.
+> - This project currently targets Wails v3 alpha.74. Wails v3 is still an alpha release, so official APIs, runtime behaviour, and build details may change in future Wails releases.
+> - InvestGo is primarily a personal-use and learning project. It is open-sourced for reference, but long-term maintenance, compatibility, and feature roadmap are not guaranteed.
 
 ## Screenshots
 
@@ -12,23 +18,40 @@ InvestGo is a desktop investment tracker for watchlists, holdings, charts, hot l
 
 ## Tech Stack
 
-- Go 1.25
-- Wails v3
-- Vue 3 + TypeScript
-- PrimeVue 4
-- Vite 8
-- Chart.js 4
-- EastMoney and Yahoo Finance for market data
-- Frankfurter for exchange rates
-- macOS app packaging with shell scripts, `swift`, `iconutil`, and `hdiutil`
+- Backend: Go 1.25, Wails v3 alpha.74, standard HTTP handlers.
+- Frontend: Vue 3, TypeScript, PrimeVue 4, Vite 8, Chart.js 4.
+- Market data: EastMoney, Yahoo Finance, Sina Finance, Xueqiu, Tencent Finance, Alpha Vantage, Twelve Data, Finnhub, Polygon.
+- FX data: Frankfurter.
+- macOS packaging: shell scripts plus `swift`, `sips`, `iconutil`, `hdiutil`, and `ditto`.
 
-## Build
+## Architecture
+
+The repository is not a monorepo. The Go module root is the repository root, and the frontend lives in `frontend/`.
+
+- `main.go` embeds `frontend/dist` and `build/appicon.png`, creates the Wails v3 application, wires platform settings, and serves one HTTP mux.
+- `/api/*` routes are handled by `internal/api`. The frontend talks to the backend with normal `fetch()` calls from `frontend/src/api.ts`; it does not use Wails JS bindings for app data.
+- `internal/core/store` owns persisted state, runtime status, quote refreshes, history cache, overview analytics, alert evaluation, and JSON storage.
+- `internal/core/marketdata` registers quote and history providers and builds the history router.
+- `internal/core/provider` contains provider implementations.
+- `internal/core/hot` owns hot-list pools, caching, enrichment, and sorting.
+- `internal/platform` isolates desktop platform seams such as proxy detection and window options.
+- `internal/logger` stores backend and frontend developer logs.
+
+Persisted state defaults to:
+
+- macOS: `~/Library/Application Support/investgo/state.json`
+
+Developer logs default to:
+
+- macOS: `~/Library/Application Support/investgo/logs/app.log`
+
+## Development
 
 Prerequisites:
 
 - Node.js 20+
 - Go 1.25+
-- macOS 13+ on Apple Silicon for the Darwin arm64 build scripts
+- macOS 13+ on Apple Silicon for the current desktop build and packaging scripts
 
 Install dependencies:
 
@@ -36,17 +59,25 @@ Install dependencies:
 npm install
 ```
 
-Build the frontend bundle:
+Run the frontend dev server:
 
 ```bash
-npm run build
+npm run dev
 ```
+
+The dev server runs on port 5173. It does not provide the Wails runtime, so `frontend/src/wails-runtime.ts` must remain nullable-safe.
 
 Run checks:
 
 ```bash
 npm run typecheck
 env GOCACHE=/tmp/go-build-cache go test ./...
+```
+
+Build the frontend bundle:
+
+```bash
+npm run build
 ```
 
 Build the desktop binary:
@@ -57,10 +88,7 @@ VERSION=1.0.0 ./scripts/build-darwin-aarch64.sh
 ./scripts/build-darwin-aarch64.sh --dev
 ```
 
-Notes:
-
-- The build script renders `build/appicon.png`, runs `npm run build`, and outputs `build/bin/investgo-darwin-aarch64`.
-- `--dev` enables terminal logging and F12 Web Inspector support.
+The build script renders `build/appicon.png`, runs `npm run build`, and outputs `build/bin/investgo-darwin-aarch64`.
 
 Build script environment variables:
 
@@ -83,6 +111,11 @@ VERSION=1.0.0 ./scripts/package-darwin-aarch64.sh
 ./scripts/package-darwin-aarch64.sh --dev
 ```
 
+Outputs:
+
+- `build/macos/InvestGo.app`
+- `build/bin/investgo-<version>-darwin-aarch64.dmg`
+
 Packaging script environment variables:
 
 - `APP_NAME`
@@ -97,10 +130,13 @@ Packaging script environment variables:
 - `SKIP_APP_BUILD`
 - `SKIP_DMG_CREATE`
 
-Outputs:
+## Runtime Notes
 
-- `build/macos/InvestGo.app`
-- `build/bin/investgo-<version>-darwin-aarch64.dmg`
+- `--dev` enables terminal logging and F12 Web Inspector support at build time. F12 still requires the in-app `developerMode` setting to be enabled.
+- Version is injected with `-X main.appVersion=$APP_VERSION`. Without `VERSION` or `APP_VERSION`, the app reports `dev`.
+- Proxy mode can be `none`, `system`, or `custom`. System proxy detection currently probes `scutil --proxy` only on macOS.
+- Frontend visible copy is bilingual. User-facing text changes should update both `zh-CN` and `en-US` entries in `frontend/src/i18n.ts`.
+- There are no frontend tests. Use `npm run typecheck` for frontend validation and Go tests under `internal/**` for backend validation.
 
 ## License
 
