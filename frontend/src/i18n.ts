@@ -53,7 +53,7 @@ const messages: Record<SupportedLocale, TranslationTree> = {
             itemSaveFailed: "标的保存失败",
             itemAlreadyTracked: "该标的已经在观察列表中",
             hotItemAdded: "已将 {symbol} 加入观察列表",
-            hotItemWatched: "已关注 {symbol}",
+            hotItemWatched: "已观察 {symbol}",
             hotItemPositioned: "已建仓 {symbol}",
             addItemFailed: "新增标的失败",
             itemDeleted: "标的已删除",
@@ -369,8 +369,8 @@ const messages: Record<SupportedLocale, TranslationTree> = {
             allLoaded: "已加载全部",
             added: "已添加",
             addToWatchlist: "加入自选",
-            watchItem: "关注",
-            unwatchItem: "取消关注",
+            watchItem: "观察",
+            unwatchItem: "取消观察",
             openPosition: "建仓",
             totalMarketCap: "总市值",
             tradedVolume: "成交量",
@@ -385,7 +385,7 @@ const messages: Record<SupportedLocale, TranslationTree> = {
         watchlist: {
             title: "观察列表",
             refresh: "刷新",
-            unwatch: "取消关注",
+            unwatch: "取消观察",
             changeLabel: "{range}变化",
             noChartData: "无图表数据",
             cards: {
@@ -444,7 +444,7 @@ const messages: Record<SupportedLocale, TranslationTree> = {
             item: {
                 addTitle: "添加标的",
                 editTitle: "编辑标的",
-                watchTitle: "关注标的",
+                watchTitle: "观察标的",
                 tabs: {
                     basic: "基础信息",
                     dca: "定投记录",

@@ -5,15 +5,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
 	"time"
 
-	"investgo/internal/core/provider"
 	"investgo/internal/core"
 	"investgo/internal/core/endpoint"
+	"investgo/internal/core/provider"
 )
 
 // yahooHotConcurrency is the maximum number of concurrent Yahoo quote requests for hot pool fetching.
@@ -35,7 +36,7 @@ type hotSeed struct {
 }
 
 // fetchPoolQuotes requests real-time quotes in batch for the predefined hot category constituent pool and returns them in a unified format.
-func (s *HotService) fetchPoolQuotes(ctx context.Context, seeds []hotSeed, sourceID string, options HotListOptions) ([]core.HotItem, error) {
+func (s *HotService) fetchPoolQuotes(ctx context.Context, seeds []hotSeed, sourceID string) ([]core.HotItem, error) {
 	// Sources with dedicated pool-fetching logic.
 	switch sourceID {
 	case "yahoo":
@@ -424,15 +425,14 @@ func (s *HotService) fetchPoolQuotesSina(ctx context.Context, seeds []hotSeed) (
 	var wg sync.WaitGroup
 
 	for i, batch := range batches {
-		wg.Add(1)
-		go func(idx int, batch []string) {
-			defer wg.Done()
+		wg.Go(func() {
+			idx, batch := i, batch
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
 			text, err := provider.FetchTextWithHeaders(ctx, s.client, endpoint.SinaQuoteAPI+strings.Join(batch, ","), sinaHeaders, true)
 			results[idx] = batchResult{text: text, err: err}
-		}(i, batch)
+		})
 	}
 	wg.Wait()
 
@@ -445,7 +445,7 @@ func (s *HotService) fetchPoolQuotesSina(ctx context.Context, seeds []hotSeed) (
 			continue
 		}
 		anySuccess = true
-		for _, line := range strings.Split(result.text, "\n") {
+		for line := range strings.SplitSeq(result.text, "\n") {
 			line = strings.TrimSpace(line)
 			if line == "" {
 				continue
@@ -573,15 +573,14 @@ func (s *HotService) fetchYahooQuotesConcurrent(ctx context.Context, items []cor
 	var wg sync.WaitGroup
 
 	for i, item := range items {
-		wg.Add(1)
-		go func(idx int, it core.WatchlistItem) {
-			defer wg.Done()
+		wg.Go(func() {
+			idx, it := i, item
 			sem <- struct{}{}        // acquire
 			defer func() { <-sem }() // release
 
 			q, err := qp.Fetch(ctx, []core.WatchlistItem{it})
 			results[idx] = result{quotes: q, err: err}
-		}(i, item)
+		})
 	}
 
 	wg.Wait()
@@ -593,9 +592,7 @@ func (s *HotService) fetchYahooQuotesConcurrent(ctx context.Context, items []cor
 			problems = append(problems, fmt.Sprintf("%s: %v", items[i].Symbol, r.err))
 			continue
 		}
-		for k, v := range r.quotes {
-			merged[k] = v
-		}
+		maps.Copy(merged, r.quotes)
 	}
 
 	if len(merged) == 0 {

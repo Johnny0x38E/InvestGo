@@ -217,10 +217,7 @@ func (c overviewCalculator) loadTrendSeeds(ctx context.Context, candidates []ove
 	var wg sync.WaitGroup
 
 	for _, candidate := range candidates {
-		candidate := candidate
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
@@ -250,7 +247,7 @@ func (c overviewCalculator) loadTrendSeeds(ctx context.Context, candidates []ove
 					hasPosition:  candidate.hasPosition,
 				},
 			}
-		}()
+		})
 	}
 
 	wg.Wait()

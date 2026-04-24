@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"investgo/internal/core/provider"
 	"investgo/internal/core"
+	"investgo/internal/core/provider"
 )
 
 // applyConfiguredQuotes re-fetches quotes for all items using the source configured in options,

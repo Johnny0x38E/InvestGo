@@ -9,10 +9,9 @@ import (
 	"net/url"
 	"strings"
 
-	"investgo/internal/core/provider"
 	"investgo/internal/common/errs"
-	"investgo/internal/core"
 	"investgo/internal/core/endpoint"
+	"investgo/internal/core/provider"
 )
 
 // yahooSearchResponse models the JSON envelope returned by the Yahoo Finance search API.
@@ -29,7 +28,7 @@ type yahooSearchResponse struct {
 }
 
 // searchYahooUSStockSeeds calls Yahoo Finance search API and returns US stock seeds matching the keyword.
-func (s *HotService) searchYahooUSStockSeeds(ctx context.Context, keyword string, category core.HotCategory) ([]hotSeed, error) {
+func (s *HotService) searchYahooUSStockSeeds(ctx context.Context, keyword string) ([]hotSeed, error) {
 	parsed, err := fetchYahooSearch(ctx, s.client, keyword)
 	if err != nil {
 		return nil, err

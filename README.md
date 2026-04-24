@@ -2,9 +2,9 @@
 
 [English](./README.md) | [简体中文](./README.zh-CN.md) | [License](./LICENSE)
 
-InvestGo is a Wails desktop investment tracker for watchlists, holdings, portfolio analytics, hot lists, historical charts, developer logs, and price alerts.
+InvestGo is a Wails desktop investment tracker for watchlists, holdings, portfolio analytics, hot lists, historical charts and price alerts.
 
-InvestGo uses Wails mainly as a lightweight desktop container for a Go backend and Vue frontend. Application data is served through local HTTP `/api/*` endpoints, so the frontend can still run cleanly in a normal Vite browser dev server, while the packaged desktop app does not need to ship its own Chromium and Node.js runtime like Electron. For this project shape, Wails can usually deliver a much smaller app bundle, lower idle memory usage, and faster startup than an equivalent Electron app, while still providing native windowing, embedded assets, lifecycle hooks, DevTools support, and platform integration.
+InvestGo uses Wails mainly as a lightweight desktop container for a Go backend and Vue frontend. The packaged desktop app does not need to ship its own Chromium and Node.js runtime like Electron. For this project shape, Wails can usually deliver a much smaller app bundle, lower idle memory usage, and faster startup than an equivalent Electron app, while still providing native windowing, embedded assets, lifecycle hooks, DevTools support, and platform integration.
 
 > - Electron has enabled many excellent cross-platform desktop applications, but it has also made repeatedly bundling the browser runtime a common overhead on many everyday devices. We need more lightweight cross-platform desktop solutions, reusing the system WebView as much as possible and keeping the native backend lean.
 > - This project currently targets Wails v3 alpha.74. Wails v3 is still an alpha release, so official APIs, runtime behaviour, and build details may change in future Wails releases.
@@ -137,6 +137,13 @@ Packaging script environment variables:
 - Proxy mode can be `none`, `system`, or `custom`. System proxy detection currently probes `scutil --proxy` only on macOS.
 - Frontend visible copy is bilingual. User-facing text changes should update both `zh-CN` and `en-US` entries in `frontend/src/i18n.ts`.
 - There are no frontend tests. Use `npm run typecheck` for frontend validation and Go tests under `internal/**` for backend validation.
+
+## Disclaimer
+
+1. Any investment losses or gains resulting from the use of this software.
+2. The accuracy, timeliness, or completeness of the data provided.
+3. Data interruptions or errors caused by network failures, data source changes, or other technical issues.
+4. Any outcomes from investment decisions based on information from this software.
 
 ## License
 

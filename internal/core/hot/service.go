@@ -8,8 +8,8 @@ import (
 	"time"
 
 	ttlcache "investgo/internal/common/cache"
-	"investgo/internal/core/marketdata"
 	"investgo/internal/core"
+	"investgo/internal/core/marketdata"
 )
 
 const (
@@ -163,7 +163,7 @@ func (s *HotService) searchUSStocks(ctx context.Context, category core.HotCatego
 	seeds := filterHotSeeds(pool, keyword)
 
 	// Call Yahoo search for broader coverage (e.g. name-based search).
-	remoteSeeds, err := s.searchYahooUSStockSeeds(ctx, keyword, category)
+	remoteSeeds, err := s.searchYahooUSStockSeeds(ctx, keyword)
 	if err == nil && len(remoteSeeds) > 0 {
 		seeds = mergeHotSeeds(seeds, remoteSeeds)
 	}
@@ -350,7 +350,7 @@ func (s *HotService) loadHotItemsForSeeds(ctx context.Context, seeds []hotSeed, 
 
 	category := categoryForHotSeeds(seeds)
 	sourceID := effectivePoolQuoteSource(category, resolveHotQuoteSource(category, options))
-	return s.fetchPoolQuotes(ctx, seeds, sourceID, options)
+	return s.fetchPoolQuotes(ctx, seeds, sourceID)
 }
 
 // categoryForHotSeeds infers the HotCategory from the market field of the first seed.

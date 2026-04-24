@@ -13,7 +13,7 @@ type persistedState struct {
 	Items     []core.WatchlistItem `json:"items"`
 	Alerts    []core.AlertRule     `json:"alerts"`
 	Settings  core.AppSettings     `json:"settings"`
-	UpdatedAt time.Time               `json:"updatedAt"`
+	UpdatedAt time.Time            `json:"updatedAt"`
 }
 
 // load loads state file from disk; if file does not exist, write a seed state.
