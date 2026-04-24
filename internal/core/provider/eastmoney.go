@@ -398,7 +398,7 @@ func resolveEastMoneySecID(target core.QuoteTarget) (string, error) {
 	return ids[0], nil
 }
 
-// resolveAllEastMoneySecIDs converts a standard target to all possible secids required by the EastMoney API.
+// ResolveAllEastMoneySecIDs converts a standard target to all possible secids required by the EastMoney API.
 // For US stocks, since the same ticker may list on NASDAQ (105), NYSE (106), or NYSE Arca (107),
 // all three variants are returned to ensure the correct exchange is hit.
 func ResolveAllEastMoneySecIDs(target core.QuoteTarget) ([]string, error) {

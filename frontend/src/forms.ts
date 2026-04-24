@@ -75,7 +75,7 @@ function todayDateString(): string {
     return `${y}-${m}-${day}`;
 }
 
-// Pre-fill a form for "关注" (watch only, no position) from a hot list item.
+// Pre-fill a form for "观察" (watch only, no position) from a hot list item.
 export function hotItemToWatchForm(item: HotItem): ItemFormModel {
     return {
         id: "",
