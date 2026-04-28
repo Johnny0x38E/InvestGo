@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import Button from "primevue/button";
+import DataFreshnessMeta from "../DataFreshnessMeta.vue";
 import PriceChart from "../PriceChart.vue";
 import { getHistoryRangeOptions } from "../../constants";
 import { formatDateTime, formatMoney, formatPercent, formatShares, formatUnitPrice, historyRangeLabel } from "../../format";
@@ -68,6 +69,12 @@ const marketOverview = computed(() => {
         return null;
     }
 
+    const quoteSource = snapshot.item.quoteSource || "-";
+    const chartSource = snapshot.series?.source || t("watchlist.noChartData");
+    const syncedAt = formatDateTime(snapshot.item.quoteUpdatedAt);
+    const cacheState = props.historySeries ? historyCacheSummary.value : t("common.notAvailable");
+    const cacheExpiresAt = props.historySeries?.cacheExpiresAt ? formatDateTime(props.historySeries.cacheExpiresAt) : t("common.notAvailable");
+
     return {
         title: snapshot.item.name || snapshot.item.symbol,
         market: snapshot.item.market,
@@ -78,9 +85,17 @@ const marketOverview = computed(() => {
         }),
         changeValue: formatMoney(snapshot.effectiveChange, true),
         changePercent: formatPercent(snapshot.effectiveChangePct),
-        quoteSource: snapshot.item.quoteSource || "-",
-        chartSource: snapshot.series?.source || t("watchlist.noChartData"),
-        syncedAt: formatDateTime(snapshot.item.quoteUpdatedAt),
+        quoteSource,
+        chartSource,
+        syncedAt,
+        metaSummary: `${quoteSource} · ${syncedAt} · ${cacheState}`,
+        metaDetails: [
+            { label: t("watchlist.meta.quoteSource"), value: quoteSource },
+            { label: t("watchlist.meta.chartSourceLabel"), value: chartSource },
+            { label: t("watchlist.meta.syncedAtLabel"), value: syncedAt },
+            { label: t("watchlist.meta.cacheLabel"), value: cacheState },
+            { label: t("watchlist.meta.cacheFreshUntilLabel"), value: cacheExpiresAt },
+        ],
         tone: snapshot.changeTone,
     };
 });
@@ -186,23 +201,7 @@ const marketCards = computed<MarketMetricCard[]>(() => {
                         </div>
 
                         <footer class="market-hero-foot">
-                            <span class="market-hero-badge">{{
-                                t("watchlist.hero.quote", {
-                                    source: marketOverview.quoteSource,
-                                })
-                            }}</span>
-                            <span class="market-hero-badge">{{
-                                t("watchlist.meta.chartSource", {
-                                    source: marketOverview.chartSource,
-                                })
-                            }}</span>
-                            <span class="market-hero-badge">{{
-                                t("watchlist.meta.syncedAt", {
-                                    time: marketOverview.syncedAt,
-                                })
-                            }}</span>
-                            <span v-if="historySeries" class="market-hero-badge">{{ t("watchlist.meta.cache", { state: historyCacheSummary }) }}</span>
-                            <span v-if="historySeries?.cacheExpiresAt" class="market-hero-badge">{{ t("watchlist.meta.cacheFreshUntil", { time: formatDateTime(historySeries.cacheExpiresAt) }) }}</span>
+                            <DataFreshnessMeta :summary="marketOverview.metaSummary" :details="marketOverview.metaDetails" />
                         </footer>
                     </section>
 
@@ -410,21 +409,11 @@ const marketCards = computed<MarketMetricCard[]>(() => {
 .market-hero-foot {
     display: flex;
     align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
+    gap: 6px;
+    flex-wrap: nowrap;
     margin-top: auto;
     padding-top: 14px;
-}
-
-.market-hero-badge {
-    font-size: 11px;
-    color: var(--muted);
-    background: color-mix(in srgb, var(--panel-soft) 92%, transparent);
-    border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
-    border-radius: 999px;
-    padding: 3px 8px;
-    white-space: nowrap;
-    line-height: 1.6;
+    min-width: 0;
 }
 
 .interval-pill {

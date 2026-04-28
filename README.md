@@ -18,7 +18,7 @@ InvestGo uses Wails mainly as a lightweight desktop container for a Go backend a
 
 ## Tech Stack
 
-- Backend: Go 1.25, Wails v3 alpha.74, standard HTTP handlers.
+- Backend: Go 1.26, Wails v3 alpha.74, standard HTTP handlers.
 - Frontend: Vue 3, TypeScript, PrimeVue 4, Vite 8, Chart.js 4.
 - Market data: EastMoney, Yahoo Finance, Sina Finance, Xueqiu, Tencent Finance, Alpha Vantage, Twelve Data, Finnhub, Polygon.
 - FX data: Frankfurter.
@@ -50,7 +50,7 @@ Developer logs default to:
 Prerequisites:
 
 - Node.js 20+
-- Go 1.25+
+- Go 1.26+
 - macOS 13+ on Apple Silicon for the current desktop build and packaging scripts
 
 Install dependencies:
