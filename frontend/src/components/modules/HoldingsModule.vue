@@ -39,7 +39,9 @@ const lastSyncedAt = computed(() => {
         return "";
     }
 
-    return timestamps.reduce((latest, current) => (new Date(current).getTime() > new Date(latest).getTime() ? current : latest));
+    return timestamps.reduce((latest, current) =>
+        new Date(current).getTime() > new Date(latest).getTime() ? current : latest,
+    );
 });
 
 const holdingsSourceSummary = computed(() => {
@@ -94,7 +96,12 @@ const freshnessMeta = computed(() => {
                     </tr>
                 </thead>
                 <tbody v-if="holdingsItems.length">
-                    <tr v-for="item in holdingsItems" :key="item.id" :class="{ selected: selectedItemId === item.id }" @click="$emit('select-item', item.id)">
+                    <tr
+                        v-for="item in holdingsItems"
+                        :key="item.id"
+                        :class="{ selected: selectedItemId === item.id }"
+                        @click="$emit('select-item', item.id)"
+                    >
                         <td>
                             <div class="item-block">
                                 <strong>{{ item.name || item.symbol }}</strong>
@@ -112,16 +119,39 @@ const freshnessMeta = computed(() => {
                         </td>
                         <td>
                             <div class="value-stack">
-                                <strong :class="item.change > 0 ? 'tone-rise' : item.change < 0 ? 'tone-fall' : ''">{{ formatMoney(item.change, true) }}</strong>
-                                <span :class="item.changePercent > 0 ? 'tone-rise' : item.changePercent < 0 ? 'tone-fall' : ''">{{ formatPercent(item.changePercent) }}</span>
+                                <strong :class="item.change > 0 ? 'tone-rise' : item.change < 0 ? 'tone-fall' : ''">{{
+                                    formatMoney(item.change, true)
+                                }}</strong>
+                                <span
+                                    :class="
+                                        item.changePercent > 0 ? 'tone-rise' : item.changePercent < 0 ? 'tone-fall' : ''
+                                    "
+                                    >{{ formatPercent(item.changePercent) }}</span
+                                >
                             </div>
                         </td>
                         <td>
                             <div class="value-stack">
-                                <strong :class="(item.position?.unrealisedPnL ?? 0) > 0 ? 'tone-rise' : (item.position?.unrealisedPnL ?? 0) < 0 ? 'tone-fall' : ''">
+                                <strong
+                                    :class="
+                                        (item.position?.unrealisedPnL ?? 0) > 0
+                                            ? 'tone-rise'
+                                            : (item.position?.unrealisedPnL ?? 0) < 0
+                                              ? 'tone-fall'
+                                              : ''
+                                    "
+                                >
                                     {{ formatMoney(item.position?.unrealisedPnL ?? 0, true) }}
                                 </strong>
-                                <span :class="(item.position?.unrealisedPnLPct ?? 0) > 0 ? 'tone-rise' : (item.position?.unrealisedPnLPct ?? 0) < 0 ? 'tone-fall' : ''">
+                                <span
+                                    :class="
+                                        (item.position?.unrealisedPnLPct ?? 0) > 0
+                                            ? 'tone-rise'
+                                            : (item.position?.unrealisedPnLPct ?? 0) < 0
+                                              ? 'tone-fall'
+                                              : ''
+                                    "
+                                >
                                     {{ formatPercent(item.position?.unrealisedPnLPct ?? 0) }}
                                 </span>
                             </div>
@@ -129,7 +159,13 @@ const freshnessMeta = computed(() => {
                         <td>
                             <div class="value-stack">
                                 <strong>{{ formatRange(item.dayLow, item.dayHigh) }}</strong>
-                                <span>{{ item.openPrice > 0 ? t("holdings.openPrice", { price: formatUnitPrice(item.openPrice, item.currency) }) : t("holdings.rangePending") }}</span>
+                                <span>{{
+                                    item.openPrice > 0
+                                        ? t("holdings.openPrice", {
+                                              price: formatUnitPrice(item.openPrice, item.currency),
+                                          })
+                                        : t("holdings.rangePending")
+                                }}</span>
                             </div>
                         </td>
                         <td class="watch-table-cell-dca watch-table-sticky watch-table-sticky-dca">
@@ -159,8 +195,23 @@ const freshnessMeta = computed(() => {
                                     :aria-label="item.pinnedAt ? t('holdings.aria.unpin') : t('holdings.aria.pin')"
                                     @click="$emit('toggle-pin', item)"
                                 />
-                                <Button size="small" text rounded icon="pi pi-pencil" :aria-label="t('holdings.aria.edit')" @click="$emit('edit-item', item)" />
-                                <Button size="small" text rounded severity="danger" icon="pi pi-trash" :aria-label="t('holdings.aria.delete')" @click="$emit('delete-item', item.id)" />
+                                <Button
+                                    size="small"
+                                    text
+                                    rounded
+                                    icon="pi pi-pencil"
+                                    :aria-label="t('holdings.aria.edit')"
+                                    @click="$emit('edit-item', item)"
+                                />
+                                <Button
+                                    size="small"
+                                    text
+                                    rounded
+                                    severity="danger"
+                                    icon="pi pi-trash"
+                                    :aria-label="t('holdings.aria.delete')"
+                                    @click="$emit('delete-item', item.id)"
+                                />
                             </div>
                         </td>
                     </tr>

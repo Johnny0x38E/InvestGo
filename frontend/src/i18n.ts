@@ -156,8 +156,7 @@ const messages: Record<SupportedLocale, TranslationTree> = {
                 finnhubApiKey: "Finnhub API Key",
                 polygonApiKey: "Polygon API Key",
                 apiKeyHelp: "仅在对应美股数据源被选中时需要填写。",
-                hotCacheTTL: "自动刷新间隔 / 缓存时长",
-                hotCacheTTLHint: "用于页面自动刷新频率，并统一控制观察列表行情、热门榜单和资产概览的数据缓存有效期。自动刷新和手动刷新会跳过缓存获取最新数据。",
+                hotCacheTTL: "自动刷新间隔 / 缓存时长（秒）",
                 quoteSource: "行情源",
                 liveCoverage: "同步覆盖",
                 lastQuoteRefreshAt: "上次成功同步",
@@ -202,10 +201,12 @@ const messages: Record<SupportedLocale, TranslationTree> = {
                 repository: "GitHub 仓库",
                 disclaimer: "免责声明",
                 chinese: "中文",
-                disclaimerParagraph1: "本软件仅用于个人学习和投资观察目的，不构成任何形式的投资建议、财务建议或买卖建议。",
+                disclaimerParagraph1:
+                    "本软件仅用于个人学习和投资观察目的，不构成任何形式的投资建议、财务建议或买卖建议。",
                 disclaimerParagraph2:
                     "使用本软件所提供的所有数据、信息和功能，用户应当自行判断其准确性和完整性。作者和贡献者不对因使用本软件而产生的投资损失、收益波动、数据中断、数据错误或任何基于本软件信息做出的投资决策结果承担责任。",
-                disclaimerParagraph3: "投资有风险，入市需谨慎。用户在使用本软件前应充分了解投资风险，并自行承担所有投资决策的后果。",
+                disclaimerParagraph3:
+                    "投资有风险，入市需谨慎。用户在使用本软件前应充分了解投资风险，并自行承担所有投资决策的后果。",
             },
             apiKeyNotice: "API Key 以明文形式存储在 state.json 中，请勿将此文件分享至公开场合。",
         },
@@ -626,7 +627,8 @@ const messages: Record<SupportedLocale, TranslationTree> = {
         },
         overview: {
             tagline: "Investment Workspace",
-            description: "A consolidated view of your portfolio — current value, position breakdown, and historical performance trend all in one place.",
+            description:
+                "A consolidated view of your portfolio — current value, position breakdown, and historical performance trend all in one place.",
             loading: "Loading overview analytics...",
             loadFailed: "Failed to load overview analytics",
             meta: {
@@ -637,7 +639,8 @@ const messages: Record<SupportedLocale, TranslationTree> = {
             charts: {
                 category: {
                     title: "Holdings Breakdown",
-                    description: "Current portfolio value broken down by instrument. The chart and the list both reflect the same data.",
+                    description:
+                        "Current portfolio value broken down by instrument. The chart and the list both reflect the same data.",
                     meta: "Total {total}",
                     aria: "Holdings breakdown donut chart",
                     totalValue: "Holdings Value",
@@ -647,7 +650,8 @@ const messages: Record<SupportedLocale, TranslationTree> = {
                 trend: {
                     title: "Holdings Value Trend",
                     totalLine: "Total",
-                    description: "Stacked area chart of portfolio value over time. Each band represents one holding, anchored to its first purchase date.",
+                    description:
+                        "Stacked area chart of portfolio value over time. Each band represents one holding, anchored to its first purchase date.",
                     latest: "Current total {value}",
                     aria: "Holdings value stacked area chart",
                     empty: "No trend data yet. Holdings with price history will appear here once synced.",
@@ -692,9 +696,7 @@ const messages: Record<SupportedLocale, TranslationTree> = {
                 finnhubApiKey: "Finnhub API Key",
                 polygonApiKey: "Polygon API Key",
                 apiKeyHelp: "Required only when the matching US quote source is selected.",
-                hotCacheTTL: "Auto Refresh / Cache TTL",
-                hotCacheTTLHint:
-                    "Controls page auto-refresh frequency and the unified cache duration for watchlist quotes, hot lists, and portfolio overview. Auto refresh and manual refresh bypass the cache for live data.",
+                hotCacheTTL: "Auto Refresh / Cache TTL (s)",
                 quoteSource: "Quote Source",
                 liveCoverage: "Live Coverage",
                 lastQuoteRefreshAt: "Last Successful Sync",
@@ -720,7 +722,8 @@ const messages: Record<SupportedLocale, TranslationTree> = {
             },
             themePreview: {
                 title: "Theme Preview",
-                description: "Changes preview immediately in this window. Canceling will restore the last saved appearance settings.",
+                description:
+                    "Changes preview immediately in this window. Canceling will restore the last saved appearance settings.",
                 accent: "Accent",
                 rise: "Rise",
                 fall: "Fall",
@@ -735,7 +738,8 @@ const messages: Record<SupportedLocale, TranslationTree> = {
                 empty: "No logs captured yet. Trigger a refresh, save settings, or wait for the next automatic quote sync.",
             },
             about: {
-                description: "A desktop app for personal investment monitoring with watchlists, live quotes, price history, hot lists, and price alerts.",
+                description:
+                    "A desktop app for personal investment monitoring with watchlists, live quotes, price history, hot lists, and price alerts.",
                 repository: "GitHub Repository",
                 disclaimer: "Disclaimer",
                 chinese: "Chinese",
@@ -743,7 +747,8 @@ const messages: Record<SupportedLocale, TranslationTree> = {
                     "This software is intended for personal learning and investment observation purposes only and does not constitute any form of investment advice, financial advice, or a recommendation to buy or sell.",
                 disclaimerParagraph2:
                     "Users should independently verify the accuracy and completeness of all data, information, and functions provided by this software. The authors and contributors assume no liability for investment losses, gains, data interruptions, data errors, or any outcomes from decisions made based on information from this software.",
-                disclaimerParagraph3: "Investing involves risk. Please understand the risks before entering the market and assume full responsibility for your own investment decisions.",
+                disclaimerParagraph3:
+                    "Investing involves risk. Please understand the risks before entering the market and assume full responsibility for your own investment decisions.",
             },
             apiKeyNotice: "API keys are stored in plaintext in state.json. Do not share this file publicly.",
         },
@@ -1080,7 +1085,9 @@ const messages: Record<SupportedLocale, TranslationTree> = {
     },
 };
 
-const activeLocale = ref<SupportedLocale>(normalizeLocale(typeof navigator !== "undefined" ? navigator.language : "zh-CN"));
+const activeLocale = ref<SupportedLocale>(
+    normalizeLocale(typeof navigator !== "undefined" ? navigator.language : "zh-CN"),
+);
 
 function normalizeLocale(locale: string): SupportedLocale {
     return locale.toLowerCase().startsWith("zh") ? "zh-CN" : "en-US";

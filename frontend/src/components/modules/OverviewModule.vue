@@ -66,7 +66,9 @@ function resolveChartPalette(): string[] {
     if (!ds) return CHART_PALETTE_DARK;
     const sample = ds.getPropertyValue("--chart-1").trim();
     if (sample) {
-        return [1, 2, 3, 4, 5, 6, 7, 8].map((i) => ds.getPropertyValue(`--chart-${i}`).trim() || CHART_PALETTE_DARK[i - 1]);
+        return [1, 2, 3, 4, 5, 6, 7, 8].map(
+            (i) => ds.getPropertyValue(`--chart-${i}`).trim() || CHART_PALETTE_DARK[i - 1],
+        );
     }
     // Fallback when CSS variables are not yet injected: detect mode via --app-bg.
     const bg = ds.getPropertyValue("--app-bg").trim();
@@ -158,7 +160,11 @@ const doughnutOptions = computed(() => {
                     },
                     labelColor(context: { dataset: { backgroundColor: string[] }; dataIndex: number }) {
                         const colors = context.dataset.backgroundColor as string[];
-                        return { borderColor: colors[context.dataIndex], backgroundColor: colors[context.dataIndex], borderWidth: 0 };
+                        return {
+                            borderColor: colors[context.dataIndex],
+                            backgroundColor: colors[context.dataIndex],
+                            borderWidth: 0,
+                        };
                     },
                     label(context: { parsed: number }) {
                         const value = context.parsed ?? 0;
@@ -185,7 +191,9 @@ const trendData = computed(() => {
         }).format(new Date(value)),
     );
 
-    const totalValues = labels.map((_, index) => trend.series.reduce((sum, series) => sum + (series.values[index] ?? 0), 0));
+    const totalValues = labels.map((_, index) =>
+        trend.series.reduce((sum, series) => sum + (series.values[index] ?? 0), 0),
+    );
 
     return {
         labels,
@@ -425,13 +433,22 @@ async function loadOverview(): Promise<void> {
             <div class="overview-card overview-card-top">
                 <div class="overview-head">
                     <h4>{{ t("overview.charts.category.title") }}</h4>
-                    <DataFreshnessMeta v-if="overviewFreshness" :summary="overviewFreshness.summary" :details="overviewFreshness.details" />
+                    <DataFreshnessMeta
+                        v-if="overviewFreshness"
+                        :summary="overviewFreshness.summary"
+                        :details="overviewFreshness.details"
+                    />
                 </div>
 
                 <div v-if="analytics.breakdown.length" class="overview-breakdown">
                     <div class="overview-doughnut-wrap">
                         <div class="overview-doughnut-shell">
-                            <Chart type="doughnut" :data="doughnutData" :options="doughnutOptions" class="overview-doughnut-chart" />
+                            <Chart
+                                type="doughnut"
+                                :data="doughnutData"
+                                :options="doughnutOptions"
+                                class="overview-doughnut-chart"
+                            />
                             <div class="overview-doughnut-center">
                                 <strong>{{ formatMoney(breakdownTotal) }}</strong>
                                 <span>{{ t("overview.charts.category.totalValue") }}</span>
@@ -440,14 +457,27 @@ async function loadOverview(): Promise<void> {
                     </div>
 
                     <div class="overview-breakdown-list">
-                        <div v-for="(slice, index) in analytics.breakdown" :key="slice.itemId" class="overview-breakdown-row">
+                        <div
+                            v-for="(slice, index) in analytics.breakdown"
+                            :key="slice.itemId"
+                            class="overview-breakdown-row"
+                        >
                             <div class="overview-breakdown-line">
-                                <span class="overview-breakdown-dot" :style="{ backgroundColor: chartPalette[index % chartPalette.length] }"></span>
+                                <span
+                                    class="overview-breakdown-dot"
+                                    :style="{ backgroundColor: chartPalette[index % chartPalette.length] }"
+                                ></span>
                                 <strong>{{ slice.name || slice.symbol }}</strong>
                                 <span class="overview-breakdown-pct">{{ formatNumber(slice.weight * 100, 1) }}%</span>
                             </div>
                             <div class="overview-breakdown-bar">
-                                <div class="overview-breakdown-fill" :style="{ width: `${Math.max(slice.weight * 100, 6)}%`, backgroundColor: chartPalette[index % chartPalette.length] }"></div>
+                                <div
+                                    class="overview-breakdown-fill"
+                                    :style="{
+                                        width: `${Math.max(slice.weight * 100, 6)}%`,
+                                        backgroundColor: chartPalette[index % chartPalette.length],
+                                    }"
+                                ></div>
                             </div>
                             <span class="overview-breakdown-value">{{ formatMoney(slice.value) }}</span>
                         </div>
@@ -467,8 +497,15 @@ async function loadOverview(): Promise<void> {
                     </div>
 
                     <div class="overview-series-list">
-                        <div v-for="(series, index) in analytics.trend.series" :key="series.itemId" class="overview-legend-item">
-                            <span class="overview-breakdown-dot" :style="{ backgroundColor: chartPalette[index % chartPalette.length] }"></span>
+                        <div
+                            v-for="(series, index) in analytics.trend.series"
+                            :key="series.itemId"
+                            class="overview-legend-item"
+                        >
+                            <span
+                                class="overview-breakdown-dot"
+                                :style="{ backgroundColor: chartPalette[index % chartPalette.length] }"
+                            ></span>
                             <span class="overview-legend-label">{{ series.name || series.symbol }}</span>
                             <b class="overview-legend-value">{{ formatMoney(series.latestValue) }}</b>
                         </div>

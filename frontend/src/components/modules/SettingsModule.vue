@@ -65,9 +65,15 @@ const priceColorOptions = computed(() => getPriceColorOptions());
 const dashboardCurrencyOptions = computed(() => getDashboardCurrencyOptions());
 const localeOptions = computed(() => getLocaleOptions());
 const proxyModeOptions = computed(() => getProxyModeOptions());
-const cnQuoteSources = computed(() => props.quoteSources.filter((option) => option.supportedMarkets.some((market) => market.startsWith("CN-"))));
-const hkQuoteSources = computed(() => props.quoteSources.filter((option) => option.supportedMarkets.some((market) => market.startsWith("HK-"))));
-const usQuoteSources = computed(() => props.quoteSources.filter((option) => option.supportedMarkets.some((market) => market.startsWith("US-"))));
+const cnQuoteSources = computed(() =>
+    props.quoteSources.filter((option) => option.supportedMarkets.some((market) => market.startsWith("CN-"))),
+);
+const hkQuoteSources = computed(() =>
+    props.quoteSources.filter((option) => option.supportedMarkets.some((market) => market.startsWith("HK-"))),
+);
+const usQuoteSources = computed(() =>
+    props.quoteSources.filter((option) => option.supportedMarkets.some((market) => market.startsWith("US-"))),
+);
 
 async function openExternal(url: string): Promise<void> {
     await api("/api/open-external", {
@@ -112,49 +118,93 @@ async function openExternal(url: string): Promise<void> {
                         <div class="settings-grid">
                             <label>
                                 <span>{{ t("settings.labels.cnQuoteSource") }}</span>
-                                <Select v-model="settingsDraft.cnQuoteSource" :options="cnQuoteSources" option-label="name" option-value="id" class="w-full" />
+                                <Select
+                                    v-model="settingsDraft.cnQuoteSource"
+                                    :options="cnQuoteSources"
+                                    option-label="name"
+                                    option-value="id"
+                                    class="w-full"
+                                />
                             </label>
                             <label>
                                 <span>{{ t("settings.labels.hkQuoteSource") }}</span>
-                                <Select v-model="settingsDraft.hkQuoteSource" :options="hkQuoteSources" option-label="name" option-value="id" class="w-full" />
+                                <Select
+                                    v-model="settingsDraft.hkQuoteSource"
+                                    :options="hkQuoteSources"
+                                    option-label="name"
+                                    option-value="id"
+                                    class="w-full"
+                                />
                             </label>
                             <label>
                                 <span>{{ t("settings.labels.usQuoteSource") }}</span>
-                                <Select v-model="settingsDraft.usQuoteSource" :options="usQuoteSources" option-label="name" option-value="id" class="w-full" />
+                                <Select
+                                    v-model="settingsDraft.usQuoteSource"
+                                    :options="usQuoteSources"
+                                    option-label="name"
+                                    option-value="id"
+                                    class="w-full"
+                                />
                             </label>
 
-                            <p v-if="['alpha-vantage', 'twelve-data', 'finnhub', 'polygon'].includes(settingsDraft.usQuoteSource)" class="settings-api-key-notice full-span">
+                            <p
+                                v-if="
+                                    ['alpha-vantage', 'twelve-data', 'finnhub', 'polygon'].includes(
+                                        settingsDraft.usQuoteSource,
+                                    )
+                                "
+                                class="settings-api-key-notice full-span"
+                            >
                                 {{ t("settings.apiKeyNotice") }}
                             </p>
 
                             <label v-if="settingsDraft.usQuoteSource === 'alpha-vantage'" class="full-span">
                                 <span>{{ t("settings.labels.alphaVantageApiKey") }}</span>
-                                <InputText v-model.trim="settingsDraft.alphaVantageApiKey" type="password" autocomplete="new-password" class="w-full" />
+                                <InputText
+                                    v-model.trim="settingsDraft.alphaVantageApiKey"
+                                    type="password"
+                                    autocomplete="new-password"
+                                    class="w-full"
+                                />
                                 <small class="settings-note">{{ t("settings.labels.apiKeyHelp") }}</small>
                             </label>
 
                             <label v-if="settingsDraft.usQuoteSource === 'twelve-data'" class="full-span">
                                 <span>{{ t("settings.labels.twelveDataApiKey") }}</span>
-                                <InputText v-model.trim="settingsDraft.twelveDataApiKey" type="password" autocomplete="new-password" class="w-full" />
+                                <InputText
+                                    v-model.trim="settingsDraft.twelveDataApiKey"
+                                    type="password"
+                                    autocomplete="new-password"
+                                    class="w-full"
+                                />
                                 <small class="settings-note">{{ t("settings.labels.apiKeyHelp") }}</small>
                             </label>
 
                             <label v-if="settingsDraft.usQuoteSource === 'finnhub'" class="full-span">
                                 <span>{{ t("settings.labels.finnhubApiKey") }}</span>
-                                <InputText v-model.trim="settingsDraft.finnhubApiKey" type="password" autocomplete="new-password" class="w-full" />
+                                <InputText
+                                    v-model.trim="settingsDraft.finnhubApiKey"
+                                    type="password"
+                                    autocomplete="new-password"
+                                    class="w-full"
+                                />
                                 <small class="settings-note">{{ t("settings.labels.apiKeyHelp") }}</small>
                             </label>
 
                             <label v-if="settingsDraft.usQuoteSource === 'polygon'" class="full-span">
                                 <span>{{ t("settings.labels.polygonApiKey") }}</span>
-                                <InputText v-model.trim="settingsDraft.polygonApiKey" type="password" autocomplete="new-password" class="w-full" />
+                                <InputText
+                                    v-model.trim="settingsDraft.polygonApiKey"
+                                    type="password"
+                                    autocomplete="new-password"
+                                    class="w-full"
+                                />
                                 <small class="settings-note">{{ t("settings.labels.apiKeyHelp") }}</small>
                             </label>
 
                             <label class="full-span">
                                 <span>{{ t("settings.labels.hotCacheTTL") }}</span>
                                 <InputNumber v-model="settingsDraft.hotCacheTTLSeconds" :min="10" :step="10" fluid />
-                                <small class="settings-note">{{ t("settings.labels.hotCacheTTLHint") }}</small>
                             </label>
                         </div>
                     </div>
@@ -204,7 +254,13 @@ async function openExternal(url: string): Promise<void> {
                         <div class="settings-grid">
                             <label>
                                 <span>{{ t("settings.labels.themeMode") }}</span>
-                                <Select v-model="settingsDraft.themeMode" :options="themeModeOptions" option-label="label" option-value="value" class="w-full" />
+                                <Select
+                                    v-model="settingsDraft.themeMode"
+                                    :options="themeModeOptions"
+                                    option-label="label"
+                                    option-value="value"
+                                    class="w-full"
+                                />
                             </label>
                             <label class="color-theme-label">
                                 <span>{{ t("settings.labels.colorTheme") }}</span>
@@ -214,7 +270,10 @@ async function openExternal(url: string): Promise<void> {
                                         :key="opt.value"
                                         type="button"
                                         :title="opt.label"
-                                        :class="['color-swatch-btn', { active: settingsDraft.colorTheme === opt.value }]"
+                                        :class="[
+                                            'color-swatch-btn',
+                                            { active: settingsDraft.colorTheme === opt.value },
+                                        ]"
                                         :style="{ '--swatch-color': COLOR_THEME_SWATCHES[opt.value] }"
                                         @click="settingsDraft.colorTheme = opt.value"
                                     />
@@ -222,23 +281,53 @@ async function openExternal(url: string): Promise<void> {
                             </label>
                             <label>
                                 <span>{{ t("settings.labels.fontPreset") }}</span>
-                                <Select v-model="settingsDraft.fontPreset" :options="fontPresetOptions" option-label="label" option-value="value" class="w-full" />
+                                <Select
+                                    v-model="settingsDraft.fontPreset"
+                                    :options="fontPresetOptions"
+                                    option-label="label"
+                                    option-value="value"
+                                    class="w-full"
+                                />
                             </label>
                             <label>
                                 <span>{{ t("settings.labels.amountDisplay") }}</span>
-                                <Select v-model="settingsDraft.amountDisplay" :options="amountDisplayOptions" option-label="label" option-value="value" class="w-full" />
+                                <Select
+                                    v-model="settingsDraft.amountDisplay"
+                                    :options="amountDisplayOptions"
+                                    option-label="label"
+                                    option-value="value"
+                                    class="w-full"
+                                />
                             </label>
                             <label>
                                 <span>{{ t("settings.labels.currencyDisplay") }}</span>
-                                <Select v-model="settingsDraft.currencyDisplay" :options="currencyDisplayOptions" option-label="label" option-value="value" class="w-full" />
+                                <Select
+                                    v-model="settingsDraft.currencyDisplay"
+                                    :options="currencyDisplayOptions"
+                                    option-label="label"
+                                    option-value="value"
+                                    class="w-full"
+                                />
                             </label>
                             <label>
                                 <span>{{ t("settings.labels.priceColorScheme") }}</span>
-                                <Select v-model="settingsDraft.priceColorScheme" :options="priceColorOptions" option-label="label" option-value="value" class="w-full" />
+                                <Select
+                                    v-model="settingsDraft.priceColorScheme"
+                                    :options="priceColorOptions"
+                                    option-label="label"
+                                    option-value="value"
+                                    class="w-full"
+                                />
                             </label>
                             <label>
                                 <span>{{ t("settings.labels.dashboardCurrency") }}</span>
-                                <Select v-model="settingsDraft.dashboardCurrency" :options="dashboardCurrencyOptions" option-label="label" option-value="value" class="w-full" />
+                                <Select
+                                    v-model="settingsDraft.dashboardCurrency"
+                                    :options="dashboardCurrencyOptions"
+                                    option-label="label"
+                                    option-value="value"
+                                    class="w-full"
+                                />
                             </label>
                         </div>
                         <div class="settings-theme-preview">
@@ -247,13 +336,20 @@ async function openExternal(url: string): Promise<void> {
                                 <!-- <span>{{ t("settings.themePreview.description") }}</span> -->
                             </div>
                             <div class="settings-theme-preview-swatches">
-                                <span class="settings-theme-swatch accent">{{ t("settings.themePreview.accent") }}</span>
+                                <span class="settings-theme-swatch accent">{{
+                                    t("settings.themePreview.accent")
+                                }}</span>
                                 <span class="settings-theme-swatch rise">{{ t("settings.themePreview.rise") }}</span>
                                 <span class="settings-theme-swatch fall">{{ t("settings.themePreview.fall") }}</span>
                             </div>
                             <div class="settings-theme-preview-actions" aria-hidden="true">
                                 <Button size="small" :label="t('settings.themePreview.primary')" tabindex="-1" />
-                                <Button size="small" outlined :label="t('settings.themePreview.secondary')" tabindex="-1" />
+                                <Button
+                                    size="small"
+                                    outlined
+                                    :label="t('settings.themePreview.secondary')"
+                                    tabindex="-1"
+                                />
                                 <Button size="small" text :label="t('settings.themePreview.text')" tabindex="-1" />
                             </div>
                         </div>
@@ -276,7 +372,13 @@ async function openExternal(url: string): Promise<void> {
                         <div class="settings-grid">
                             <label>
                                 <span>{{ t("settings.labels.locale") }}</span>
-                                <Select v-model="settingsDraft.locale" :options="localeOptions" option-label="label" option-value="value" class="w-full" />
+                                <Select
+                                    v-model="settingsDraft.locale"
+                                    :options="localeOptions"
+                                    option-label="label"
+                                    option-value="value"
+                                    class="w-full"
+                                />
                             </label>
                         </div>
                     </div>
@@ -288,11 +390,21 @@ async function openExternal(url: string): Promise<void> {
                         <div class="settings-grid">
                             <label>
                                 <span>{{ t("settings.labels.proxyMode") }}</span>
-                                <Select v-model="settingsDraft.proxyMode" :options="proxyModeOptions" option-label="label" option-value="value" class="w-full" />
+                                <Select
+                                    v-model="settingsDraft.proxyMode"
+                                    :options="proxyModeOptions"
+                                    option-label="label"
+                                    option-value="value"
+                                    class="w-full"
+                                />
                             </label>
                             <label v-if="settingsDraft.proxyMode === 'custom'">
                                 <span>{{ t("settings.labels.proxyURL") }}</span>
-                                <InputText v-model="settingsDraft.proxyURL" class="w-full" placeholder="http://127.0.0.1:7890" />
+                                <InputText
+                                    v-model="settingsDraft.proxyURL"
+                                    class="w-full"
+                                    placeholder="http://127.0.0.1:7890"
+                                />
                             </label>
                         </div>
                     </div>
@@ -317,12 +429,33 @@ async function openExternal(url: string): Promise<void> {
                                         count: developerLogCount,
                                     })
                                 }}</strong>
-                                <span>{{ loadingLogs ? t("settings.developer.loading") : t("settings.developer.idle") }}</span>
+                                <span>{{
+                                    loadingLogs ? t("settings.developer.loading") : t("settings.developer.idle")
+                                }}</span>
                             </div>
                             <div class="developer-actions">
-                                <Button size="small" text icon="pi pi-refresh" :label="t('common.refresh')" @click="$emit('refresh-logs')" />
-                                <Button size="small" text icon="pi pi-copy" :label="t('common.copy')" @click="$emit('copy-logs')" />
-                                <Button size="small" text severity="danger" icon="pi pi-trash" :label="t('common.clear')" @click="$emit('clear-logs')" />
+                                <Button
+                                    size="small"
+                                    text
+                                    icon="pi pi-refresh"
+                                    :label="t('common.refresh')"
+                                    @click="$emit('refresh-logs')"
+                                />
+                                <Button
+                                    size="small"
+                                    text
+                                    icon="pi pi-copy"
+                                    :label="t('common.copy')"
+                                    @click="$emit('copy-logs')"
+                                />
+                                <Button
+                                    size="small"
+                                    text
+                                    severity="danger"
+                                    icon="pi pi-trash"
+                                    :label="t('common.clear')"
+                                    @click="$emit('clear-logs')"
+                                />
                             </div>
                         </div>
 
@@ -338,7 +471,12 @@ async function openExternal(url: string): Promise<void> {
                         </div>
 
                         <div class="developer-log-list">
-                            <article v-for="entry in developerLogs" :key="entry.id" class="developer-log-entry" :data-level="entry.level">
+                            <article
+                                v-for="entry in developerLogs"
+                                :key="entry.id"
+                                class="developer-log-entry"
+                                :data-level="entry.level"
+                            >
                                 <div class="developer-log-meta">
                                     <span class="developer-log-level">{{ entry.level.toUpperCase() }}</span>
                                     <span>{{ entry.source }}</span>
@@ -372,7 +510,14 @@ async function openExternal(url: string): Promise<void> {
                         </div>
 
                         <div class="settings-about-links">
-                            <Button size="small" outlined icon="pi pi-github" :label="t('settings.about.repository')" class="settings-about-action" @click="openExternal(projectMeta.repositoryUrl)" />
+                            <Button
+                                size="small"
+                                outlined
+                                icon="pi pi-github"
+                                :label="t('settings.about.repository')"
+                                class="settings-about-action"
+                                @click="openExternal(projectMeta.repositoryUrl)"
+                            />
                         </div>
 
                         <section class="settings-disclaimer-card">
@@ -418,7 +563,11 @@ async function openExternal(url: string): Promise<void> {
     padding: 6px;
     border-bottom: 1px solid var(--border);
     margin-bottom: 8px;
-    background: linear-gradient(180deg, color-mix(in srgb, var(--panel-soft) 94%, var(--accent-soft)) 0%, var(--panel-strong) 100%);
+    background: linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--panel-soft) 94%, var(--accent-soft)) 0%,
+        var(--panel-strong) 100%
+    );
     box-shadow: var(--shadow-soft);
     border-radius: calc(var(--radius-panel) + 2px);
 }
@@ -449,7 +598,11 @@ async function openExternal(url: string): Promise<void> {
 .settings-nav-item.active {
     color: var(--accent-strong);
     border-color: color-mix(in srgb, var(--accent) 24%, var(--border));
-    background: linear-gradient(180deg, color-mix(in srgb, var(--accent-soft) 88%, var(--panel-strong)) 0%, color-mix(in srgb, var(--accent-soft) 34%, var(--panel-strong)) 100%);
+    background: linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--accent-soft) 88%, var(--panel-strong)) 0%,
+        color-mix(in srgb, var(--accent-soft) 34%, var(--panel-strong)) 100%
+    );
     box-shadow:
         0 10px 18px color-mix(in srgb, var(--accent-soft) 34%, transparent),
         var(--shadow-soft);
@@ -474,7 +627,11 @@ async function openExternal(url: string): Promise<void> {
 .settings-section {
     border: 1px solid var(--border);
     border-radius: var(--radius-panel);
-    background: linear-gradient(180deg, color-mix(in srgb, var(--panel-soft) 92%, var(--accent-soft)) 0%, var(--panel-soft) 100%);
+    background: linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--panel-soft) 92%, var(--accent-soft)) 0%,
+        var(--panel-soft) 100%
+    );
     padding: 12px;
     display: grid;
     gap: 12px;
@@ -553,8 +710,16 @@ async function openExternal(url: string): Promise<void> {
     border-radius: calc(var(--radius-panel) + 2px);
     padding: 14px;
     background:
-        radial-gradient(circle at top right, color-mix(in srgb, var(--accent-soft) 135%, transparent) 0%, transparent 44%),
-        linear-gradient(180deg, color-mix(in srgb, var(--panel-strong) 86%, var(--accent-soft)) 0%, var(--panel-strong) 100%);
+        radial-gradient(
+            circle at top right,
+            color-mix(in srgb, var(--accent-soft) 135%, transparent) 0%,
+            transparent 44%
+        ),
+        linear-gradient(
+            180deg,
+            color-mix(in srgb, var(--panel-strong) 86%, var(--accent-soft)) 0%,
+            var(--panel-strong) 100%
+        );
     box-shadow: var(--shadow-soft);
 }
 
