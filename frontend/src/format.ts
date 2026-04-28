@@ -45,8 +45,9 @@ export function formatMoney(value: number, signed = false): string {
 export function formatNumber(value: number, digits = 2): string {
     const locale = resolvedLocale();
     const key = `number-${locale}-${digits}`;
-    const formatter = getCachedFormatter(key, () =>
-        new Intl.NumberFormat(locale, { minimumFractionDigits: digits, maximumFractionDigits: digits }),
+    const formatter = getCachedFormatter(
+        key,
+        () => new Intl.NumberFormat(locale, { minimumFractionDigits: digits, maximumFractionDigits: digits }),
     );
     return formatter.format(Number(value || 0));
 }
@@ -56,8 +57,9 @@ export function formatNumber(value: number, digits = 2): string {
 export function formatFlexNumber(value: number, minDigits: number, maxDigits: number): string {
     const locale = resolvedLocale();
     const key = `number-flex-${locale}-${minDigits}-${maxDigits}`;
-    const formatter = getCachedFormatter(key, () =>
-        new Intl.NumberFormat(locale, { minimumFractionDigits: minDigits, maximumFractionDigits: maxDigits }),
+    const formatter = getCachedFormatter(
+        key,
+        () => new Intl.NumberFormat(locale, { minimumFractionDigits: minDigits, maximumFractionDigits: maxDigits }),
     );
     return formatter.format(Number(value || 0));
 }

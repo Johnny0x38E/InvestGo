@@ -1,12 +1,5 @@
 <script setup lang="ts">
-import {
-    computed,
-    onBeforeUnmount,
-    onMounted,
-    reactive,
-    ref,
-    watch,
-} from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 
 import { api } from "./api";
 import AppShell from "./components/AppShell.vue";
@@ -21,10 +14,7 @@ import { useHistorySeries } from "./composables/useHistorySeries";
 import { useItemDialog } from "./composables/useItemDialog";
 import { useAlertDialog } from "./composables/useAlertDialog";
 import { useConfirmDialog } from "./composables/useConfirmDialog";
-import {
-    defaultSettings,
-    normaliseSettings,
-} from "./forms";
+import { defaultSettings, normaliseSettings } from "./forms";
 import { setFormatterSettings } from "./format";
 import { setI18nLocale, translate } from "./i18n";
 import { applyPrimeVueColorTheme } from "./theme";
@@ -87,9 +77,7 @@ const filteredItems = computed(() => {
     );
 });
 
-const selectedItem = computed(
-    () => items.value.find((item) => item.id === selectedItemId.value) ?? null,
-);
+const selectedItem = computed(() => items.value.find((item) => item.id === selectedItemId.value) ?? null);
 
 const alertItemOptions = computed<OptionItem<string>[]>(() =>
     items.value.map((item) => ({
@@ -98,9 +86,7 @@ const alertItemOptions = computed<OptionItem<string>[]>(() =>
     })),
 );
 
-const trackedHotKeys = computed(() =>
-    items.value.map((item) => `${item.market}:${item.symbol}`),
-);
+const trackedHotKeys = computed(() => items.value.map((item) => `${item.market}:${item.symbol}`));
 
 watch(
     settings,
@@ -108,10 +94,7 @@ watch(
         // Persisted settings remain the source of truth for active formatting and other business-facing behavior so drafts do not affect displayed data.
         setFormatterSettings(value);
         setI18nLocale(value.locale);
-        document.documentElement.lang =
-            value.locale === "system"
-                ? navigator.language || "zh-CN"
-                : value.locale;
+        document.documentElement.lang = value.locale === "system" ? navigator.language || "zh-CN" : value.locale;
     },
     { deep: true, immediate: true },
 );
@@ -131,12 +114,10 @@ watch(
         ] as const,
     () => {
         // While the settings dialog is open, allow the current view to preview appearance drafts and automatically revert to saved values when it closes.
-        const appearance =
-            activeModule.value === "settings" ? settingsDraft : settings.value;
+        const appearance = activeModule.value === "settings" ? settingsDraft : settings.value;
         document.documentElement.dataset.fontPreset = appearance.fontPreset;
         document.documentElement.dataset.colorTheme = appearance.colorTheme;
-        document.documentElement.dataset.priceColorScheme =
-            appearance.priceColorScheme;
+        document.documentElement.dataset.priceColorScheme = appearance.priceColorScheme;
         document.documentElement.dataset.themeMode = appearance.themeMode;
         applyPrimeVueColorTheme(appearance.colorTheme);
         applyResolvedTheme(appearance.themeMode);
@@ -176,22 +157,11 @@ const {
     selectHistoryInterval,
 } = useHistorySeries(items, selectedItem, activeModule, setStatus);
 
-const {
-    developerLogs,
-    loadingLogs,
-    logFilePath,
-    loadBackendLogs,
-    clearDeveloperLogs,
-    copyDeveloperLogs,
-} = useDeveloperLogs(setStatus);
+const { developerLogs, loadingLogs, logFilePath, loadBackendLogs, clearDeveloperLogs, copyDeveloperLogs } =
+    useDeveloperLogs(setStatus);
 
 watch(
-    () =>
-        [
-            activeModule.value === "settings",
-            settingsTab.value,
-            settingsDraft.developerMode,
-        ] as const,
+    () => [activeModule.value === "settings", settingsTab.value, settingsDraft.developerMode] as const,
     ([visible, tab, developerMode]) => {
         window.clearInterval(developerLogTimer);
         if (!visible || tab !== "developer" || !developerMode) {
@@ -265,7 +235,9 @@ async function runAutoRefresh(): Promise<void> {
     try {
         switch (activeModule.value) {
             case "watchlist":
-                await refreshSelectedItem(true, true, true);
+                // Auto-refresh keeps the selected quote live, but history refreshes
+                // must stay cache-aware so periodic ticks do not bypass provider limits.
+                await refreshSelectedItem(true, true, true, false);
                 break;
             case "hot":
                 await refreshQuotes(true, false, true);
@@ -291,12 +263,7 @@ async function loadState(silent = false): Promise<void> {
         applySnapshot(snapshot);
         setStatus(translate("app.dashboardLoaded"), "success");
     } catch (error) {
-        setStatus(
-            error instanceof Error
-                ? error.message
-                : translate("app.loadFailed"),
-            "error",
-        );
+        setStatus(error instanceof Error ? error.message : translate("app.loadFailed"), "error");
     }
 }
 
@@ -320,11 +287,7 @@ function applySnapshot(snapshot: StateSnapshot): void {
 }
 
 // Refresh live quotes and optionally reload the currently selected chart range.
-async function refreshQuotes(
-    silent = false,
-    refreshHistory = true,
-    force = false,
-): Promise<void> {
+async function refreshQuotes(silent = false, refreshHistory = true, force = false): Promise<void> {
     try {
         if (!silent) {
             setStatus(translate("app.syncingQuotes"), "success");
@@ -334,11 +297,7 @@ async function refreshQuotes(
             method: "POST",
         });
         applySnapshot(snapshot);
-        if (
-            refreshHistory &&
-            activeModule.value === "watchlist" &&
-            selectedItem.value
-        ) {
+        if (refreshHistory && activeModule.value === "watchlist" && selectedItem.value) {
             // Quote refresh changes the chart-side market snapshot, so refresh
             // the active series in the background to keep the side panel and
             // chart overlays aligned with the latest live quote.
@@ -357,12 +316,7 @@ async function refreshQuotes(
             setStatus(translate("app.quotesSynced"), "success");
         }
     } catch (error) {
-        setStatus(
-            error instanceof Error
-                ? error.message
-                : translate("app.refreshFailed"),
-            "error",
-        );
+        setStatus(error instanceof Error ? error.message : translate("app.refreshFailed"), "error");
     }
 }
 
@@ -371,6 +325,7 @@ async function refreshSelectedItem(
     silent = false,
     refreshHistory = true,
     force = false,
+    forceHistory = force,
 ): Promise<void> {
     const currentItem = selectedItem.value;
     if (!currentItem) {
@@ -382,19 +337,12 @@ async function refreshSelectedItem(
             setStatus(translate("app.syncingQuotes"), "success");
         }
         const query = force ? "?force=1" : "";
-        const snapshot = await api<StateSnapshot>(
-            `/api/items/${encodeURIComponent(currentItem.id)}/refresh${query}`,
-            {
-                method: "POST",
-            },
-        );
+        const snapshot = await api<StateSnapshot>(`/api/items/${encodeURIComponent(currentItem.id)}/refresh${query}`, {
+            method: "POST",
+        });
         applySnapshot(snapshot);
-        if (
-            refreshHistory &&
-            activeModule.value === "watchlist" &&
-            selectedItem.value?.id === currentItem.id
-        ) {
-            await loadHistory(true, true);
+        if (refreshHistory && activeModule.value === "watchlist" && selectedItem.value?.id === currentItem.id) {
+            await loadHistory(true, forceHistory);
         }
         if (snapshot.runtime.lastQuoteError) {
             setStatus(snapshot.runtime.lastQuoteError, "error");
@@ -409,12 +357,7 @@ async function refreshSelectedItem(
             setStatus(translate("app.quotesSynced"), "success");
         }
     } catch (error) {
-        setStatus(
-            error instanceof Error
-                ? error.message
-                : translate("app.refreshFailed"),
-            "error",
-        );
+        setStatus(error instanceof Error ? error.message : translate("app.refreshFailed"), "error");
     }
 }
 
@@ -445,21 +388,25 @@ async function saveSettings(): Promise<void> {
         }
         activeModule.value = "overview";
     } catch (error) {
-        setStatus(
-            error instanceof Error
-                ? error.message
-                : translate("app.settingsSaveFailed"),
-            "error",
-        );
+        setStatus(error instanceof Error ? error.message : translate("app.settingsSaveFailed"), "error");
     } finally {
         savingSettings.value = false;
     }
 }
 
 const {
-    itemDialogVisible, itemDialogInitialTab, itemDialogWatchOnly, savingItem, itemForm,
-    openItemDialog, openHotWatchDialog, openHotPositionDialog, saveItem,
-    quickAddHotItem: quickAddHotItemInner, toggleItemPinned, performDeleteItem: performDeleteItemInner,
+    itemDialogVisible,
+    itemDialogInitialTab,
+    itemDialogWatchOnly,
+    savingItem,
+    itemForm,
+    openItemDialog,
+    openHotWatchDialog,
+    openHotPositionDialog,
+    saveItem,
+    quickAddHotItem: quickAddHotItemInner,
+    toggleItemPinned,
+    performDeleteItem: performDeleteItemInner,
 } = useItemDialog(applySnapshot, clearHistoryCache, setStatus);
 
 async function quickAddHotItem(item: HotItem): Promise<void> {
@@ -468,17 +415,29 @@ async function quickAddHotItem(item: HotItem): Promise<void> {
 }
 
 const {
-    alertDialogVisible, savingAlert, alertForm,
-    openAlertDialog, saveAlert, performDeleteAlert: performDeleteAlertInner,
-} = useAlertDialog(applySnapshot, setStatus, () => { activeModule.value = "alerts"; });
+    alertDialogVisible,
+    savingAlert,
+    alertForm,
+    openAlertDialog,
+    saveAlert,
+    performDeleteAlert: performDeleteAlertInner,
+} = useAlertDialog(applySnapshot, setStatus, () => {
+    activeModule.value = "alerts";
+});
 
 const {
-    confirmDialogVisible, confirmTitle, confirmMessage, confirmLabel, deleting,
-    requestDeleteItem, requestDeleteAlert, confirmDelete,
+    confirmDialogVisible,
+    confirmTitle,
+    confirmMessage,
+    confirmLabel,
+    deleting,
+    requestDeleteItem,
+    requestDeleteAlert,
+    confirmDelete,
 } = useConfirmDialog(performDeleteItemInner, performDeleteAlertInner);
 
 function unwatchHotItem(item: HotItem): void {
-    const existing = items.value.find(i => i.symbol === item.symbol && i.market === item.market);
+    const existing = items.value.find((i) => i.symbol === item.symbol && i.market === item.market);
     if (existing) {
         requestDeleteItem(existing.id);
     }
@@ -499,14 +458,9 @@ function editFromDCADetail(): void {
 
 // Switch the active module; watchlist data loading is handled by the module watcher so it can choose single-item refreshes.
 function switchModule(next: ModuleKey): void {
-    appendClientLog(
-        "info",
-        "tabs",
-        `switch module ${activeModule.value} -> ${next}`,
-    );
+    appendClientLog("info", "tabs", `switch module ${activeModule.value} -> ${next}`);
     activeModule.value = next;
 }
-
 </script>
 <template>
     <AppShell
@@ -550,7 +504,9 @@ function switchModule(next: ModuleKey): void {
             :developer-logs="developerLogs"
             :saving-settings="savingSettings"
             :loading-logs="loadingLogs"
-            @refresh="activeModule === 'watchlist' ? refreshSelectedItem(false, true, true) : refreshQuotes(false, true, true)"
+            @refresh="
+                activeModule === 'watchlist' ? refreshSelectedItem(false, true, true) : refreshQuotes(false, true, true)
+            "
             @select-interval="selectHistoryInterval"
             @update:hot-market-group="hotMarketGroup = $event"
             @hot-watch-item="openHotWatchDialog"

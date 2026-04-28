@@ -4,7 +4,14 @@ import Button from "primevue/button";
 import DataFreshnessMeta from "../DataFreshnessMeta.vue";
 import PriceChart from "../PriceChart.vue";
 import { getHistoryRangeOptions } from "../../constants";
-import { formatDateTime, formatMoney, formatPercent, formatShares, formatUnitPrice, historyRangeLabel } from "../../format";
+import {
+    formatDateTime,
+    formatMoney,
+    formatPercent,
+    formatShares,
+    formatUnitPrice,
+    historyRangeLabel,
+} from "../../format";
 import { useI18n } from "../../i18n";
 import type { HistoryInterval, HistorySeries, MarketMetricCard, WatchlistItem } from "../../types";
 
@@ -24,7 +31,9 @@ defineEmits<{
 
 const { t } = useI18n();
 const historyRangeOptions = computed(() => getHistoryRangeOptions());
-const historyCacheSummary = computed(() => (props.historySeries?.cached ? t("common.cacheHit") : t("common.cacheMiss")));
+const historyCacheSummary = computed(() =>
+    props.historySeries?.cached ? t("common.cacheHit") : t("common.cacheMiss"),
+);
 
 const marketSnapshot = computed(() => {
     const item = props.selectedItem;
@@ -36,12 +45,14 @@ const marketSnapshot = computed(() => {
     const livePrice = snapshot?.livePrice ?? item.currentPrice ?? series?.endPrice ?? 0;
     const effectiveChange = snapshot?.effectiveChange ?? series?.change ?? item.change ?? 0;
     const effectiveChangePct = snapshot?.effectiveChangePct ?? series?.changePercent ?? item.changePercent ?? 0;
-    const changeTone: MarketMetricCard["tone"] = effectiveChange > 0 ? "rise" : effectiveChange < 0 ? "fall" : "neutral";
+    const changeTone: MarketMetricCard["tone"] =
+        effectiveChange > 0 ? "rise" : effectiveChange < 0 ? "fall" : "neutral";
     const positionValue = snapshot?.positionValue ?? item.position?.marketValue ?? 0;
     const positionBaseline = snapshot?.positionBaseline ?? item.position?.costBasis ?? 0;
     const positionPnL = snapshot?.positionPnL ?? item.position?.unrealisedPnL ?? 0;
     const positionPnLPct = snapshot?.positionPnLPct ?? item.position?.unrealisedPnLPct ?? 0;
-    const positionTone: MarketMetricCard["tone"] = positionValue > positionBaseline ? "rise" : positionValue < positionBaseline ? "fall" : "neutral";
+    const positionTone: MarketMetricCard["tone"] =
+        positionValue > positionBaseline ? "rise" : positionValue < positionBaseline ? "fall" : "neutral";
 
     return {
         item,
@@ -73,7 +84,9 @@ const marketOverview = computed(() => {
     const chartSource = snapshot.series?.source || t("watchlist.noChartData");
     const syncedAt = formatDateTime(snapshot.item.quoteUpdatedAt);
     const cacheState = props.historySeries ? historyCacheSummary.value : t("common.notAvailable");
-    const cacheExpiresAt = props.historySeries?.cacheExpiresAt ? formatDateTime(props.historySeries.cacheExpiresAt) : t("common.notAvailable");
+    const cacheExpiresAt = props.historySeries?.cacheExpiresAt
+        ? formatDateTime(props.historySeries.cacheExpiresAt)
+        : t("common.notAvailable");
 
     return {
         title: snapshot.item.name || snapshot.item.symbol,
@@ -141,7 +154,10 @@ const marketCards = computed<MarketMetricCard[]>(() => {
         {
             label: t("watchlist.cards.amplitude"),
             value: formatPercent(snapshot.amplitudePct),
-            sub: snapshot.previousClose > 0 ? t("watchlist.cards.amplitudeEstimated") : t("watchlist.cards.amplitudePending"),
+            sub:
+                snapshot.previousClose > 0
+                    ? t("watchlist.cards.amplitudeEstimated")
+                    : t("watchlist.cards.amplitudePending"),
             tone: "neutral",
         },
     ];
@@ -155,8 +171,22 @@ const marketCards = computed<MarketMetricCard[]>(() => {
                 <h3 class="title">{{ t("watchlist.title") }}</h3>
             </div>
             <div class="toolbar-row">
-                <Button v-if="selectedItem" size="small" text icon="pi pi-bookmark-fill" :label="t('watchlist.unwatch')" style="color: var(--accent)" @click="$emit('delete-item', selectedItem.id)" />
-                <Button size="small" text icon="pi pi-refresh" :label="t('watchlist.refresh')" @click="$emit('refresh')" />
+                <Button
+                    v-if="selectedItem"
+                    size="small"
+                    text
+                    icon="pi pi-bookmark-fill"
+                    :label="t('watchlist.unwatch')"
+                    style="color: var(--accent)"
+                    @click="$emit('delete-item', selectedItem.id)"
+                />
+                <Button
+                    size="small"
+                    text
+                    icon="pi pi-refresh"
+                    :label="t('watchlist.refresh')"
+                    @click="$emit('refresh')"
+                />
             </div>
         </div>
 
@@ -201,18 +231,27 @@ const marketCards = computed<MarketMetricCard[]>(() => {
                         </div>
 
                         <footer class="market-hero-foot">
-                            <DataFreshnessMeta :summary="marketOverview.metaSummary" :details="marketOverview.metaDetails" />
+                            <DataFreshnessMeta
+                                :summary="marketOverview.metaSummary"
+                                :details="marketOverview.metaDetails"
+                            />
                         </footer>
                     </section>
 
                     <div class="market-metrics">
-                        <article v-if="positionDetail" class="market-position-card" :class="positionDetail.hasPosition ? `tone-${positionDetail.tone}` : ''">
+                        <article
+                            v-if="positionDetail"
+                            class="market-position-card"
+                            :class="positionDetail.hasPosition ? `tone-${positionDetail.tone}` : ''"
+                        >
                             <span class="market-pos-label">{{ t("watchlist.position.title") }}</span>
                             <template v-if="positionDetail.hasPosition">
                                 <div class="market-pos-main">
                                     <div class="market-pos-stat">
                                         <strong class="market-pos-value">{{ positionDetail.value }}</strong>
-                                        <span class="market-pos-stat-label">{{ t("watchlist.position.currentValue") }}</span>
+                                        <span class="market-pos-stat-label">{{
+                                            t("watchlist.position.currentValue")
+                                        }}</span>
                                     </div>
                                     <div class="market-pos-stat market-pos-stat--right">
                                         <b class="market-pos-pnl">{{ positionDetail.pnl }}</b>
@@ -221,11 +260,15 @@ const marketCards = computed<MarketMetricCard[]>(() => {
                                 </div>
                                 <div class="market-pos-detail">
                                     <div class="market-pos-stat">
-                                        <span class="market-pos-stat-label">{{ t("watchlist.position.costPrice") }}</span>
+                                        <span class="market-pos-stat-label">{{
+                                            t("watchlist.position.costPrice")
+                                        }}</span>
                                         <span class="market-pos-detail-val">{{ positionDetail.costPrice }}</span>
                                     </div>
                                     <div class="market-pos-stat market-pos-stat--right">
-                                        <span class="market-pos-stat-label">{{ t("watchlist.position.quantity") }}</span>
+                                        <span class="market-pos-stat-label">{{
+                                            t("watchlist.position.quantity")
+                                        }}</span>
                                         <span class="market-pos-detail-val">{{
                                             t("watchlist.position.quantityValue", {
                                                 count: formatShares(positionDetail.quantity),
@@ -237,7 +280,12 @@ const marketCards = computed<MarketMetricCard[]>(() => {
                             <span v-else class="market-pos-empty">{{ t("watchlist.position.empty") }}</span>
                         </article>
 
-                        <article v-for="card in marketCards" :key="card.label" class="metric-strip" :class="`tone-${card.tone}`">
+                        <article
+                            v-for="card in marketCards"
+                            :key="card.label"
+                            class="metric-strip"
+                            :class="`tone-${card.tone}`"
+                        >
                             <span class="metric-strip-label">{{ card.label }}</span>
                             <strong class="metric-strip-value">{{ card.value }}</strong>
                             <span class="metric-strip-sub">{{ card.sub }}</span>
@@ -286,7 +334,11 @@ const marketCards = computed<MarketMetricCard[]>(() => {
     border: 1px solid var(--border);
     border-radius: var(--radius-panel);
     background-color: var(--panel-strong);
-    background-image: linear-gradient(150deg, color-mix(in srgb, var(--panel-strong) 90%, var(--accent)) 0%, var(--panel-strong) 40%);
+    background-image: linear-gradient(
+        150deg,
+        color-mix(in srgb, var(--panel-strong) 90%, var(--accent)) 0%,
+        var(--panel-strong) 40%
+    );
 }
 
 .market-inspector-empty {

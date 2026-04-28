@@ -90,7 +90,9 @@ const updatedAtSummary = computed(() => {
     if (!timestamps.length) {
         return "";
     }
-    return timestamps.reduce((latest, current) => (new Date(current).getTime() > new Date(latest).getTime() ? current : latest));
+    return timestamps.reduce((latest, current) =>
+        new Date(current).getTime() > new Date(latest).getTime() ? current : latest,
+    );
 });
 
 const cacheSummary = computed(() => (cached.value ? t("hot.cacheHit") : t("hot.cacheMiss")));
@@ -125,19 +127,22 @@ function getSortIcon(field: SortField): string {
     return sortDirection.value === "asc" ? "pi pi-sort-amount-up" : "pi pi-sort-amount-down";
 }
 
-watch(() => props.marketGroup, async (next, previous) => {
-    if (next === previous) {
-        return;
-    }
+watch(
+    () => props.marketGroup,
+    async (next, previous) => {
+        if (next === previous) {
+            return;
+        }
 
-    const nextCategory = firstCategoryForGroup(next);
-    if (!categoryBelongsToGroup(category.value, next)) {
-        category.value = nextCategory;
-        return;
-    }
+        const nextCategory = firstCategoryForGroup(next);
+        if (!categoryBelongsToGroup(category.value, next)) {
+            category.value = nextCategory;
+            return;
+        }
 
-    await resetAndLoad();
-});
+        await resetAndLoad();
+    },
+);
 
 watch(category, async (next, previous) => {
     if (next === previous) {
@@ -164,12 +169,15 @@ watch(activeKeyword, async (next, previous) => {
     await resetAndLoad();
 });
 
-watch(() => props.autoRefreshToken, async (next, previous) => {
-    if (next === previous || next === 0) {
-        return;
-    }
-    await refreshHot(true);
-});
+watch(
+    () => props.autoRefreshToken,
+    async (next, previous) => {
+        if (next === previous || next === 0) {
+            return;
+        }
+        await refreshHot(true);
+    },
+);
 
 onMounted(async () => {
     category.value = normalizeCategory(category.value);
@@ -365,7 +373,13 @@ function unbindObserver(): void {
             </div>
             <div class="hot-toolbar">
                 <div class="hot-actions">
-                    <Button size="small" text icon="pi pi-refresh" :label="t('hot.refresh')" @click="refreshHot(true)" />
+                    <Button
+                        size="small"
+                        text
+                        icon="pi pi-refresh"
+                        :label="t('hot.refresh')"
+                        @click="refreshHot(true)"
+                    />
                 </div>
                 <div class="hot-category-tabs" role="tablist" :aria-label="t('hot.ariaCategoryTabs')">
                     <button
@@ -431,8 +445,15 @@ function unbindObserver(): void {
                         </td>
                         <td>
                             <div class="value-stack">
-                                <strong :class="item.changePercent > 0 ? 'tone-rise' : item.changePercent < 0 ? 'tone-fall' : ''">{{ formatPercent(item.changePercent) }}</strong>
-                                <span :class="item.change > 0 ? 'tone-rise' : item.change < 0 ? 'tone-fall' : ''">{{ formatMoney(item.change, true) }}</span>
+                                <strong
+                                    :class="
+                                        item.changePercent > 0 ? 'tone-rise' : item.changePercent < 0 ? 'tone-fall' : ''
+                                    "
+                                    >{{ formatPercent(item.changePercent) }}</strong
+                                >
+                                <span :class="item.change > 0 ? 'tone-rise' : item.change < 0 ? 'tone-fall' : ''">{{
+                                    formatMoney(item.change, true)
+                                }}</span>
                             </div>
                         </td>
                         <td>
@@ -456,7 +477,7 @@ function unbindObserver(): void {
                                         rounded
                                         icon="pi pi-bookmark-fill"
                                         class="hot-watched-button"
-                                        style="color: var(--accent);"
+                                        style="color: var(--accent)"
                                         :aria-label="t('hot.unwatchItem')"
                                         :title="t('hot.unwatchItem')"
                                         @click="$emit('unwatch-item', item)"
@@ -574,7 +595,11 @@ function unbindObserver(): void {
 .hot-category-tab.active {
     color: var(--accent-strong);
     border-color: color-mix(in srgb, var(--accent) 18%, var(--border));
-    background: linear-gradient(180deg, color-mix(in srgb, var(--accent-soft) 86%, var(--panel-strong)) 0%, color-mix(in srgb, var(--accent-soft) 34%, var(--panel-strong)) 100%);
+    background: linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--accent-soft) 86%, var(--panel-strong)) 0%,
+        color-mix(in srgb, var(--accent-soft) 34%, var(--panel-strong)) 100%
+    );
     box-shadow: var(--shadow-soft);
 }
 
@@ -704,7 +729,6 @@ function unbindObserver(): void {
 .hot-table .table-action-cell :deep(.hot-position-button.p-button) {
     color: var(--accent);
 }
-
 
 @media (max-width: 880px) {
     .hot-summary {
