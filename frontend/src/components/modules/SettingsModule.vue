@@ -154,7 +154,7 @@ async function openExternal(url: string): Promise<void> {
                             <label class="full-span">
                                 <span>{{ t("settings.labels.hotCacheTTL") }}</span>
                                 <InputNumber v-model="settingsDraft.hotCacheTTLSeconds" :min="10" :step="10" fluid />
-                                <!-- <small class="settings-note">{{ t("settings.labels.hotCacheTTLHint") }}</small> -->
+                                <small class="settings-note">{{ t("settings.labels.hotCacheTTLHint") }}</small>
                             </label>
                         </div>
                     </div>

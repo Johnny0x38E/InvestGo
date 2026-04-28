@@ -4,6 +4,7 @@ import Button from "primevue/button";
 import InputText from "primevue/inputtext";
 import Tag from "primevue/tag";
 
+import DataFreshnessMeta from "../DataFreshnessMeta.vue";
 import { formatDateTime, formatMoney, formatPercent, formatRange, formatUnitPrice } from "../../format";
 import { useI18n } from "../../i18n";
 import type { WatchlistItem } from "../../types";
@@ -40,6 +41,26 @@ const lastSyncedAt = computed(() => {
 
     return timestamps.reduce((latest, current) => (new Date(current).getTime() > new Date(latest).getTime() ? current : latest));
 });
+
+const holdingsSourceSummary = computed(() => {
+    const sources = Array.from(new Set(holdingsItems.value.map((item) => item.quoteSource).filter(Boolean)));
+    if (!sources.length) {
+        return t("common.notAvailable");
+    }
+    return sources.join(" / ");
+});
+
+const freshnessMeta = computed(() => {
+    const syncedAt = lastSyncedAt.value ? formatDateTime(lastSyncedAt.value) : t("common.notAvailable");
+    return {
+        summary: `${t("common.syncedAt")} ${syncedAt}`,
+        details: [
+            { label: t("common.syncedAt"), value: syncedAt },
+            { label: t("common.source"), value: holdingsSourceSummary.value },
+            { label: t("common.results"), value: String(holdingsItems.value.length) },
+        ],
+    };
+});
 </script>
 
 <template>
@@ -56,7 +77,7 @@ const lastSyncedAt = computed(() => {
 
         <div class="table-meta-row">
             <span>{{ t("holdings.meta.results", { count: holdingsItems.length }) }}</span>
-            <span>{{ t("holdings.meta.lastSynced", { time: lastSyncedAt ? formatDateTime(lastSyncedAt) : t("common.notAvailable") }) }}</span>
+            <DataFreshnessMeta :summary="freshnessMeta.summary" :details="freshnessMeta.details" />
         </div>
 
         <div class="table-shell">

@@ -68,6 +68,9 @@ const matchMediaList = window.matchMedia("(prefers-color-scheme: dark)");
 
 const settingsDraft = reactive<AppSettings>({ ...defaultSettings });
 let developerLogTimer = 0;
+let autoRefreshTimer = 0;
+let autoRefreshInFlight = false;
+const hotAutoRefreshToken = ref(0);
 
 const filteredItems = computed(() => {
     const keyword = search.value.trim().toLowerCase();
@@ -204,14 +207,23 @@ watch(
     { immediate: true },
 );
 
+watch(
+    () => settings.value.hotCacheTTLSeconds,
+    () => {
+        scheduleAutoRefresh();
+    },
+);
+
 onMounted(async () => {
     installClientLogCapture();
     matchMediaList.addEventListener("change", syncThemeMode);
     await loadState();
+    scheduleAutoRefresh();
 });
 
 onBeforeUnmount(() => {
     window.clearInterval(developerLogTimer);
+    window.clearInterval(autoRefreshTimer);
     matchMediaList.removeEventListener("change", syncThemeMode);
 });
 
@@ -231,6 +243,41 @@ function applyResolvedTheme(themeMode: AppSettings["themeMode"]): void {
     const nextTheme = resolvedTheme(themeMode);
     document.documentElement.dataset.theme = nextTheme;
     document.documentElement.classList.toggle("app-dark", nextTheme === "dark");
+}
+
+function autoRefreshIntervalMs(): number {
+    return Math.max(10, settings.value.hotCacheTTLSeconds || defaultSettings.hotCacheTTLSeconds) * 1000;
+}
+
+function scheduleAutoRefresh(): void {
+    window.clearInterval(autoRefreshTimer);
+    autoRefreshTimer = window.setInterval(() => {
+        void runAutoRefresh();
+    }, autoRefreshIntervalMs());
+}
+
+async function runAutoRefresh(): Promise<void> {
+    if (autoRefreshInFlight) {
+        return;
+    }
+
+    autoRefreshInFlight = true;
+    try {
+        switch (activeModule.value) {
+            case "watchlist":
+                await refreshSelectedItem(true, true, true);
+                break;
+            case "hot":
+                await refreshQuotes(true, false, true);
+                hotAutoRefreshToken.value += 1;
+                break;
+            default:
+                await refreshQuotes(true, false, true);
+                break;
+        }
+    } finally {
+        autoRefreshInFlight = false;
+    }
 }
 
 // Fetch the full backend snapshot for initial load and manual refresh flows.
@@ -489,6 +536,7 @@ function switchModule(next: ModuleKey): void {
             :history-error="historyError"
             :tracked-hot-keys="trackedHotKeys"
             :hot-market-group="hotMarketGroup"
+            :hot-auto-refresh-token="hotAutoRefreshToken"
             :search="search"
             :filtered-items="filteredItems"
             :selected-item-id="selectedItemId"

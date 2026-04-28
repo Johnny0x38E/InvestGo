@@ -4,6 +4,7 @@ import Button from "primevue/button";
 import InputText from "primevue/inputtext";
 import Tag from "primevue/tag";
 
+import DataFreshnessMeta from "../DataFreshnessMeta.vue";
 import { ApiAbortError, api } from "../../api";
 import { getHotCategoryOptions } from "../../constants";
 import { formatDateTime, formatMoney, formatPercent, formatUnitPrice } from "../../format";
@@ -16,6 +17,7 @@ type SortDirection = "asc" | "desc";
 const props = defineProps<{
     trackedKeys: string[];
     marketGroup: HotMarketGroup;
+    autoRefreshToken: number;
 }>();
 
 defineEmits<{
@@ -92,6 +94,20 @@ const updatedAtSummary = computed(() => {
 });
 
 const cacheSummary = computed(() => (cached.value ? t("hot.cacheHit") : t("hot.cacheMiss")));
+const freshnessMeta = computed(() => {
+    const updatedAt = updatedAtSummary.value ? formatDateTime(updatedAtSummary.value) : t("common.notAvailable");
+    const cacheExpires = cacheExpiresAt.value ? formatDateTime(cacheExpiresAt.value) : t("common.notAvailable");
+    return {
+        summary: `${sourceSummary.value} · ${updatedAt} · ${cacheSummary.value}`,
+        details: [
+            { label: t("common.source"), value: sourceSummary.value },
+            { label: t("common.updatedAt"), value: updatedAt },
+            { label: t("common.cacheState"), value: cacheSummary.value },
+            { label: t("common.cacheExpiresAt"), value: cacheExpires },
+            { label: t("common.results"), value: `${items.value.length} / ${total.value}` },
+        ],
+    };
+});
 
 function handleSort(field: SortField): void {
     if (sortField.value === field) {
@@ -146,6 +162,13 @@ watch(activeKeyword, async (next, previous) => {
         return;
     }
     await resetAndLoad();
+});
+
+watch(() => props.autoRefreshToken, async (next, previous) => {
+    if (next === previous || next === 0) {
+        return;
+    }
+    await refreshHot(true);
 });
 
 onMounted(async () => {
@@ -365,10 +388,7 @@ function unbindObserver(): void {
         <div class="hot-summary">
             <span v-if="activeKeyword">{{ t("hot.searchResults", { count: items.length, total }) }}</span>
             <span v-else>{{ t("hot.loadedSummary", { count: items.length, total }) }}</span>
-            <span>{{ t("hot.meta.source", { source: sourceSummary }) }}</span>
-            <span>{{ t("hot.meta.updatedAt", { time: updatedAtSummary ? formatDateTime(updatedAtSummary) : t("common.notAvailable") }) }}</span>
-            <span>{{ t("hot.meta.cache", { state: cacheSummary }) }}</span>
-            <span v-if="cacheExpiresAt">{{ t("hot.meta.cacheFreshUntil", { time: formatDateTime(cacheExpiresAt) }) }}</span>
+            <DataFreshnessMeta :summary="freshnessMeta.summary" :details="freshnessMeta.details" />
         </div>
 
         <div class="hot-table-shell">

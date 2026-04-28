@@ -4,6 +4,7 @@ import Chart from "primevue/chart";
 import Button from "primevue/button";
 import Skeleton from "primevue/skeleton";
 
+import DataFreshnessMeta from "../DataFreshnessMeta.vue";
 import SummaryStrip from "../SummaryStrip.vue";
 import { api, ApiAbortError } from "../../api";
 import { formatDateTime, formatMoney, formatNumber, resolvedLocale } from "../../format";
@@ -83,6 +84,24 @@ const trendTotalColor = computed(() => {
 
 const breakdownTotal = computed(() => analytics.value?.breakdown.reduce((sum, slice) => sum + slice.value, 0) ?? 0);
 const cacheSummary = computed(() => (analytics.value?.cached ? t("common.cacheHit") : t("common.cacheMiss")));
+const overviewFreshness = computed(() => {
+    const current = analytics.value;
+    if (!current) {
+        return null;
+    }
+
+    const generatedAt = formatDateTime(current.generatedAt || props.generatedAt);
+    const cacheExpiresAt = current.cacheExpiresAt ? formatDateTime(current.cacheExpiresAt) : t("common.notAvailable");
+    return {
+        summary: `${generatedAt} · ${cacheSummary.value}`,
+        details: [
+            { label: t("overview.meta.generatedAt"), value: generatedAt },
+            { label: t("common.cacheState"), value: cacheSummary.value },
+            { label: t("common.cacheExpiresAt"), value: cacheExpiresAt },
+            { label: t("overview.meta.displayCurrency"), value: current.displayCurrency },
+        ],
+    };
+});
 const hasOverviewData = computed(() => {
     const dashboard = props.dashboard;
     if (!dashboard) {
@@ -406,10 +425,7 @@ async function loadOverview(): Promise<void> {
             <div class="overview-card overview-card-top">
                 <div class="overview-head">
                     <h4>{{ t("overview.charts.category.title") }}</h4>
-                    <div class="toolbar-row">
-                        <span class="overview-meta-chip">{{ t("overview.meta.cache", { state: cacheSummary }) }}</span>
-                        <span v-if="analytics.cacheExpiresAt" class="overview-meta-chip">{{ t("common.cacheFreshUntil", { time: formatDateTime(analytics.cacheExpiresAt) }) }}</span>
-                    </div>
+                    <DataFreshnessMeta v-if="overviewFreshness" :summary="overviewFreshness.summary" :details="overviewFreshness.details" />
                 </div>
 
                 <div v-if="analytics.breakdown.length" class="overview-breakdown">
@@ -508,17 +524,6 @@ async function loadOverview(): Promise<void> {
     justify-content: space-between;
     gap: 10px;
     min-width: 0;
-}
-
-.overview-meta-chip {
-    font-size: 11px;
-    color: var(--muted);
-    background: color-mix(in srgb, var(--panel-soft) 92%, transparent);
-    border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
-    border-radius: 999px;
-    padding: 3px 8px;
-    white-space: nowrap;
-    line-height: 1.6;
 }
 
 .overview-head h4 {

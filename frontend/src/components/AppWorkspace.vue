@@ -34,6 +34,7 @@ defineProps<{
     historyError: string;
     trackedHotKeys: string[];
     hotMarketGroup: HotMarketGroup;
+    hotAutoRefreshToken: number;
     search: string;
     filteredItems: WatchlistItem[];
     selectedItemId: string;
@@ -101,6 +102,7 @@ defineEmits<{
         v-else-if="activeModule === 'hot'"
         :tracked-keys="trackedHotKeys"
         :market-group="hotMarketGroup"
+        :auto-refresh-token="hotAutoRefreshToken"
         @update:market-group="$emit('update:hotMarketGroup', $event)"
         @watch-item="$emit('hot-watch-item', $event)"
         @unwatch-item="$emit('hot-unwatch-item', $event)"
