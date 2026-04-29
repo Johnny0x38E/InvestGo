@@ -11,6 +11,9 @@ set -euo pipefail
 # - Use --dev when you want the packaged app to support F12 Web Inspector.
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+DARWIN_PLATFORM_NAME="${DARWIN_PLATFORM_NAME:-aarch64}"
+DARWIN_BUILD_SCRIPT="${DARWIN_BUILD_SCRIPT:-$ROOT_DIR/scripts/build-darwin-aarch64.sh}"
+SCRIPT_NAME="$(basename "$0")"
 APP_NAME="${APP_NAME:-InvestGo}"
 BINARY_NAME="${BINARY_NAME:-investgo}"
 VERSION="${VERSION:-0.1.0}"
@@ -30,16 +33,17 @@ APP_RESOURCES_DIR="$APP_CONTENTS_DIR/Resources"
 ICON_SOURCE="${ICON_SOURCE:-$BUILD_DIR/appicon.png}"
 ICONSET_DIR="$BUILD_DIR/InvestGo.iconset"
 ICNS_FILE="$BUILD_DIR/InvestGo.icns"
+ICNS_RENDER_SCRIPT="$ROOT_DIR/scripts/render-icns.swift"
 PLIST_TEMPLATE="$BUILD_DIR/Info.plist.template"
 STAGING_DIR="$BUILD_DIR/dmg-staging"
-DMG_PATH="$BUILD_DIR/bin/investgo-$VERSION-darwin-aarch64.dmg"
+DMG_PATH="$BUILD_DIR/bin/investgo-$VERSION-darwin-$DARWIN_PLATFORM_NAME.dmg"
 
 print_usage() {
   printf '%s\n' \
     'Usage:' \
-    '  ./scripts/package-darwin-aarch64.sh' \
-    '  VERSION=0.1.0 ./scripts/package-darwin-aarch64.sh' \
-    '  VERSION=0.1.0 ./scripts/package-darwin-aarch64.sh --dev' \
+    "  ./scripts/$SCRIPT_NAME" \
+    "  VERSION=0.1.0 ./scripts/$SCRIPT_NAME" \
+    "  VERSION=0.1.0 ./scripts/$SCRIPT_NAME --dev" \
     '' \
     'Notes:' \
     '  - Version is injected at build/package time and is also used in the DMG filename.' \
@@ -101,6 +105,14 @@ render_info_plist() {
 generate_icns() {
   local size
   local retina_size
+
+  if [[ -f "$ICNS_RENDER_SCRIPT" ]] && command -v swift >/dev/null 2>&1; then
+    export CLANG_MODULE_CACHE_PATH="${CLANG_MODULE_CACHE_PATH:-${TMPDIR:-/tmp}/swift-module-cache}"
+    swift "$ICNS_RENDER_SCRIPT" "$ICON_SOURCE" "$ICNS_FILE"
+    if [[ -s "$ICNS_FILE" ]]; then
+      return
+    fi
+  fi
 
   rm -f "$ICNS_FILE"
   rm -rf "$ICONSET_DIR"
@@ -180,7 +192,11 @@ build_app_bundle() {
     build_args+=("--dev")
   fi
 
-  OUTPUT_FILE="$APP_EXECUTABLE" MACOS_MIN_VERSION="$MACOS_MIN_VERSION" "$ROOT_DIR/scripts/build-darwin-aarch64.sh" "${build_args[@]}"
+  if [[ ${#build_args[@]} -gt 0 ]]; then
+    OUTPUT_FILE="$APP_EXECUTABLE" MACOS_MIN_VERSION="$MACOS_MIN_VERSION" "$DARWIN_BUILD_SCRIPT" "${build_args[@]}"
+  else
+    OUTPUT_FILE="$APP_EXECUTABLE" MACOS_MIN_VERSION="$MACOS_MIN_VERSION" "$DARWIN_BUILD_SCRIPT"
+  fi
 
   if [[ ! -s "$ICNS_FILE" || "$ICON_SOURCE" -nt "$ICNS_FILE" ]]; then
     generate_icns

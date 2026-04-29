@@ -11,7 +11,10 @@ set -euo pipefail
 # - Use --dev when you want the binary to support F12 Web Inspector.
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-OUTPUT_FILE="${OUTPUT_FILE:-$ROOT_DIR/build/bin/investgo-darwin-aarch64}"
+DARWIN_GOARCH="${DARWIN_GOARCH:-arm64}"
+DARWIN_PLATFORM_NAME="${DARWIN_PLATFORM_NAME:-aarch64}"
+SCRIPT_NAME="$(basename "$0")"
+OUTPUT_FILE="${OUTPUT_FILE:-$ROOT_DIR/build/bin/investgo-darwin-$DARWIN_PLATFORM_NAME}"
 MACOS_MIN_VERSION="${MACOS_MIN_VERSION:-13.0}"
 APP_VERSION="${APP_VERSION:-${VERSION:--dev}}"
 DEV_BUILD=0
@@ -19,9 +22,9 @@ DEV_BUILD=0
 print_usage() {
   printf '%s\n' \
     'Usage:' \
-    '  ./scripts/build-darwin-aarch64.sh' \
-    '  VERSION=0.1.0 ./scripts/build-darwin-aarch64.sh' \
-    '  VERSION=0.1.0 ./scripts/build-darwin-aarch64.sh --dev' \
+    "  ./scripts/$SCRIPT_NAME" \
+    "  VERSION=0.1.0 ./scripts/$SCRIPT_NAME" \
+    "  VERSION=0.1.0 ./scripts/$SCRIPT_NAME --dev" \
     '' \
     'Notes:' \
     '  - Version is injected at build time. Without VERSION/APP_VERSION, the app shows "dev".' \
@@ -56,7 +59,7 @@ npm run build
 
 export CGO_ENABLED=1
 export GOOS=darwin
-export GOARCH=arm64
+export GOARCH="$DARWIN_GOARCH"
 export GOCACHE="${GOCACHE:-/tmp/go-build-cache}"
 export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-$MACOS_MIN_VERSION}"
 export CGO_CFLAGS="${CGO_CFLAGS:--mmacosx-version-min=$MACOS_MIN_VERSION}"
