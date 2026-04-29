@@ -23,6 +23,7 @@ InvestGo uses Wails mainly as a lightweight desktop container for a Go backend a
 - Market data: EastMoney, Yahoo Finance, Sina Finance, Xueqiu, Tencent Finance, Alpha Vantage, Twelve Data, Finnhub, Polygon.
 - FX data: Frankfurter.
 - macOS packaging: shell scripts plus `swift`, `sips`, `iconutil`, `hdiutil`, and `ditto`.
+- Windows build: PowerShell script plus `go`, `npm`, Microsoft Edge WebView2 Runtime, and ImageMagick for local icon rendering.
 
 ## Architecture
 
@@ -40,10 +41,12 @@ The repository is not a monorepo. The Go module root is the repository root, and
 Persisted state defaults to:
 
 - macOS: `~/Library/Application Support/investgo/state.json`
+- Windows: `%AppData%\investgo\state.json`
 
 Developer logs default to:
 
 - macOS: `~/Library/Application Support/investgo/logs/app.log`
+- Windows: `%AppData%\investgo\logs\app.log`
 
 ## Development
 
@@ -51,7 +54,9 @@ Prerequisites:
 
 - Node.js 20+
 - Go 1.26+
-- macOS 13+ on Apple Silicon for the current desktop build and packaging scripts
+- macOS 13+ on Apple Silicon or Intel for macOS build and packaging scripts
+- Windows 11 x64 plus Microsoft Edge WebView2 Runtime for Windows desktop runtime
+- ImageMagick `magick` on Windows when `build/appicon.png` must be generated locally
 
 Install dependencies:
 
@@ -82,19 +87,43 @@ npm run build
 
 Build the desktop binary:
 
+macOS Apple Silicon:
+
 ```bash
 ./scripts/build-darwin-aarch64.sh
 VERSION=1.0.0 ./scripts/build-darwin-aarch64.sh
 ./scripts/build-darwin-aarch64.sh --dev
 ```
 
-The build script renders `build/appicon.png`, runs `npm run build`, and outputs `build/bin/investgo-darwin-aarch64`.
+macOS Intel:
+
+```bash
+./scripts/build-darwin-x86_64.sh
+VERSION=1.0.0 ./scripts/build-darwin-x86_64.sh
+./scripts/build-darwin-x86_64.sh --dev
+```
+
+Windows 11 x64 from PowerShell:
+
+```powershell
+.\scripts\build-windows-amd64.ps1
+$env:VERSION="1.0.0"; .\scripts\build-windows-amd64.ps1
+.\scripts\build-windows-amd64.ps1 -Dev
+```
+
+The macOS build scripts render `build/appicon.png` with Swift/AppKit, run `npm run build`, and output `build/bin/investgo-darwin-aarch64` or `build/bin/investgo-darwin-x86_64`.
+The Windows build script renders `build/appicon.png` with ImageMagick when missing, runs `npm run build`, and outputs `build/bin/investgo-windows-amd64.exe`.
 
 Build script environment variables:
 
 - `VERSION`
 - `APP_VERSION`
 - `OUTPUT_FILE`
+- `ICON_SOURCE` (Windows)
+- `APP_ICON_OUTPUT_FILE` (Windows)
+- `ICON_SIZE` (Windows)
+- `DARWIN_GOARCH` (macOS)
+- `DARWIN_PLATFORM_NAME` (macOS)
 - `MACOS_MIN_VERSION`
 - `GOCACHE`
 - `MACOSX_DEPLOYMENT_TARGET`
@@ -103,7 +132,11 @@ Build script environment variables:
 
 ## Package
 
+Windows installer packaging is not implemented yet. The Windows script currently produces a runnable `.exe`; a proper installer still needs Windows-specific resource metadata, WebView2 handling, signing, and installer scripting.
+
 Package the app bundle and DMG:
+
+macOS Apple Silicon:
 
 ```bash
 ./scripts/package-darwin-aarch64.sh
@@ -111,10 +144,40 @@ VERSION=1.0.0 ./scripts/package-darwin-aarch64.sh
 ./scripts/package-darwin-aarch64.sh --dev
 ```
 
+macOS Intel:
+
+```bash
+./scripts/package-darwin-x86_64.sh
+VERSION=1.0.0 ./scripts/package-darwin-x86_64.sh
+./scripts/package-darwin-x86_64.sh --dev
+```
+
 Outputs:
 
 - `build/macos/InvestGo.app`
 - `build/bin/investgo-<version>-darwin-aarch64.dmg`
+- `build/bin/investgo-<version>-darwin-x86_64.dmg`
+
+Unsigned macOS builds:
+
+The public macOS artifacts are not currently Developer ID signed or notarized. After downloading a DMG or app bundle, macOS Gatekeeper may block launch, or show messages such as "InvestGo is damaged and can't be opened." For a build you trust, either use System Settings > Privacy & Security > Open Anyway after the first failed launch, or remove the quarantine flag manually:
+
+```bash
+# If the app has already been copied to /Applications:
+xattr -dr com.apple.quarantine /Applications/InvestGo.app
+
+# If macOS requires elevated permissions for the copied app:
+sudo xattr -dr com.apple.quarantine /Applications/InvestGo.app
+```
+
+You can also clear the downloaded DMG before mounting it:
+
+```bash
+xattr -d com.apple.quarantine ~/Downloads/investgo-<version>-darwin-aarch64.dmg
+xattr -d com.apple.quarantine ~/Downloads/investgo-<version>-darwin-x86_64.dmg
+```
+
+Do this only for artifacts you built yourself or downloaded from a source you trust. Disabling Gatekeeper globally is not recommended.
 
 Packaging script environment variables:
 
@@ -123,6 +186,8 @@ Packaging script environment variables:
 - `VERSION`
 - `APP_ID`
 - `MACOS_MIN_VERSION`
+- `DARWIN_PLATFORM_NAME`
+- `DARWIN_BUILD_SCRIPT`
 - `VOLUME_NAME`
 - `ICON_SOURCE`
 - `APPLE_SIGN_IDENTITY`
@@ -135,6 +200,8 @@ Packaging script environment variables:
 - `--dev` enables terminal logging and F12 Web Inspector support at build time. F12 still requires the in-app `developerMode` setting to be enabled.
 - Version is injected with `-X main.appVersion=$APP_VERSION`. Without `VERSION` or `APP_VERSION`, the app reports `dev`.
 - Proxy mode can be `none`, `system`, or `custom`. System proxy detection currently probes `scutil --proxy` only on macOS.
+- Windows builds require WebView2 Runtime on the target machine. Windows 11 usually has it installed, but clean systems should verify it explicitly.
+- The Windows build does not yet embed a `.ico`, version resource, or application manifest into the executable.
 - Frontend visible copy is bilingual. User-facing text changes should update both `zh-CN` and `en-US` entries in `frontend/src/i18n.ts`.
 - There are no frontend tests. Use `npm run typecheck` for frontend validation and Go tests under `internal/**` for backend validation.
 
