@@ -13,7 +13,18 @@ $ErrorActionPreference = "Stop"
 function Require-Command {
     param([string]$Name)
     if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) {
-        throw "Missing required command: $Name"
+        $hint = switch ($Name) {
+            "go" { "winget install GoLang.Go" }
+            "npm" { "winget install OpenJS.NodeJS.LTS" }
+            "magick" { "winget install ImageMagick.ImageMagick" }
+            default { "" }
+        }
+
+        $message = "Missing required command: $Name"
+        if (-not [string]::IsNullOrWhiteSpace($hint)) {
+            $message = "$message`nInstall it with: $hint`nThen open a new terminal and rerun this script."
+        }
+        throw $message
     }
 }
 
@@ -29,7 +40,7 @@ if ([string]::IsNullOrWhiteSpace($OutputFile)) {
     $OutputFile = Join-Path $RootDir "build/bin/investgo-windows-amd64.exe"
 }
 if ([string]::IsNullOrWhiteSpace($IconSource)) {
-    $IconSource = Join-Path $RootDir "frontend/src/assets/app-dock.svg"
+    $IconSource = Join-Path $RootDir "frontend/src/assets/appicon.png"
 }
 if ([string]::IsNullOrWhiteSpace($AppIconOutputFile)) {
     $AppIconOutputFile = Join-Path $RootDir "build/appicon.png"
@@ -50,15 +61,21 @@ New-Item -ItemType Directory -Force -Path (Split-Path -Parent $AppIconOutputFile
 Push-Location $RootDir
 try {
     if (-not (Test-Path $AppIconOutputFile)) {
-        Require-Command "magick"
         if (-not (Test-Path $IconSource)) {
             throw "Missing icon source file: $IconSource"
         }
-        & magick -background none -resize "${IconSize}x${IconSize}" $IconSource $AppIconOutputFile
-        if ($LASTEXITCODE -ne 0) {
-            throw "Icon rendering failed."
+
+        if ([System.IO.Path]::GetExtension($IconSource).ToLowerInvariant() -eq ".png") {
+            Copy-Item -Path $IconSource -Destination $AppIconOutputFile -Force
+            Write-Host "Copied $AppIconOutputFile"
+        } else {
+            Require-Command "magick"
+            & magick -background none -resize "${IconSize}x${IconSize}" $IconSource $AppIconOutputFile
+            if ($LASTEXITCODE -ne 0) {
+                throw "Icon rendering failed."
+            }
+            Write-Host "Rendered $AppIconOutputFile"
         }
-        Write-Host "Rendered $AppIconOutputFile"
     }
 
     & npm run build
