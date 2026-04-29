@@ -23,7 +23,7 @@ InvestGo uses Wails mainly as a lightweight desktop container for a Go backend a
 - Market data: EastMoney, Yahoo Finance, Sina Finance, Xueqiu, Tencent Finance, Alpha Vantage, Twelve Data, Finnhub, Polygon.
 - FX data: Frankfurter.
 - macOS packaging: shell scripts plus `swift`, `sips`, `iconutil`, `hdiutil`, and `ditto`.
-- Windows build: PowerShell script plus `go`, `npm`, Microsoft Edge WebView2 Runtime, and ImageMagick for local icon rendering.
+- Windows build: PowerShell script plus `go`, `npm`, and Microsoft Edge WebView2 Runtime.
 
 ## Architecture
 
@@ -56,7 +56,14 @@ Prerequisites:
 - Go 1.26+
 - macOS 13+ on Apple Silicon or Intel for macOS build and packaging scripts
 - Windows 11 x64 plus Microsoft Edge WebView2 Runtime for Windows desktop runtime
-- ImageMagick `magick` on Windows when `build/appicon.png` must be generated locally
+
+Windows prerequisites can be installed with:
+
+```powershell
+winget install OpenJS.NodeJS.LTS
+winget install GoLang.Go
+winget install Microsoft.EdgeWebView2Runtime
+```
 
 Install dependencies:
 
@@ -111,8 +118,17 @@ $env:VERSION="1.0.0"; .\scripts\build-windows-amd64.ps1
 .\scripts\build-windows-amd64.ps1 -Dev
 ```
 
+Windows 11 x64 from Command Prompt or Explorer:
+
+```bat
+scripts\build-windows-amd64.bat
+```
+
+The `.bat` wrapper runs the PowerShell build with `-ExecutionPolicy Bypass` for this process and pauses when the build fails, which makes missing prerequisites or script errors visible instead of closing the window immediately.
+
 The macOS build scripts render `build/appicon.png` with Swift/AppKit, run `npm run build`, and output `build/bin/investgo-darwin-aarch64` or `build/bin/investgo-darwin-x86_64`.
-The Windows build script renders `build/appicon.png` with ImageMagick when missing, runs `npm run build`, and outputs `build/bin/investgo-windows-amd64.exe`.
+The Windows build script copies `frontend/src/assets/appicon.png` to `build/appicon.png` when missing, runs `npm run build`, and outputs `build/bin/investgo-windows-amd64.exe`. ImageMagick is only needed if `ICON_SOURCE` is overridden to point at an SVG file.
+If `npm`, `go`, or optional `magick` are missing, the Windows build script prints the matching `winget install ...` command.
 
 Build script environment variables:
 
