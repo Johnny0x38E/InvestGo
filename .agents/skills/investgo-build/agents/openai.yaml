@@ -1,0 +1,4 @@
+interface:
+  display_name: "InvestGo Build"
+  short_description: "Build InvestGo binaries and validate outputs"
+  default_prompt: "Use $investgo-build to build InvestGo and verify the build artifacts."

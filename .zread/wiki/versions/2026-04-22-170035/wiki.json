@@ -1,0 +1,250 @@
+{
+  "id": "2026-04-22-170035",
+  "generated_at": "2026-04-22T09:00:35.026409Z",
+  "language": "zh",
+  "pages": [
+    {
+      "slug": "1-xiang-mu-gai-lan",
+      "title": "项目概览",
+      "file": "1-xiang-mu-gai-lan.md",
+      "section": "入门指南",
+      "level": "Beginner"
+    },
+    {
+      "slug": "2-kuai-su-kai-shi",
+      "title": "快速开始",
+      "file": "2-kuai-su-kai-shi.md",
+      "section": "入门指南",
+      "level": "Beginner"
+    },
+    {
+      "slug": "3-ji-zhu-zhan-yu-yi-lai-zong-lan",
+      "title": "技术栈与依赖总览",
+      "file": "3-ji-zhu-zhan-yu-yi-lai-zong-lan.md",
+      "section": "入门指南",
+      "level": "Beginner"
+    },
+    {
+      "slug": "4-kai-fa-huan-jing-da-jian-yu-diao-shi-mo-shi",
+      "title": "开发环境搭建与调试模式",
+      "file": "4-kai-fa-huan-jing-da-jian-yu-diao-shi-mo-shi.md",
+      "section": "入门指南",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "5-gou-jian-yu-da-bao-fa-bu-macos",
+      "title": "构建与打包发布（macOS）",
+      "file": "5-gou-jian-yu-da-bao-fa-bu-macos.md",
+      "section": "入门指南",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "6-ying-yong-qi-dong-liu-cheng-yu-chu-shi-hua",
+      "title": "应用启动流程与初始化",
+      "file": "6-ying-yong-qi-dong-liu-cheng-yu-chu-shi-hua.md",
+      "section": "深度解析",
+      "group": "后端架构",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "7-store-he-xin-zhuang-tai-guan-li-yu-chi-jiu-hua",
+      "title": "Store：核心状态管理与持久化",
+      "file": "7-store-he-xin-zhuang-tai-guan-li-yu-chi-jiu-hua.md",
+      "section": "深度解析",
+      "group": "后端架构",
+      "level": "Advanced"
+    },
+    {
+      "slug": "8-shi-chang-shu-ju-provider-zhu-ce-biao-yu-lu-you-ji-zhi",
+      "title": "市场数据 Provider 注册表与路由机制",
+      "file": "8-shi-chang-shu-ju-provider-zhu-ce-biao-yu-lu-you-ji-zhi.md",
+      "section": "深度解析",
+      "group": "后端架构",
+      "level": "Advanced"
+    },
+    {
+      "slug": "9-xing-qing-jie-xi-qi-duo-shi-chang-dai-ma-gui-fan-hua",
+      "title": "行情解析器：多市场代码规范化",
+      "file": "9-xing-qing-jie-xi-qi-duo-shi-chang-dai-ma-gui-fan-hua.md",
+      "section": "深度解析",
+      "group": "后端架构",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "10-historyrouter-li-shi-shu-ju-jiang-ji-lian-yu-shi-chang-gan-zhi-lu-you",
+      "title": "HistoryRouter：历史数据降级链与市场感知路由",
+      "file": "10-historyrouter-li-shi-shu-ju-jiang-ji-lian-yu-shi-chang-gan-zhi-lu-you.md",
+      "section": "深度解析",
+      "group": "后端架构",
+      "level": "Advanced"
+    },
+    {
+      "slug": "11-re-men-bang-dan-fu-wu-huan-cun-sou-suo-yu-pai-xu",
+      "title": "热门榜单服务：缓存、搜索与排序",
+      "file": "11-re-men-bang-dan-fu-wu-huan-cun-sou-suo-yu-pai-xu.md",
+      "section": "深度解析",
+      "group": "后端架构",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "12-hui-lu-fu-wu-frankfurter-api-yu-duo-bi-chong-zhe-suan",
+      "title": "汇率服务（Frankfurter API）与多币种折算",
+      "file": "12-hui-lu-fu-wu-frankfurter-api-yu-duo-bi-chong-zhe-suan.md",
+      "section": "深度解析",
+      "group": "后端架构",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "13-tou-zi-zu-he-gai-lan-fen-xi-breakdown-yu-trend-ji-suan",
+      "title": "投资组合概览分析：Breakdown 与 Trend 计算",
+      "file": "13-tou-zi-zu-he-gai-lan-fen-xi-breakdown-yu-trend-ji-suan.md",
+      "section": "深度解析",
+      "group": "后端架构",
+      "level": "Advanced"
+    },
+    {
+      "slug": "14-http-api-ceng-she-ji-yu-guo-ji-hua-cuo-wu-chu-li",
+      "title": "HTTP API 层设计与国际化错误处理",
+      "file": "14-http-api-ceng-she-ji-yu-guo-ji-hua-cuo-wu-chu-li.md",
+      "section": "深度解析",
+      "group": "后端架构",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "15-ping-tai-ceng-xi-tong-dai-li-jian-ce-yu-chuang-kou-guan-li",
+      "title": "平台层：系统代理检测与窗口管理",
+      "file": "15-ping-tai-ceng-xi-tong-dai-li-jian-ce-yu-chuang-kou-guan-li.md",
+      "section": "深度解析",
+      "group": "后端架构",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "16-ri-zhi-xi-tong-logbook-yu-qian-hou-duan-tong-ri-zhi",
+      "title": "日志系统：LogBook 与前后端统一日志",
+      "file": "16-ri-zhi-xi-tong-logbook-yu-qian-hou-duan-tong-ri-zhi.md",
+      "section": "深度解析",
+      "group": "后端架构",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "17-vue-3-ying-yong-jie-gou-yu-primevue-ji-cheng",
+      "title": "Vue 3 应用结构与 PrimeVue 集成",
+      "file": "17-vue-3-ying-yong-jie-gou-yu-primevue-ji-cheng.md",
+      "section": "深度解析",
+      "group": "前端架构",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "18-wails-yun-xing-shi-qiao-jie-yu-liu-lan-qi-kai-fa-jian-rong",
+      "title": "Wails 运行时桥接与浏览器开发兼容",
+      "file": "18-wails-yun-xing-shi-qiao-jie-yu-liu-lan-qi-kai-fa-jian-rong.md",
+      "section": "深度解析",
+      "group": "前端架构",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "19-api-ke-hu-duan-feng-zhuang-chao-shi-qu-xiao-yu-cuo-wu-ri-zhi",
+      "title": "API 客户端封装：超时、取消与错误日志",
+      "file": "19-api-ke-hu-duan-feng-zhuang-chao-shi-qu-xiao-yu-cuo-wu-ri-zhi.md",
+      "section": "深度解析",
+      "group": "前端架构",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "20-zu-he-shi-han-shu-composables-she-ji-mo-shi",
+      "title": "组合式函数（Composables）设计模式",
+      "file": "20-zu-he-shi-han-shu-composables-she-ji-mo-shi.md",
+      "section": "深度解析",
+      "group": "前端架构",
+      "level": "Advanced"
+    },
+    {
+      "slug": "21-mo-kuai-hua-shi-tu-watchlist-holdings-overview-hot-alerts-settings",
+      "title": "模块化视图：Watchlist、Holdings、Overview、Hot、Alerts、Settings",
+      "file": "21-mo-kuai-hua-shi-tu-watchlist-holdings-overview-hot-alerts-settings.md",
+      "section": "深度解析",
+      "group": "前端架构",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "22-guo-ji-hua-i18n-yu-shuang-yu-wen-an-guan-li",
+      "title": "国际化（i18n）与双语文案管理",
+      "file": "22-guo-ji-hua-i18n-yu-shuang-yu-wen-an-guan-li.md",
+      "section": "深度解析",
+      "group": "前端架构",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "23-zhu-ti-xi-tong-an-se-mo-shi-pei-se-fang-an-yu-zi-ti-yu-she",
+      "title": "主题系统：暗色模式、配色方案与字体预设",
+      "file": "23-zhu-ti-xi-tong-an-se-mo-shi-pei-se-fang-an-yu-zi-ti-yu-she.md",
+      "section": "深度解析",
+      "group": "前端架构",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "24-hou-duan-he-xin-shu-ju-mo-xing-go",
+      "title": "后端核心数据模型（Go）",
+      "file": "24-hou-duan-he-xin-shu-ju-mo-xing-go.md",
+      "section": "深度解析",
+      "group": "数据模型与类型系统",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "25-qian-duan-lei-xing-ding-yi-yu-hou-duan-lei-xing-dui-qi-typescript",
+      "title": "前端类型定义与后端类型对齐（TypeScript）",
+      "file": "25-qian-duan-lei-xing-ding-yi-yu-hou-duan-lei-xing-dui-qi-typescript.md",
+      "section": "深度解析",
+      "group": "数据模型与类型系统",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "26-eastmoney-provider-shi-shi-xing-qing-yu-li-shi-k-xian",
+      "title": "EastMoney Provider：实时行情与历史 K 线",
+      "file": "26-eastmoney-provider-shi-shi-xing-qing-yu-li-shi-k-xian.md",
+      "section": "深度解析",
+      "group": "行情数据源详解",
+      "level": "Advanced"
+    },
+    {
+      "slug": "27-yahoo-finance-provider-xing-qing-li-shi-yu-sou-suo",
+      "title": "Yahoo Finance Provider：行情、历史与搜索",
+      "file": "27-yahoo-finance-provider-xing-qing-li-shi-yu-sou-suo.md",
+      "section": "深度解析",
+      "group": "行情数据源详解",
+      "level": "Advanced"
+    },
+    {
+      "slug": "28-di-san-fang-api-shu-ju-yuan-ji-cheng-alpha-vantage-finnhub-polygon-twelve-data",
+      "title": "第三方 API 数据源集成（Alpha Vantage、Finnhub、Polygon、Twelve Data）",
+      "file": "28-di-san-fang-api-shu-ju-yuan-ji-cheng-alpha-vantage-finnhub-polygon-twelve-data.md",
+      "section": "深度解析",
+      "group": "行情数据源详解",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "29-guo-nei-xing-qing-yuan-xin-lang-xue-qiu-teng-xun",
+      "title": "国内行情源（新浪、雪球、腾讯）",
+      "file": "29-guo-nei-xing-qing-yuan-xin-lang-xue-qiu-teng-xun.md",
+      "section": "深度解析",
+      "group": "行情数据源详解",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "30-zhuang-tai-cun-chu-lu-jing-yu-yun-xing-shi-pei-zhi",
+      "title": "状态存储路径与运行时配置",
+      "file": "30-zhuang-tai-cun-chu-lu-jing-yu-yun-xing-shi-pei-zhi.md",
+      "section": "深度解析",
+      "group": "开发运维",
+      "level": "Beginner"
+    },
+    {
+      "slug": "31-qian-duan-lei-xing-jian-cha-yu-hou-duan-ce-shi",
+      "title": "前端类型检查与后端测试",
+      "file": "31-qian-duan-lei-xing-jian-cha-yu-hou-duan-ce-shi.md",
+      "section": "深度解析",
+      "group": "开发运维",
+      "level": "Intermediate"
+    }
+  ]
+}

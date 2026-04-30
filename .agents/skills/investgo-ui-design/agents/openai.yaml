@@ -1,0 +1,4 @@
+interface:
+  display_name: "InvestGo UI Design"
+  short_description: "Design and refine InvestGo desktop UI flows"
+  default_prompt: "Use $investgo-ui-design to design or refine an InvestGo UI flow or module."

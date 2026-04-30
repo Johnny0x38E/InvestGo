@@ -1,0 +1,4 @@
+interface:
+  display_name: "InvestGo Wails v3"
+  short_description: "Work on InvestGo's Wails v3 host, desktop shell, and platform runtime boundaries"
+  default_prompt: "Use $investgo-wails-v3 to modify InvestGo's Wails v3 host integration, internal/platform runtime behavior, desktop shell, or lifecycle safely."

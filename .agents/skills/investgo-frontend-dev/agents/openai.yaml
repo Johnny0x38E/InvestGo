@@ -1,0 +1,4 @@
+interface:
+  display_name: "InvestGo Frontend Dev"
+  short_description: "Build InvestGo Vue modules and client state"
+  default_prompt: "Use $investgo-frontend-dev to implement or modify an InvestGo frontend feature."
