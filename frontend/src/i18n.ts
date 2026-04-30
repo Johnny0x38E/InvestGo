@@ -74,6 +74,12 @@ const messages: Record<SupportedLocale, TranslationTree> = {
             quickAddTag: "热门",
             quickAddThesis: "来自热门榜单",
         },
+        windowControls: {
+            minimise: "最小化窗口",
+            maximise: "最大化窗口",
+            restore: "还原窗口",
+            close: "关闭窗口",
+        },
         modules: {
             overview: "资产概览",
             watchlist: "观察列表",
@@ -610,6 +616,12 @@ const messages: Record<SupportedLocale, TranslationTree> = {
             pinFailed: "Failed to update pin",
             quickAddTag: "Hot",
             quickAddThesis: "Imported from hot list",
+        },
+        windowControls: {
+            minimise: "Minimise window",
+            maximise: "Maximise window",
+            restore: "Restore window",
+            close: "Close window",
         },
         modules: {
             overview: "Overview",

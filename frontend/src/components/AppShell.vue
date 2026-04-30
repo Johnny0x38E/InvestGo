@@ -3,9 +3,10 @@ import AppHeader from "./AppHeader.vue";
 import AppSidebar from "./AppSidebar.vue";
 import { useSidebarLayout } from "../composables/useSidebarLayout";
 import { useI18n } from "../i18n";
+import { shouldReserveMacWindowControls, shouldShowCustomWindowControls } from "../wails-runtime";
 import type { HotMarketGroup, ModuleKey, StatusTone, WatchlistItem } from "../types";
 
-defineProps<{
+const props = defineProps<{
     activeModule: ModuleKey;
     items: WatchlistItem[];
     selectedItemId: string;
@@ -13,6 +14,7 @@ defineProps<{
     statusText: string;
     statusTone: StatusTone;
     generatedAt: string;
+    useNativeTitleBar: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -27,7 +29,16 @@ const { appShellRef, sidebarWidth, sidebarHidden, toggleSidebar, startSidebarRes
 </script>
 
 <template>
-    <div ref="appShellRef" class="app-shell" :class="{ 'is-sidebar-hidden': sidebarHidden }" :style="{ '--sidebar-width': `${sidebarWidth}px` }">
+    <div
+        ref="appShellRef"
+        class="app-shell"
+        :class="{
+            'is-sidebar-hidden': sidebarHidden,
+            'is-mac-custom-titlebar': shouldReserveMacWindowControls(props.useNativeTitleBar),
+            'is-nonmac-custom-titlebar': shouldShowCustomWindowControls(props.useNativeTitleBar),
+        }"
+        :style="{ '--sidebar-width': `${sidebarWidth}px` }"
+    >
         <div v-if="!sidebarHidden" class="sidebar-column">
             <div class="sidebar-topbar">
                 <button type="button" :aria-label="t('sidebar.hide')" class="sidebar-chrome-toggle" @click="toggleSidebar">
@@ -58,7 +69,7 @@ const { appShellRef, sidebarWidth, sidebarHidden, toggleSidebar, startSidebarRes
                         <path d="M5.25 0.65V13.35" stroke="currentColor" stroke-width="1.3" />
                     </svg>
                 </button>
-                <AppHeader :status-text="statusText" :status-tone="statusTone" :generated-at="generatedAt" />
+                <AppHeader :status-text="statusText" :status-tone="statusTone" :generated-at="generatedAt" :show-window-controls="shouldShowCustomWindowControls(props.useNativeTitleBar)" />
             </div>
 
             <div class="workspace-panel">
@@ -72,11 +83,21 @@ const { appShellRef, sidebarWidth, sidebarHidden, toggleSidebar, startSidebarRes
 
 <style scoped>
 .app-shell {
+    --window-control-inset-left: 0px;
+    --sidebar-shell-radius: 18px;
     height: 100%;
     display: grid;
     grid-template-columns: var(--sidebar-width, 220px) minmax(0, 1fr);
     gap: 10px;
     padding: 10px;
+}
+
+.app-shell.is-mac-custom-titlebar {
+    --window-control-inset-left: 76px;
+}
+
+.app-shell.is-nonmac-custom-titlebar {
+    --sidebar-shell-radius: 10px;
 }
 
 .app-shell.is-sidebar-hidden {
@@ -96,13 +117,13 @@ const { appShellRef, sidebarWidth, sidebarHidden, toggleSidebar, startSidebarRes
         0 6px 18px rgba(15, 23, 42, 0.06),
         0 1px 0 rgba(255, 255, 255, 0.18) inset;
     backdrop-filter: blur(14px);
-    border-radius: 18px;
+    border-radius: var(--sidebar-shell-radius);
     overflow: hidden;
 }
 
 .sidebar-topbar {
     min-height: 52px;
-    padding: 0 10px 0 76px;
+    padding: 0 10px 0 var(--window-control-inset-left);
     display: flex;
     align-items: flex-start;
     justify-content: flex-end;
@@ -126,7 +147,7 @@ const { appShellRef, sidebarWidth, sidebarHidden, toggleSidebar, startSidebarRes
 }
 
 .main-topbar .sidebar-chrome-toggle {
-    margin-left: 76px;
+    margin-left: var(--window-control-inset-left);
     margin-right: 4px;
     align-self: flex-start;
     margin-top: 2px;

@@ -27,7 +27,7 @@ Use the smallest relevant command set from `AGENTS.md`; only switch to a dev-mod
 - `scutil`, `swift`, `sips`, `iconutil`, `hdiutil`, and `ditto` are macOS-specific assumptions in the current runtime or release toolchain; runtime proxy and window behavior now live under `internal/platform/**`.
 - External URL opening now fans out by OS in `internal/api/open_external.go`, so failures may be command-availability or shell-integration issues rather than route bugs.
 - `scripts/render-svg-icon.swift` depends on AppKit and cannot be reused for Windows x64 as-is.
-- Shell layout and native title-bar behavior may differ once Windows support is added, so layout bugs near the window chrome may be platform-specific rather than generic CSS issues.
+- Shell layout and native/custom title-bar behavior differ by platform: macOS custom chrome keeps native traffic-light controls, while Windows/Linux custom chrome uses frameless windows and frontend controls. Window-chrome bugs may be platform-specific rather than generic CSS issues.
 
 ## Output expectation
 

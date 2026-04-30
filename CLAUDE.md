@@ -67,6 +67,14 @@ Outputs: `build/bin/investgo-darwin-{aarch64,x86_64}` (binary), `build/macos/Inv
 - The Wails runtime (`frontend/src/wails-runtime.ts`) may be `null` when running under Vite dev server — always guard access.
 - The `api()` wrapper in `frontend/src/api.ts` handles timeouts, cancellation, error redaction, and logs API errors to the developer log system.
 
+### Desktop Shell & Window Chrome
+
+- `UseNativeTitleBar` is a cross-platform setting read from persisted settings before `internal/platform.BuildMainWindowOptions(...)` creates the main window.
+- When `UseNativeTitleBar=false`, macOS uses Wails' hidden inset title bar so the system red/yellow/green controls remain available; Windows and Linux use `Frameless` and render custom minimize/maximize/close controls in `frontend/src/components/AppHeader.vue`.
+- macOS custom title-bar double-click maximize/restore is implemented in the frontend title-bar handler; do not assume native double-click behavior exists when the visible title bar is hidden.
+- `frontend/src/components/AppShell.vue` owns platform-specific title-bar layout: macOS reserves left inset space for the traffic-light controls, Windows/Linux do not, and Windows/Linux use a tighter sidebar shell radius so the internal chrome aligns with the system frame.
+- Window operations should go through `frontend/src/wails-runtime.ts`, which wraps Wails v3 runtime calls and safely no-ops under the Vite browser dev server.
+
 ### HTTP API Routes (`internal/api/http.go`)
 
 Routes use Go 1.22+ pattern matching with path parameters (e.g., `{id}`). Key endpoints:

@@ -59,11 +59,14 @@ env GOCACHE=/tmp/go-build-cache go test ./...
 - **Frontend-backend communication uses standard HTTP `fetch()` to `/api/*` paths**, not Wails JS bindings/events. See `frontend/src/api.ts`.
 - `main.go` mounts `/api/` to `internal/api` handlers and `/` to `application.BundledAssetFileServer(frontendFS)`.
 - The Wails runtime is safely wrapped in `frontend/src/wails-runtime.ts`; it may be `null` when running under Vite dev server.
+- `UseNativeTitleBar` is a cross-platform setting. When disabled, macOS uses Wails' hidden inset title bar and keeps the system red/yellow/green controls; Windows and Linux use `Frameless` and render custom window controls in `AppHeader.vue`.
+- Custom title-bar layout is platform-sensitive in `AppShell.vue`: macOS reserves left inset space for traffic-light controls, while Windows/Linux do not; Windows/Linux also use a tighter sidebar shell radius to match the system window frame.
 - State and logs are persisted to `os.UserConfigDir()/investgo/` (macOS: `~/Library/Application Support/investgo/`).
 
 ## Build & Runtime Gotchas
 
 - `--dev` build flag enables terminal logging and F12 Web Inspector **support**, but the inspector still requires the `developerMode` app setting to be enabled at runtime.
+- macOS custom title-bar double-click maximize/restore is implemented in the frontend title-bar handler because the native double-click behavior is not provided automatically when the visible title bar is hidden.
 - Version is injected at link time: `-X main.appVersion=$APP_VERSION`. Without `VERSION` or `APP_VERSION`, the app shows `"dev"`.
 - The macOS build scripts render `frontend/src/assets/app-dock.svg` to `build/appicon.png` via a Swift script before compiling.
 - The Windows build script copies `frontend/src/assets/appicon.png` to `build/appicon.png` when that file is missing. It does not yet embed a Windows `.ico`, version resource, or manifest.

@@ -18,12 +18,14 @@
 ## Desktop shell constraints
 
 - `main.go` sets the main window size to `1200x828` with a minimum width of `1200` and minimum height of `828`.
-- The shell can run with a custom title bar or a native title bar depending on `useNativeTitleBar`.
-- `.window-bar`, the shell top bars, and the sidebar chrome currently reserve `76px` of leading space for macOS title-bar controls. Treat that value as a current implementation detail, not a permanent cross-platform design truth.
+- The shell can run with a custom title bar or a native title bar depending on `useNativeTitleBar`, and the setting applies on macOS, Windows, and Linux.
+- macOS custom title-bar mode keeps the system red/yellow/green controls through Wails' hidden inset title bar; `.window-bar`, shell top bars, and sidebar chrome reserve `76px` of leading space only in that mode.
+- Windows and Linux custom title-bar mode uses Wails `Frameless` plus custom window controls in `AppHeader.vue`. These platforms do not reserve macOS leading space, and the collapsed sidebar toggle should stay close to the left content edge.
+- `AppShell.vue` owns platform chrome classes and radius variables. Keep Windows/Linux sidebar shell radii tighter than macOS unless the outer window frame radius is also intentionally changed.
 - Keep font stacks resilient. The current CSS prefers macOS fonts first, so any typography change should keep good fallbacks for non-macOS systems.
 
 ## Cross-platform preparation
 
-- Avoid visual assumptions that only make sense on macOS, especially around title-bar spacing, translucency, and font availability.
-- If a design change introduces a shell-specific affordance, note what would need to change for a Windows x64 webview host.
+- Avoid visual assumptions that only make sense on macOS, especially around title-bar spacing, translucency, large internal shell radii, and font availability.
+- If a design change introduces a shell-specific affordance, note what would need to change for Windows x64 and Linux frameless webview hosts.
 - Prefer layout rules driven by data attributes or container structure over fixed offsets tied to one platform.

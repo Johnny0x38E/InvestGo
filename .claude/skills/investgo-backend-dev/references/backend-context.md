@@ -59,7 +59,7 @@ Use `AGENTS.md` for exact commands. This reference keeps the backend boundaries 
 
 ## Settings and compatibility
 
-- Current frontend-facing settings are per-market quote sources, hot cache TTL, appearance, locale, proxy, provider API keys, dashboard currency, developer mode, and native-title-bar behavior.
+- Current frontend-facing settings are per-market quote sources, hot cache TTL, appearance, locale, proxy, provider API keys, dashboard currency, developer mode, and cross-platform native-title-bar behavior.
 - There is no separate frontend-supported history-source setting. History routing follows the current quote-source preference plus history-provider capability.
 - Legacy quote-source fields can appear in compatibility paths for older state files and normalization logic; do not treat them as new frontend product knobs.
 
@@ -67,11 +67,11 @@ Use `AGENTS.md` for exact commands. This reference keeps the backend boundaries 
 
 - `internal/api/open_external.go` dispatches external URL opening to `open`, `rundll32`, or `xdg-open`.
 - `internal/platform/proxy.go` applies system proxy settings and currently only probes `scutil --proxy` on `darwin`.
-- `internal/platform/window.go` builds `application.WebviewWindowOptions` and keeps macOS window behavior out of `main.go`.
+- `internal/platform/window.go` builds `application.WebviewWindowOptions` and keeps platform window behavior out of `main.go`; `UseNativeTitleBar=false` maps to hidden inset title bar on macOS and frameless windows on Windows/Linux.
 - Embedded `frontend/dist` means a stale frontend build can surface as a backend-looking bug.
 
 ## Cross-platform preparation
 
-- Keep macOS-only behavior isolated under `internal/platform` or other platform helpers before adding Windows x64 support.
+- Keep OS-specific behavior isolated under `internal/platform` or other platform helpers.
 - Treat external-link opening, proxy detection, title-bar behavior, and release metadata as platform-specific seams.
 - Keep API and store logic platform-neutral where possible so only shell integration needs conditional handling.

@@ -1,18 +1,20 @@
 <script setup lang="ts">
-import { reactive } from "vue";
+import { onMounted, reactive, ref } from "vue";
 
 import { formatDateTime } from "../format";
 import { useI18n } from "../i18n";
-import { isWindowMaximised, maximiseWindow, restoreWindow, startWindowDrag } from "../wails-runtime";
+import { closeWindow, isWindowMaximised, maximiseWindow, minimiseWindow, restoreWindow, startWindowDrag, toggleMaximiseWindow } from "../wails-runtime";
 import type { StatusTone } from "../types";
 
 defineProps<{
     statusText: string;
     statusTone: StatusTone;
     generatedAt: string;
+    showWindowControls: boolean;
 }>();
 
 const { t } = useI18n();
+const maximised = ref(false);
 
 const dragState = reactive({
     active: false,
@@ -92,12 +94,35 @@ async function handleBarDoubleClick(event: MouseEvent): Promise<void> {
     event.preventDefault();
     const maximised = await isWindowMaximised();
     if (maximised) {
-        restoreWindow();
+        await restoreWindow();
+        await refreshMaximisedState();
         return;
     }
 
-    maximiseWindow();
+    await maximiseWindow();
+    await refreshMaximisedState();
 }
+
+async function refreshMaximisedState(): Promise<void> {
+    maximised.value = await isWindowMaximised();
+}
+
+async function handleMinimise(): Promise<void> {
+    await minimiseWindow();
+}
+
+async function handleToggleMaximise(): Promise<void> {
+    await toggleMaximiseWindow();
+    await refreshMaximisedState();
+}
+
+async function handleClose(): Promise<void> {
+    await closeWindow();
+}
+
+onMounted(() => {
+    void refreshMaximisedState();
+});
 </script>
 
 <template>
@@ -108,6 +133,17 @@ async function handleBarDoubleClick(event: MouseEvent): Promise<void> {
                 <span class="window-status-text">{{ statusText }}</span>
                 <span class="window-status-separator">·</span>
                 <span class="window-status-time">{{ t("app.recentRefresh", { time: formatDateTime(generatedAt) }) }}</span>
+            </div>
+            <div v-if="showWindowControls" class="window-controls" data-window-dblclick-ignore="true">
+                <button type="button" class="window-control-button" :aria-label="t('windowControls.minimise')" @click="handleMinimise">
+                    <i class="pi pi-minus" aria-hidden="true"></i>
+                </button>
+                <button type="button" class="window-control-button" :aria-label="maximised ? t('windowControls.restore') : t('windowControls.maximise')" @click="handleToggleMaximise">
+                    <i class="pi" :class="maximised ? 'pi-window-minimize' : 'pi-window-maximize'" aria-hidden="true"></i>
+                </button>
+                <button type="button" class="window-control-button window-control-close" :aria-label="t('windowControls.close')" @click="handleClose">
+                    <i class="pi pi-times" aria-hidden="true"></i>
+                </button>
             </div>
         </div>
     </header>
@@ -182,6 +218,46 @@ async function handleBarDoubleClick(event: MouseEvent): Promise<void> {
 
 .window-status[data-tone="success"] .window-status-text {
     color: var(--accent);
+}
+
+.window-controls {
+    height: 32px;
+    display: inline-flex;
+    align-items: stretch;
+    gap: 1px;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.window-control-button {
+    width: 42px;
+    height: 32px;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    background: transparent;
+    cursor: default;
+    transition:
+        color 120ms ease,
+        background 120ms ease;
+}
+
+.window-control-button i {
+    font-size: 11px;
+}
+
+.window-control-button:hover {
+    color: var(--ink);
+    background: var(--panel-soft);
+}
+
+.window-control-close:hover {
+    color: #ffffff;
+    background: #d93f3f;
 }
 
 @media (max-width: 880px) {

@@ -471,6 +471,7 @@ function switchModule(next: ModuleKey): void {
         :status-text="statusText"
         :status-tone="statusTone"
         :generated-at="generatedAt"
+        :use-native-title-bar="settings.useNativeTitleBar"
         @switch-module="switchModule"
         @select-item="selectedItemId = $event"
         @update:hot-market-group="hotMarketGroup = $event"

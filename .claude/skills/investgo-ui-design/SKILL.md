@@ -12,7 +12,7 @@ description: Design and refine InvestGo desktop UI, interaction flows, module la
 3. Treat InvestGo as a desktop monitoring tool, not a generic website. Favor dense but readable information, short action paths, and clear price and status hierarchy.
 4. Reuse PrimeVue controls and existing CSS variables before adding one-off styling. Change global tokens in `frontend/src/style.css` before scattering local overrides.
 5. Preserve theme and typography plumbing through root `data-*` attributes. Do not break `themeMode`, `colorTheme`, `priceColorScheme`, or `fontPreset`.
-6. Handle window-chrome-sensitive layouts carefully. The current shell reserves macOS title-bar space; avoid baking in assumptions that would block a later Windows x64 shell.
+6. Handle window-chrome-sensitive layouts carefully. The shell is platform-sensitive: macOS custom chrome reserves traffic-light space, while Windows/Linux custom chrome does not and uses tighter sidebar shell radii.
 7. Keep changes local and shippable. Do not invent a new design system unless the user explicitly asks for a full redesign.
 8. If the design change affects user-facing copy or labels, update both Simplified Chinese and English entries in `frontend/src/i18n.ts`.
 9. Any new or revised explanatory comments in Vue or CSS must be professional English.

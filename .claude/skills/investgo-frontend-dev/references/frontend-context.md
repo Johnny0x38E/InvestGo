@@ -45,5 +45,7 @@
 - The frontend runs inside a Wails webview rather than a general browser SPA deployment.
 - Avoid browser-only routing or storage assumptions unless the app already relies on them.
 - External links go through `/api/open-external`, which fans out to OS-specific opener commands in the backend.
-- Theme and shell layout must keep working with both custom and native title bars.
-- Prefer cross-platform font fallbacks and shell-safe interactions so later Windows x64 support does not require a redesign.
+- Theme and shell layout must keep working with both custom and native title bars on macOS, Windows, and Linux.
+- `AppShell.vue` owns platform-specific window chrome spacing and shell radii. macOS custom chrome reserves traffic-light space; Windows/Linux frameless chrome does not.
+- `AppHeader.vue` owns custom window controls and double-click maximize/restore behavior. Use `frontend/src/wails-runtime.ts` for window operations so browser dev server mode stays safe.
+- Prefer cross-platform font fallbacks and shell-safe interactions so Windows/Linux frameless support does not require a redesign.
