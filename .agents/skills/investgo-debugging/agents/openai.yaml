@@ -1,0 +1,4 @@
+interface:
+  display_name: "InvestGo Debugging"
+  short_description: "Debug InvestGo frontend, backend, Wails, and platform-integration issues"
+  default_prompt: "Use $investgo-debugging to investigate an InvestGo bug, regression, runtime failure, or platform-specific integration issue."

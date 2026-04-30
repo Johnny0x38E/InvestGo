@@ -425,14 +425,16 @@ func (s *HotService) fetchPoolQuotesSina(ctx context.Context, seeds []hotSeed) (
 	var wg sync.WaitGroup
 
 	for i, batch := range batches {
-		wg.Go(func() {
-			idx, batch := i, batch
+		idx, batch := i, batch
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
 			text, err := provider.FetchTextWithHeaders(ctx, s.client, endpoint.SinaQuoteAPI+strings.Join(batch, ","), sinaHeaders, true)
 			results[idx] = batchResult{text: text, err: err}
-		})
+		}()
 	}
 	wg.Wait()
 
@@ -573,14 +575,16 @@ func (s *HotService) fetchYahooQuotesConcurrent(ctx context.Context, items []cor
 	var wg sync.WaitGroup
 
 	for i, item := range items {
-		wg.Go(func() {
-			idx, it := i, item
+		idx, it := i, item
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
 			sem <- struct{}{}        // acquire
 			defer func() { <-sem }() // release
 
 			q, err := qp.Fetch(ctx, []core.WatchlistItem{it})
 			results[idx] = result{quotes: q, err: err}
-		})
+		}()
 	}
 
 	wg.Wait()

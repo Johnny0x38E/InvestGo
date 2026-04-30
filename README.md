@@ -7,7 +7,7 @@ InvestGo is a Wails desktop investment tracker for watchlists, holdings, portfol
 InvestGo uses Wails mainly as a lightweight desktop container for a Go backend and Vue frontend. The packaged desktop app does not need to ship its own Chromium and Node.js runtime like Electron. For this project shape, Wails can usually deliver a much smaller app bundle, lower idle memory usage, and faster startup than an equivalent Electron app, while still providing native windowing, embedded assets, lifecycle hooks, DevTools support, and platform integration.
 
 > - Electron has enabled many excellent cross-platform desktop applications, but it has also made repeatedly bundling the browser runtime a common overhead on many everyday devices. We need more lightweight cross-platform desktop solutions, reusing the system WebView as much as possible and keeping the native backend lean.
-> - This project currently targets Wails v3 alpha.74. Wails v3 is still an alpha release, so official APIs, runtime behaviour, and build details may change in future Wails releases.
+> - This project currently targets Wails v3 alpha.54. Wails v3 is still an alpha release, so official APIs, runtime behaviour, and build details may change in future Wails releases.
 > - InvestGo is primarily a personal-use and learning project. It is open-sourced for reference, but long-term maintenance, compatibility, and feature roadmap are not guaranteed.
 
 ## Screenshots
@@ -18,7 +18,7 @@ InvestGo uses Wails mainly as a lightweight desktop container for a Go backend a
 
 ## Tech Stack
 
-- Backend: Go 1.26, Wails v3 alpha.74, standard HTTP handlers.
+- Backend: Go 1.24, Wails v3 alpha.54, standard HTTP handlers.
 - Frontend: Vue 3, TypeScript, PrimeVue 4, Vite 8, Chart.js 4.
 - Market data: EastMoney, Yahoo Finance, Sina Finance, Xueqiu, Tencent Finance, Alpha Vantage, Twelve Data, Finnhub, Polygon.
 - FX data: Frankfurter.
@@ -53,7 +53,7 @@ Developer logs default to:
 Prerequisites:
 
 - Node.js 20+
-- Go 1.26+
+- Go 1.24+
 - macOS 13+ on Apple Silicon or Intel for macOS build and packaging scripts
 - Windows 11 x64 plus Microsoft Edge WebView2 Runtime for Windows desktop runtime
 

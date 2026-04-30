@@ -1,0 +1,4 @@
+interface:
+  display_name: "InvestGo Packaging"
+  short_description: "Package InvestGo desktop releases with platform notes"
+  default_prompt: "Use $investgo-packaging to package an InvestGo desktop release and review platform-specific gaps."

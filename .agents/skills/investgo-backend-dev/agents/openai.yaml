@@ -1,0 +1,4 @@
+interface:
+  display_name: "InvestGo Backend Dev"
+  short_description: "Implement InvestGo Go APIs, core store, providers, persistence, and platform-aware backend behavior"
+  default_prompt: "Use $investgo-backend-dev to implement or change an InvestGo backend feature across internal/api, internal/core, internal/logger, or internal/platform."
