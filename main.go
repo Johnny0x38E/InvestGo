@@ -11,11 +11,11 @@ import (
 	"path/filepath"
 
 	"investgo/internal/api"
-	"investgo/internal/logger"
-	"investgo/internal/core/marketdata"
-	"investgo/internal/core/hot"
 	"investgo/internal/core"
+	"investgo/internal/core/hot"
+	"investgo/internal/core/marketdata"
 	"investgo/internal/core/store"
+	"investgo/internal/logger"
 	"investgo/internal/platform"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -55,14 +55,20 @@ func main() {
 	proxyTransport := platform.NewProxyTransport("system", "")
 	httpClient := platform.NewHTTPClient(proxyTransport)
 
-	var settingsFunc func() core.AppSettings = func() core.AppSettings { return core.AppSettings{} }
-	registry := marketdata.DefaultRegistry(httpClient, func() core.AppSettings { return settingsFunc() })
+	var appStore *store.Store
+	currentSettings := func() core.AppSettings {
+		if appStore == nil {
+			return core.AppSettings{}
+		}
+		return appStore.CurrentSettings()
+	}
+	registry := marketdata.DefaultRegistry(httpClient, currentSettings)
 
-	store, err := store.NewStore(
+	appStore, err := store.NewStore(
 		defaultStatePath(),
 		registry.QuoteProviders(),
 		registry.QuoteSourceOptions(),
-		registry.NewHistoryRouter(func() core.AppSettings { return settingsFunc() }),
+		registry.NewHistoryRouter(currentSettings),
 		logs,
 		appVersion,
 		httpClient, // shared http.Client so FX rate requests respect the configured proxy transport
@@ -71,13 +77,10 @@ func main() {
 		log.Fatalf("initialise store: %v", err)
 	}
 
-	// Wire the real settings getter now that the Store is ready.
-	settingsFunc = store.CurrentSettings
-
 	// The Store is now loaded — sync the proxy transport with the persisted
 	// settings. ApplySystemProxy sets process-wide env vars so that
 	// http.ProxyFromEnvironment works correctly for "system" mode.
-	snapshot := store.Snapshot()
+	snapshot := appStore.Snapshot()
 	proxyMode := snapshot.Settings.ProxyMode
 	proxyURL := snapshot.Settings.ProxyURL
 	logs.Info("backend", "proxy", fmt.Sprintf("proxy mode: %s", proxyMode))
@@ -96,14 +99,14 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
-	mux.Handle("/api/", api.NewHandler(store, hotService, logs, proxyTransport))
+	mux.Handle("/api/", api.NewHandler(appStore, hotService, logs, proxyTransport))
 	mux.Handle("/", application.BundledAssetFileServer(frontendFS))
 
 	app := application.New(application.Options{
 		Name:        "InvestGo",
 		Description: "Go + Wails v3 Investment Monitor Desktop App",
 		Icon:        appIcon,
-		Logger:      logs.NewSlogLogger("system", slog.LevelInfo),
+		Logger:      logs.NewSlogLogger("system", slog.LevelWarn),
 		Assets: application.AssetOptions{
 			Handler:        mux,
 			DisableLogging: true,
@@ -116,7 +119,7 @@ func main() {
 		},
 		OnShutdown: func() {
 			logs.Info("backend", "app", "shutdown requested")
-			if err := store.Save(); err != nil {
+			if err := appStore.Save(); err != nil {
 				logs.Error("backend", "storage", fmt.Sprintf("save state on shutdown failed: %v", err))
 			}
 		},
@@ -126,7 +129,7 @@ func main() {
 	windowOptions := platform.BuildMainWindowOptions(useNativeTitleBar)
 	windowOptions.KeyBindings = map[string]func(window application.Window){
 		"F12": func(window application.Window) {
-			snapshot := store.Snapshot()
+			snapshot := appStore.Snapshot()
 			if !snapshot.Settings.DeveloperMode {
 				logs.Warn("system", "devtools", "ignored F12 because developer mode is disabled")
 				return
