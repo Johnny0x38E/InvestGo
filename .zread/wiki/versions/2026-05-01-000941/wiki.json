@@ -1,0 +1,244 @@
+{
+  "id": "2026-05-01-000941",
+  "generated_at": "2026-04-30T16:09:41.669662Z",
+  "language": "zh",
+  "pages": [
+    {
+      "slug": "1-xiang-mu-gai-lan",
+      "title": "项目概览",
+      "file": "1-xiang-mu-gai-lan.md",
+      "section": "快速入门",
+      "level": "Beginner"
+    },
+    {
+      "slug": "2-huan-jing-da-jian-yu-yun-xing",
+      "title": "环境搭建与运行",
+      "file": "2-huan-jing-da-jian-yu-yun-xing.md",
+      "section": "快速入门",
+      "level": "Beginner"
+    },
+    {
+      "slug": "3-zhuo-mian-ying-yong-gou-jian-yu-da-bao",
+      "title": "桌面应用构建与打包",
+      "file": "3-zhuo-mian-ying-yong-gou-jian-yu-da-bao.md",
+      "section": "快速入门",
+      "level": "Beginner"
+    },
+    {
+      "slug": "4-ying-yong-ru-kou-yu-wails-v3-ji-cheng",
+      "title": "应用入口与 Wails v3 集成",
+      "file": "4-ying-yong-ru-kou-yu-wails-v3-ji-cheng.md",
+      "section": "深入理解",
+      "group": "后端架构",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "5-http-api-lu-you-yu-qing-qiu-chu-li",
+      "title": "HTTP API 路由与请求处理",
+      "file": "5-http-api-lu-you-yu-qing-qiu-chu-li.md",
+      "section": "深入理解",
+      "group": "后端架构",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "6-store-he-xin-zhuang-tai-guan-li-yu-chi-jiu-hua",
+      "title": "Store 核心状态管理与持久化",
+      "file": "6-store-he-xin-zhuang-tai-guan-li-yu-chi-jiu-hua.md",
+      "section": "深入理解",
+      "group": "后端架构",
+      "level": "Advanced"
+    },
+    {
+      "slug": "7-xing-qing-shu-ju-provider-zhu-ce-yu-lu-you-ji-zhi",
+      "title": "行情数据 Provider 注册与路由机制",
+      "file": "7-xing-qing-shu-ju-provider-zhu-ce-yu-lu-you-ji-zhi.md",
+      "section": "深入理解",
+      "group": "后端架构",
+      "level": "Advanced"
+    },
+    {
+      "slug": "8-xing-qing-fu-hao-gui-fan-hua-yu-shi-chang-jie-xi",
+      "title": "行情符号规范化与市场解析",
+      "file": "8-xing-qing-fu-hao-gui-fan-hua-yu-shi-chang-jie-xi.md",
+      "section": "深入理解",
+      "group": "后端架构",
+      "level": "Advanced"
+    },
+    {
+      "slug": "9-re-men-bang-dan-fu-wu-yu-duo-yuan-ju-he",
+      "title": "热门榜单服务与多源聚合",
+      "file": "9-re-men-bang-dan-fu-wu-yu-duo-yuan-ju-he.md",
+      "section": "深入理解",
+      "group": "后端架构",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "10-zu-he-gai-lan-fen-xi-yu-hui-lu-zhuan-huan",
+      "title": "组合概览分析与汇率转换",
+      "file": "10-zu-he-gai-lan-fen-xi-yu-hui-lu-zhuan-huan.md",
+      "section": "深入理解",
+      "group": "后端架构",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "11-dai-li-jian-ce-yu-chuan-shu-ceng-guan-li",
+      "title": "代理检测与传输层管理",
+      "file": "11-dai-li-jian-ce-yu-chuan-shu-ceng-guan-li.md",
+      "section": "深入理解",
+      "group": "后端架构",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "12-huan-cun-ce-lue-yu-shi-xiao-ji-zhi",
+      "title": "缓存策略与失效机制",
+      "file": "12-huan-cun-ce-lue-yu-shi-xiao-ji-zhi.md",
+      "section": "深入理解",
+      "group": "后端架构",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "13-jie-gou-hua-ri-zhi-ti-xi",
+      "title": "结构化日志体系",
+      "file": "13-jie-gou-hua-ri-zhi-ti-xi.md",
+      "section": "深入理解",
+      "group": "后端架构",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "14-vue-3-ying-yong-jie-gou-yu-gen-zu-jian-bian-pai",
+      "title": "Vue 3 应用结构与根组件编排",
+      "file": "14-vue-3-ying-yong-jie-gou-yu-gen-zu-jian-bian-pai.md",
+      "section": "深入理解",
+      "group": "前端架构",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "15-api-tong-xin-ceng-yu-cuo-wu-chu-li",
+      "title": "API 通信层与错误处理",
+      "file": "15-api-tong-xin-ceng-yu-cuo-wu-chu-li.md",
+      "section": "深入理解",
+      "group": "前端架构",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "16-wails-yun-xing-shi-qiao-jie-yu-ping-tai-gua-pei",
+      "title": "Wails 运行时桥接与平台适配",
+      "file": "16-wails-yun-xing-shi-qiao-jie-yu-ping-tai-gua-pei.md",
+      "section": "深入理解",
+      "group": "前端架构",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "17-composables-ye-wu-luo-ji-fu-yong",
+      "title": "Composables 业务逻辑复用",
+      "file": "17-composables-ye-wu-luo-ji-fu-yong.md",
+      "section": "深入理解",
+      "group": "前端架构",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "18-guo-ji-hua-yu-shuang-yu-zhi-chi",
+      "title": "国际化与双语支持",
+      "file": "18-guo-ji-hua-yu-shuang-yu-zhi-chi.md",
+      "section": "深入理解",
+      "group": "前端架构",
+      "level": "Beginner"
+    },
+    {
+      "slug": "19-zhu-ti-xi-tong-yu-an-se-mo-shi",
+      "title": "主题系统与暗色模式",
+      "file": "19-zhu-ti-xi-tong-yu-an-se-mo-shi.md",
+      "section": "深入理解",
+      "group": "前端架构",
+      "level": "Beginner"
+    },
+    {
+      "slug": "20-mo-kuai-zu-jian-yu-dui-hua-kuang-ti-xi",
+      "title": "模块组件与对话框体系",
+      "file": "20-mo-kuai-zu-jian-yu-dui-hua-kuang-ti-xi.md",
+      "section": "深入理解",
+      "group": "前端架构",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "21-he-xin-ling-yu-mo-xing-watchlistitem-alertrule-yu-statesnapshot",
+      "title": "核心领域模型：WatchlistItem、AlertRule 与 StateSnapshot",
+      "file": "21-he-xin-ling-yu-mo-xing-watchlistitem-alertrule-yu-statesnapshot.md",
+      "section": "深入理解",
+      "group": "领域模型与数据流",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "22-qian-hou-duan-zhuang-tai-tong-bu-yu-kuai-zhao-ji-zhi",
+      "title": "前后端状态同步与快照机制",
+      "file": "22-qian-hou-duan-zhuang-tai-tong-bu-yu-kuai-zhao-ji-zhi.md",
+      "section": "深入理解",
+      "group": "领域模型与数据流",
+      "level": "Advanced"
+    },
+    {
+      "slug": "23-xing-qing-shua-xin-yu-zi-dong-shua-xin-liu-cheng",
+      "title": "行情刷新与自动刷新流程",
+      "file": "23-xing-qing-shua-xin-yu-zi-dong-shua-xin-liu-cheng.md",
+      "section": "深入理解",
+      "group": "领域模型与数据流",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "24-li-shi-zou-shi-tu-shu-ju-jia-zai-yu-huan-cun",
+      "title": "历史走势图数据加载与缓存",
+      "file": "24-li-shi-zou-shi-tu-shu-ju-jia-zai-yu-huan-cun.md",
+      "section": "深入理解",
+      "group": "领域模型与数据流",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "25-dong-fang-cai-fu-yu-xin-lang-xing-qing-provider",
+      "title": "东方财富与新浪行情 Provider",
+      "file": "25-dong-fang-cai-fu-yu-xin-lang-xing-qing-provider.md",
+      "section": "深入理解",
+      "group": "Provider 实现详解",
+      "level": "Advanced"
+    },
+    {
+      "slug": "26-yahoo-finance-yu-teng-xun-cai-jing-provider",
+      "title": "Yahoo Finance 与腾讯财经 Provider",
+      "file": "26-yahoo-finance-yu-teng-xun-cai-jing-provider.md",
+      "section": "深入理解",
+      "group": "Provider 实现详解",
+      "level": "Advanced"
+    },
+    {
+      "slug": "27-xue-qiu-yu-fu-fei-api-provider-alpha-vantage-twelve-data-finnhub-polygon",
+      "title": "雪球与付费 API Provider（Alpha Vantage、Twelve Data、Finnhub、Polygon）",
+      "file": "27-xue-qiu-yu-fu-fei-api-provider-alpha-vantage-twelve-data-finnhub-polygon.md",
+      "section": "深入理解",
+      "group": "Provider 实现详解",
+      "level": "Advanced"
+    },
+    {
+      "slug": "28-kua-ping-tai-gou-jian-jiao-ben-yu-ban-ben-zhu-ru",
+      "title": "跨平台构建脚本与版本注入",
+      "file": "28-kua-ping-tai-gou-jian-jiao-ben-yu-ban-ben-zhu-ru.md",
+      "section": "深入理解",
+      "group": "工程化与部署",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "29-macos-ying-yong-da-bao-yu-dmg-sheng-cheng",
+      "title": "macOS 应用打包与 DMG 生成",
+      "file": "29-macos-ying-yong-da-bao-yu-dmg-sheng-cheng.md",
+      "section": "深入理解",
+      "group": "工程化与部署",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "30-kai-fa-mo-shi-yu-diao-shi-ji-qiao",
+      "title": "开发模式与调试技巧",
+      "file": "30-kai-fa-mo-shi-yu-diao-shi-ji-qiao.md",
+      "section": "深入理解",
+      "group": "工程化与部署",
+      "level": "Intermediate"
+    }
+  ]
+}
